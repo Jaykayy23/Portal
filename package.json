@@ -1,11 +1,30 @@
 {
   "name": "somoexpress-portal",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "SomoExpress merchant delivery portal — backend + frontend",
+  "description": "SomoExpress merchant delivery portal — Next.js app",
   "scripts": {
-    "install:backend": "npm install --prefix backend",
-    "start": "npm run start --prefix backend",
-    "dev": "npm run dev --prefix backend"
+    "dev": "next dev -p 4000",
+    "build": "next build",
+    "start": "next start -p 4000",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "jose": "^5.9.6",
+    "next": "^16.3.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/google.maps": "^3.58.1",
+    "@types/node": "^22.10.7",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=18.18.0"
   }
 }

@@ -1,9 +1,20 @@
 node_modules/
-.env
-backend/.env
-npm-debug.log*
+.next/
+out/
+build/
 
-# The live database — do NOT commit real delivery/account/password data.
-# The repo ships a clean starter db.json; each install grows its own.
+# Local env files — never commit real secrets.
+.env
+.env.local
+.env*.local
+
+# TypeScript build artifacts
+*.tsbuildinfo
+next-env.d.ts
+
+# Live data — never commit real merchant/rider records.
+/data/db.json
 backend/data/db.json
-!backend/data/.gitkeep
+
+*.log
+.DS_Store

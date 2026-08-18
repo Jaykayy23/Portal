@@ -1,0 +1,201 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: #0A0E13;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px 12px;
+}
+
+#somo-root {
+  --bg: #10161D;
+  --panel: #1A222B;
+  --panel-2: #212B36;
+  --line: #2C3846;
+  --text: #ECEEF0;
+  --muted: #8FA0AF;
+  --amber: #FFB020;
+  --amber-dim: #7A5A19;
+  --teal: #33C7B0;
+  --danger: #FF6B5C;
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+
+  position: relative;
+  width: 100%;
+  max-width: 1100px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  border-radius: 14px;
+  overflow: hidden;
+  min-height: 640px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  display: flex;
+  flex-direction: column;
+}
+#somo-root * { box-sizing: border-box; }
+#somo-root a { color: inherit; }
+
+.somo-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 26px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, #141C24, #10161D); gap: 12px; }
+.somo-brand { display: flex; align-items: center; gap: 12px; }
+.somo-mark { width: 34px; height: 34px; border-radius: 9px; background: var(--amber); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-weight: 700; color: #10161D; font-size: 15px; flex-shrink: 0; overflow: hidden; }
+.somo-mark img { width: 100%; height: 100%; object-fit: cover; }
+.somo-title { font-family: var(--font-display); font-weight: 600; font-size: 18px; letter-spacing: 0.2px; }
+.somo-sub { font-size: 11.5px; color: var(--muted); font-family: var(--font-mono); letter-spacing: 0.4px; text-transform: uppercase; }
+.somo-header-right { display: flex; align-items: center; gap: 10px; }
+
+.somo-merchant-badge { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); padding: 7px 8px 7px 14px; border-radius: 999px; font-size: 13px; }
+.somo-role-tag { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.4px; padding: 2px 7px; border-radius: 999px; text-transform: uppercase; }
+.somo-role-tag.merchant { background: rgba(51,199,176,0.15); color: var(--teal); }
+.somo-role-tag.ops { background: rgba(108,158,255,0.15); color: #8FADFF; }
+.somo-role-tag.admin { background: rgba(255,176,32,0.15); color: var(--amber); }
+.somo-merchant-badge button { background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); font-size: 11px; padding: 5px 10px; border-radius: 999px; cursor: pointer; font-family: var(--font-body); }
+.somo-merchant-badge button:hover { color: var(--text); border-color: var(--amber-dim); }
+.somo-merchant-badge button:disabled { opacity: 0.6; cursor: progress; }
+
+.somo-tabs { display: flex; gap: 4px; padding: 0 26px; border-bottom: 1px solid var(--line); background: #121820; overflow-x: auto; }
+.somo-tab { padding: 13px 16px; font-size: 13.5px; font-weight: 500; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; user-select: none; font-family: var(--font-body); white-space: nowrap; text-decoration: none; display: block; }
+.somo-tab:hover { color: var(--text); }
+.somo-tab.active { color: var(--amber); border-bottom-color: var(--amber); }
+
+.somo-body { padding: 26px; flex: 1; }
+/* Each portal tab is its own route now, so panes are never hidden — the fade
+   just softens the transition between routes. */
+.somo-pane { animation: somoFade .25s ease; }
+@keyframes somoFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+.somo-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 22px; }
+@media (max-width: 760px) { .somo-grid { grid-template-columns: 1fr; } }
+
+.somo-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+.somo-card + .somo-card { margin-top: 18px; }
+.somo-card h3 { font-family: var(--font-display); font-size: 14px; margin: 0 0 16px 0; color: var(--text); font-weight: 600; letter-spacing: 0.2px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.somo-card h3 .n { color: var(--amber); font-family: var(--font-mono); font-size: 12px; }
+.somo-card h3 .tag-note { color: var(--muted); font-weight: 400; font-size: 11.5px; margin-left: auto; }
+.somo-card-intro { color: var(--muted); font-size: 12.5px; margin-top: -8px; margin-bottom: 16px; line-height: 1.5; }
+
+label.somo-field { display: block; margin-bottom: 14px; }
+label.somo-field span { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.somo-input, .somo-select { width: 100%; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); padding: 10px 12px; border-radius: 8px; font-size: 14px; font-family: var(--font-body); }
+.somo-input:focus, .somo-select:focus { outline: none; border-color: var(--amber); }
+.somo-input::placeholder { color: #5B6B79; }
+.somo-input:disabled { opacity: 0.6; }
+.somo-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.somo-checks { display: flex; flex-wrap: wrap; gap: 10px; }
+.somo-check { display: flex; align-items: center; gap: 7px; background: var(--panel-2); border: 1px solid var(--line); padding: 8px 12px; border-radius: 8px; font-size: 12.5px; cursor: pointer; color: var(--muted); }
+.somo-check.checked { border-color: var(--amber-dim); color: var(--text); }
+.somo-check input { accent-color: var(--amber); }
+
+.somo-inline-btn-row { display: flex; gap: 8px; align-items: stretch; }
+.somo-inline-btn-row .somo-input { flex: 1; }
+.somo-mini-btn { background: var(--panel-2); border: 1px solid var(--line); color: var(--amber); padding: 0 14px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; font-family: var(--font-body); }
+.somo-mini-btn:hover { border-color: var(--amber-dim); }
+.somo-mini-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.somo-maps-hint { font-size: 11px; color: var(--muted); margin: -8px 0 14px 0; line-height: 1.5; }
+.somo-maps-hint a { color: var(--teal); }
+
+.somo-route { display: flex; align-items: center; gap: 10px; margin: 4px 0 20px 0; }
+.somo-route .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.somo-route .dot.a { background: var(--amber); }
+.somo-route .dot.b { background: var(--teal); }
+.somo-route .line { flex: 1; height: 3px; background: var(--line); border-radius: 3px; position: relative; overflow: hidden; }
+.somo-route .line-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: linear-gradient(90deg, var(--amber), var(--teal)); transition: width .4s ease; }
+.somo-route .dist { font-family: var(--font-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+.somo-price-box { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+.somo-price-row { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; }
+.somo-price-row .l { font-size: 12.5px; color: var(--muted); }
+.somo-price-row .v { font-family: var(--font-mono); font-size: 15px; }
+.somo-price-row.main .v { font-size: 24px; color: var(--amber); font-weight: 600; }
+.somo-price-row.main .l { font-size: 13px; color: var(--text); }
+.somo-divider { border-top: 1px dashed var(--line); margin: 8px 0; }
+
+.somo-flag { display: none; background: rgba(255,107,92,0.12); border: 1px solid var(--danger); color: #FFB4AC; padding: 10px 12px; border-radius: 8px; font-size: 12.5px; margin-bottom: 12px; }
+.somo-flag.show { display: block; }
+
+.somo-btn { width: 100%; padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-family: var(--font-body); font-weight: 600; font-size: 14px; background: var(--amber); color: #12181F; }
+.somo-btn:hover { filter: brightness(1.06); }
+.somo-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.somo-btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); font-weight: 500; }
+.somo-btn.small { width: auto; padding: 9px 16px; font-size: 12.5px; }
+
+.somo-toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--teal); color: #0D2622; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; opacity: 0; pointer-events: none; transition: all .3s ease; z-index: 90; max-width: 90%; text-align: center; font-family: 'Inter', sans-serif; }
+.somo-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+.somo-table-wrap { overflow-x: auto; }
+table.somo-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 700px; }
+table.somo-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); font-weight: 500; }
+table.somo-table td { padding: 10px; border-bottom: 1px solid #202A34; vertical-align: middle; }
+table.somo-table tr:hover td { background: rgba(255,255,255,0.02); }
+.somo-price-cell { font-family: var(--font-mono); }
+.somo-agreed-cell { font-family: var(--font-mono); color: var(--amber); }
+.somo-rider-sub { color: var(--muted); font-family: var(--font-mono); font-size: 11.5px; }
+.somo-unassigned { color: var(--muted); }
+.somo-badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.b-requested { background: #2C3846; color: #C6D2DC; }
+.b-approval  { background: rgba(255,107,92,0.15); color: #FFB4AC; }
+.b-assigned  { background: rgba(255,176,32,0.15); color: var(--amber); }
+.b-delivered { background: rgba(51,199,176,0.15); color: var(--teal); }
+.somo-status-select { background: var(--panel-2); border: 1px solid var(--line); color: var(--text); font-size: 12px; padding: 5px 7px; border-radius: 6px; font-family: var(--font-body); }
+
+.somo-empty { text-align: center; padding: 50px 20px; color: var(--muted); }
+.somo-empty .big { font-family: var(--font-display); font-size: 16px; color: var(--text); margin-bottom: 6px; }
+
+.somo-note { font-size: 11.5px; color: var(--muted); margin-top: 14px; line-height: 1.5; border-top: 1px solid var(--line); padding-top: 12px; }
+.somo-note.borderless { border-top: none; padding-top: 0; margin-top: -6px; }
+
+.somo-modal-backdrop { position: fixed; inset: 0; background: rgba(8,11,15,0.7); display: none; align-items: center; justify-content: center; z-index: 60; padding: 20px; }
+.somo-modal-backdrop.show { display: flex; }
+.somo-modal { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 26px; width: 360px; max-width: 100%; font-family: var(--font-body); color: var(--text); }
+.somo-modal.wide { width: 400px; }
+.somo-modal h3 { font-family: var(--font-display); margin: 0 0 4px 0; font-size: 17px; }
+.somo-modal p { color: var(--muted); font-size: 12.5px; margin: 0 0 16px 0; line-height: 1.5; }
+.somo-reveal-value { text-align: center; font-family: var(--font-mono); font-size: 16px; }
+
+.somo-loading { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 13px; }
+
+.somo-riders-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 700px) { .somo-riders-grid { grid-template-columns: 1fr; } }
+.somo-rider-card, .somo-account-card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.somo-account-card + .somo-account-card { margin-top: 10px; }
+.somo-rider-card .name, .somo-account-card .name { font-weight: 600; font-size: 13.5px; }
+.somo-rider-card .phone, .somo-account-card .sub { font-size: 11.5px; color: var(--muted); font-family: var(--font-mono); }
+.somo-account-card .right { display: flex; align-items: center; gap: 8px; }
+
+/* The auth screens are their own routes now, so this fills the shell rather
+   than overlaying a portal that is already rendered behind it. */
+.somo-auth-overlay { flex: 1; background: radial-gradient(circle at 30% 20%, #182430 0%, #10161D 70%); display: flex; align-items: center; justify-content: center; padding: 24px; min-height: 640px; }
+.somo-auth-card { width: 360px; max-width: 100%; }
+.somo-auth-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; justify-content: center; }
+.somo-auth-card h2 { font-family: var(--font-display); font-size: 19px; margin: 0 0 4px 0; text-align: center; }
+.somo-auth-card .sub-text { color: var(--muted); font-size: 12.5px; text-align: center; margin: 0 0 22px 0; line-height: 1.5; }
+.somo-auth-error { display: none; background: rgba(255,107,92,0.12); border: 1px solid var(--danger); color: #FFB4AC; padding: 9px 12px; border-radius: 8px; font-size: 12.5px; margin-bottom: 14px; }
+.somo-auth-error.show { display: block; }
+.somo-role-choice { display: flex; gap: 8px; margin-bottom: 14px; }
+.somo-role-opt { flex: 1; text-align: center; padding: 10px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); cursor: pointer; font-size: 12.5px; color: var(--muted); }
+.somo-role-opt.selected { border-color: var(--amber); color: var(--amber); }
+
+.somo-notify-contact { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+.somo-notify-contact .who { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+.somo-notify-contact .num { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); margin-bottom: 10px; }
+.somo-notify-contact .btns { display: flex; gap: 8px; }
+.somo-notify-contact .btns a { flex: 1; text-align: center; padding: 8px; border-radius: 7px; font-size: 12px; font-weight: 600; text-decoration: none; }
+.somo-notify-contact .btns a.wa { background: rgba(51,199,176,0.15); color: var(--teal); border: 1px solid rgba(51,199,176,0.3); }
+.somo-notify-contact .btns a.sms { background: var(--panel); color: var(--text); border: 1px solid var(--line); }
+.somo-notify-contact .unavailable { font-size: 11.5px; color: var(--muted); font-style: italic; }
+.somo-notify-btn { background: var(--panel-2); border: 1px solid var(--line); color: var(--amber); padding: 6px 10px; border-radius: 7px; font-size: 11.5px; cursor: pointer; font-family: var(--font-body); white-space: nowrap; }
+.somo-notify-btn:hover { border-color: var(--amber-dim); }
+
+.somo-logo-preview { width: 56px; height: 56px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-weight: 700; color: var(--amber); overflow: hidden; flex-shrink: 0; }
+.somo-logo-preview img { width: 100%; height: 100%; object-fit: cover; }
+.somo-logo-row { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+.somo-btn-row { display: flex; gap: 10px; }
+.somo-otherkey-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 10px; }
+.somo-otherkey-row .value-cell { display: flex; gap: 8px; }
+.somo-otherkey-row .value-cell .somo-input { flex: 1; }
