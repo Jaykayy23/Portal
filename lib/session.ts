@@ -1,7 +1,7 @@
 // Server-side session helpers, backed by Supabase Auth.
 //
 // Replaces the previous bcrypt + hand-rolled JWT cookie scheme. Supabase issues
-// and refreshes the session cookie; middleware keeps it fresh.
+// and refreshes the session cookie; the proxy keeps it fresh.
 //
 // Every call re-reads the profile row, so deactivating an account takes effect on
 // that person's very next request rather than whenever their token expires — the

@@ -6,12 +6,14 @@
 import type { NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   return updateSession(request);
 }
 
 export const config = {
   // Everything except API routes (they return 401 JSON rather than redirecting),
-  // Next internals, and static files.
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  // Next internals, and static assets. Image files must stay open: the login
+  // page renders the brand mark and favicon before anyone has a session, and
+  // gating them redirects the <img> to /login instead of serving the bytes.
+  matcher: ['/((?!api|_next/static|_next/image|.*\.(?:png|jpg|jpeg|gif|webp|svg|ico)$).*)'],
 };

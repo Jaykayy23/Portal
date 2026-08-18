@@ -115,10 +115,15 @@ body {
   flex-shrink: 0;
   overflow: hidden;
 }
+/* A real logo sits on its own ground and must not be cropped; the amber tile
+   is only the fallback treatment for the "SX" wordmark. */
+.somo-mark.has-logo {
+  background: #ffffff;
+}
 .somo-mark img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 .somo-title {
   font-family: var(--font-display);

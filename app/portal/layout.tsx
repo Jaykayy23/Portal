@@ -9,7 +9,7 @@ import { PortalTabs } from '@/components/PortalTabs';
 import { MapsProvider } from '@/components/MapsProvider';
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
-  // middleware refreshes and validates the session cookie; this is the check that
+  // The proxy refreshes and validates the session cookie; this is the check that
   // reads the profile row, so a banned or deactivated account is locked out on its
   // very next request rather than whenever its token expires.
   const missing = missingEnv();

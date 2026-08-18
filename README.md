@@ -22,7 +22,7 @@ somoexpress-portal/
 │   ├── session.ts      who is signed in
 │   └── identity.ts     username ↔ email mapping
 ├── supabase/migrations/  versioned schema + RLS
-├── middleware.ts       session refresh + route gate
+├── proxy.ts            session refresh + route gate
 └── Dockerfile
 ```
 
@@ -121,7 +121,7 @@ on every request). Either alone would leave a window open.
 
 Three layers, each independently sufficient for the common case:
 
-1. **Middleware** — no valid session cookie, no portal. Refreshes the session on
+1. **Proxy** — no valid session cookie, no portal. Refreshes the session on
    every request via `getClaims()`, which verifies the JWT against the project's
    public JWKS with no network round-trip.
 2. **Route Handlers and pages** — `requireUser('admin')` / `roleAllows(...)` on
