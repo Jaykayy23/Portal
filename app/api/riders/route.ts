@@ -1,17 +1,20 @@
 import { NextResponse } from 'next/server';
-import crypto from 'node:crypto';
 import { badRequest, handle, readJson, requireUser } from '@/lib/http';
-import { getDb, updateDb } from '@/lib/db';
-import type { Rider } from '@/lib/types';
+import { RiderError, createRider, listRiders } from '@/lib/riders';
 
 export async function GET() {
   return handle(async () => {
     await requireUser('admin', 'ops');
-    return NextResponse.json({ riders: Object.values(getDb().riders) });
+    return NextResponse.json({ riders: await listRiders() });
   });
 }
 
-type CreateBody = Pick<Rider, 'name' | 'phone' | 'regNumber' | 'model'>;
+interface CreateBody {
+  name: string;
+  phone: string;
+  regNumber: string;
+  model: string;
+}
 
 export async function POST(req: Request) {
   return handle(async () => {
@@ -20,18 +23,11 @@ export async function POST(req: Request) {
     if (!name || !phone || !regNumber || !model) {
       badRequest('Name, phone, registration number and model are all required.');
     }
-
-    const rider: Rider = {
-      id: 'r_' + crypto.randomUUID(),
-      name,
-      phone,
-      regNumber,
-      model,
-      status: 'Available',
-    };
-    await updateDb((d) => {
-      d.riders[rider.id] = rider;
-    });
-    return NextResponse.json({ rider });
+    try {
+      return NextResponse.json({ rider: await createRider({ name, phone, regNumber, model }) });
+    } catch (e) {
+      if (e instanceof RiderError) badRequest(e.message);
+      throw e;
+    }
   });
 }

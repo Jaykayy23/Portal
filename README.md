@@ -1,89 +1,198 @@
 # SomoExpress — Merchant Delivery Portal
 
-A merchant delivery request & pricing tool for SomoExpress's interim operating
-model: merchants log delivery requests with distance-based pricing, ops/admin
-assign riders, and everyone gets one-tap WhatsApp/SMS alerts.
+A merchant delivery request & pricing tool: merchants log delivery requests with
+distance-based pricing, ops/admin assign riders, and everyone gets one-tap
+WhatsApp/SMS alerts.
 
-This is a single **Next.js** application — the UI and the API live in the same
-project and run as one process.
+**Next.js** app on **Supabase** (Postgres + Auth).
 
 ```
 somoexpress-portal/
 ├── app/
-│   ├── api/          Route Handlers (the JSON API)
-│   ├── login/        Login screen
-│   ├── setup/        First-run admin creation
-│   └── portal/       The signed-in app, one route per tab
-├── components/       React components, grouped by feature
-├── lib/              Database, auth, pricing, formatting
-├── data/db.json      Your data lives here
-├── middleware.ts     Redirects anonymous visitors to /login
-├── Dockerfile
-└── docker-compose.yml
+│   ├── api/            Route Handlers (the JSON API)
+│   ├── login/ setup/   Auth screens
+│   └── portal/         The signed-in app, one route per tab
+├── components/         React components, grouped by feature
+├── lib/
+│   ├── supabase/       server / browser / admin clients
+│   ├── accounts.ts     account provisioning (service-role)
+│   ├── deliveries.ts   delivery queries
+│   ├── riders.ts       rider roster
+│   ├── settings.ts     pricing, branding, API keys
+│   ├── session.ts      who is signed in
+│   └── identity.ts     username ↔ email mapping
+├── supabase/migrations/  versioned schema + RLS
+├── middleware.ts       session refresh + route gate
+└── Dockerfile
 ```
 
 ---
 
-## 1. Local installation (your own computer)
+## 1. Setup
 
-**Requirements:** [Node.js](https://nodejs.org) 18.18 or newer.
+**Requirements:** [Node.js](https://nodejs.org) 18.18+ and a Supabase project.
 
 ```bash
-cd somoexpress-portal
 npm install
 cp .env.example .env
 ```
 
-Open `.env` and set a real `JWT_SECRET` (a long random string — the example file
-shows a one-line command to generate one). Then:
+Fill in `.env` from your Supabase dashboard (**Project Settings → API keys**):
+
+| Variable | Where to find it | Notes |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Project URL | |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key (`sb_publishable_…`) | Safe in browsers — RLS protects the data, not this key |
+| `SUPABASE_SECRET_KEY` | Secret key (`sb_secret_…`) | **Server only.** Bypasses RLS. Never rename to `NEXT_PUBLIC_*` |
+
+### Apply the schema
 
 ```bash
-npm run build
+npx supabase login
 ```
 
 ```bash
-npm start
+npx supabase link --project-ref YOUR_PROJECT_REF
 ```
 
-Open **http://localhost:4000**. The first screen asks you to create the admin
-account — that's the account you'll use to create merchant and ops accounts, add
-riders, set pricing, and configure API keys.
+```bash
+npx supabase db push
+```
 
-For development with hot reloading, use `npm run dev` instead of
-`build` + `start`.
+The project ref is the subdomain of your project URL. `db push` will ask for the
+database password (**Project Settings → Database**).
 
-To stop the server, `Ctrl+C` in that terminal. Your data (accounts, riders,
-deliveries, pricing, settings) is saved in `data/db.json` and is still there next
-time you start it.
+To confirm it worked, and to catch any security or performance advice:
 
-### Running for other people on your local network
+```bash
+npx supabase db advisors
+```
 
-Replace `localhost` with your computer's local IP address (e.g.
-`http://192.168.1.20:4000`) — find it with `ipconfig` (Windows) or
-`ifconfig`/`ip a` (Mac/Linux). Make sure your firewall allows inbound
-connections on port 4000.
+### Run it
+
+```bash
+npm run dev
+```
+
+Open **http://localhost:4000**. With no accounts yet you'll get the
+create-admin screen; that account then creates everyone else.
+
+For production, `npm run build` then `npm start`.
+
+### Regenerating database types
+
+`lib/database.types.ts` is hand-written to match the migrations. Once linked, you
+can replace it with generated output so it tracks the schema automatically:
+
+```bash
+npx supabase gen types typescript --linked > lib/database.types.ts
+```
 
 ---
 
-## 2. Web server installation (a real deployment)
+## 2. How auth works
 
-### Option A — Docker (recommended, least fiddly)
+Supabase Auth is email-based; this portal is username-based. So each account gets
+a **synthetic email** derived from its username — `jumia.gh` becomes
+`jumia.gh@portal.somoexpress.local` — and the UI never shows it. People type a
+username, exactly as before.
 
-**Requirements:** Docker and Docker Compose on the server.
+Consequences worth knowing:
+
+- The domain is deliberately not real. Nothing is ever delivered to these
+  addresses, so email flows (reset links, magic links, confirmations) don't apply.
+  Password resets stay an admin action that reveals the new password once.
+- `ACCOUNT_EMAIL_DOMAIN` in [lib/identity.ts](lib/identity.ts) is effectively
+  permanent. Changing it after accounts exist orphans every login.
+- Accounts are created with the service-role key, so provisioning always happens
+  server-side, and the plaintext password is returned exactly once to the admin
+  who created it.
+
+Roles live in the JWT's **`app_metadata`**, never `user_metadata` — the latter is
+editable by the account holder and must not be trusted for authorization.
+
+**Deactivating an account** does two things: bans the auth user (which revokes
+their token at the source) and clears `profiles.active` (which the server checks
+on every request). Either alone would leave a window open.
+
+---
+
+## 3. Security model
+
+Three layers, each independently sufficient for the common case:
+
+1. **Middleware** — no valid session cookie, no portal. Refreshes the session on
+   every request via `getClaims()`, which verifies the JWT against the project's
+   public JWKS with no network round-trip.
+2. **Route Handlers and pages** — `requireUser('admin')` / `roleAllows(...)` on
+   every entry point, returning clean 401/403s.
+3. **Row Level Security** — the backstop. `supabase/migrations` enforces the rules
+   in Postgres, so a forgotten filter in application code cannot leak data.
+
+The main upgrade over the previous JSON-file version: **merchant isolation is now
+a database guarantee**, not an application one. A merchant's `SELECT` on
+`deliveries` can only ever return rows where they are the merchant.
+
+Who can reach what:
+
+| Table | anon | merchant | ops | admin |
+| --- | --- | --- | --- | --- |
+| `branding` (logo) | read | read | read | read + write |
+| `pricing_params` | — | read | read | read + write |
+| `profiles` | — | own row | own row | all + write |
+| `deliveries` | — | own rows, insert | all, update | all, update |
+| `riders` | — | — | read + write | read + write |
+| `app_settings` (API keys) | — | — | — | via server only |
+
+`app_settings` is granted to **no** public role: the WhatsApp/SMS provider keys
+are only ever read by the server's service-role client, after the caller has been
+confirmed as admin. RLS is enabled on it with zero policies as a second line of
+defence.
+
+Two deliberate exceptions:
+
+- **The logo is world-readable.** The login screen has to render it before anyone
+  signs in. It lives in its own table so that "public" never overlaps with the
+  secrets.
+- **The Google Maps key reaches signed-in browsers.** The Maps JavaScript SDK
+  runs client-side, so there's no alternative. Restrict the key by HTTP referrer
+  in Google Cloud Console.
+
+---
+
+## 4. What's real vs. what's a manual trigger
+
+- **Pricing** is recalculated server-side from the saved parameters. The form
+  shows a live preview, but the stored number is the server's, so a client can't
+  submit a fabricated price — nor file a request under another merchant's name.
+- **Google Maps** (autocomplete + driving-distance lookup) works once an admin
+  saves a Maps API key with Places API and Distance Matrix API enabled and billing
+  on.
+- **WhatsApp/SMS alerts** are one-tap `wa.me` / `sms:` links that pre-fill the
+  message — whoever's at the keyboard taps send. The WhatsApp and SMS **API key
+  fields** are stored ready for a provider integration (Twilio, Africa's Talking,
+  Meta's WhatsApp Business API), but unattended sending isn't implemented. Start
+  from `whatsapp_otp_key` / `sms_api_key` in [lib/settings.ts](lib/settings.ts).
+
+---
+
+## 5. Deployment
+
+The app is now **stateless** — all state is in Supabase — so it scales
+horizontally and can run anywhere, including serverless platforms like Vercel.
+(The previous JSON-file version could not.)
+
+### Docker
 
 ```bash
-cd somoexpress-portal
-cp .env.example .env
-# edit .env and set a real JWT_SECRET
-
 docker compose up -d --build
 ```
 
-The app runs on port 4000 of that server, with its data persisted in a Docker
-volume (`somoexpress-data`) so it survives container restarts and rebuilds.
+Note that `NEXT_PUBLIC_*` variables are inlined into the client bundle at **build**
+time, so `docker-compose.yml` passes them as build args as well as runtime env.
+`SUPABASE_SECRET_KEY` is runtime-only and never becomes an image layer.
 
-Put a reverse proxy in front of it for HTTPS on your real domain. Example with
-**Nginx**:
+Put a reverse proxy in front for TLS. Example with **Nginx**:
 
 ```nginx
 server {
@@ -100,140 +209,40 @@ server {
 }
 ```
 
-Then get a certificate (e.g. `certbot --nginx -d portal.somoexpress.example`)
-and Nginx/Certbot will handle HTTPS from there.
+### Backups
 
-### Option B — Plain Node.js on the server (no Docker)
-
-**Requirements:** Node.js 18.18+ and a process manager so the app restarts if it
-crashes or the server reboots.
+Supabase takes automated backups — see **Database → Backups** in the dashboard.
+For your own copy:
 
 ```bash
-cd somoexpress-portal
-npm ci
-cp .env.example .env
-# edit .env: set a real JWT_SECRET
-
-npm run build
-
-npm install -g pm2
-pm2 start npm --name somoexpress -- start
-pm2 save
-pm2 startup   # follow the printed instructions so it survives a reboot
+npx supabase db dump --linked -f backup.sql
 ```
-
-Then put the same kind of Nginx reverse-proxy config in front of it. To use a
-port other than 4000, change the `-p` flag in the `start` script in
-`package.json`.
-
-### A note on where this can run
-
-`data/db.json` is a file on a real disk, which means the app needs **one
-long-running instance with persistent storage**. Docker, a VPS, or any
-always-on Node host is fine.
-
-It will *not* work correctly on a serverless platform (Vercel, Netlify
-Functions, Lambda), because each invocation gets its own ephemeral filesystem —
-writes would silently vanish or diverge between instances. If you need to deploy
-there, migrate `lib/db.ts` to a hosted database first (see section 5).
-
----
-
-## 3. First-run walkthrough
-
-1. Open the app. Since no accounts exist yet, you'll be asked to create the
-   **admin account** — username, phone number, and password. This becomes your
-   first login.
-2. Log in as admin, go to **Accounts**, and create:
-   - **Ops team** accounts for whoever assigns riders day-to-day.
-   - **Merchant** accounts for each corporate client (Jumia, Mr Wu, etc.) — each
-     merchant only ever sees their own delivery requests.
-3. Go to **Riders** and add your internal fleet (name, phone, motorbike
-   registration number, and model — all required).
-4. Go to **Pricing settings** and set the base fare, rate per km, minimum fare,
-   minimum negotiable %, and the ops team's alert phone number.
-5. Go to **Settings** to optionally add a logo and any API keys (Google Maps,
-   WhatsApp, SMS, or others — see section 4 on what these actually do today).
-6. Hand out login credentials to your merchants and ops team. Each account
-   creation/reset screen shows the password **once** — write it down before
-   closing that dialog.
-
----
-
-## 4. What's real vs. what's a manual trigger
-
-- **Passwords** are hashed with bcrypt on the server and never stored or
-  transmitted in plain text after account creation.
-- **Sessions** are a signed JWT in an `httpOnly` cookie. Page JavaScript can't
-  read it, so a cross-site scripting bug can't steal a login. Every request
-  re-checks the account in the database, which means **deactivating an account
-  locks that person out immediately** rather than whenever their token expires.
-- **Pricing** is calculated server-side from the saved parameters. The form shows
-  a live preview, but the number that actually gets logged is recomputed by the
-  server, so a client can't submit a fabricated price — nor a request filed under
-  another merchant's name.
-- **Merchant isolation** is enforced on the server before rendering: a merchant's
-  browser never receives another merchant's deliveries at all.
-- **Google Maps** (autocomplete + driving-distance lookup) is a real, working
-  integration once an admin adds a Maps API key with Places API and Distance
-  Matrix API enabled (with billing on) in Settings. Restrict that key by HTTP
-  referrer in Google Cloud Console — it is sent to every **signed-in** browser,
-  because the Maps JavaScript SDK has to run client-side.
-- **WhatsApp/SMS alerts** work today as one-tap `wa.me` / `sms:` links that
-  pre-fill the message — whoever's at the keyboard taps send. The WhatsApp and
-  SMS **API key fields** in Settings are there so a developer can wire up true
-  unattended sending later (e.g. Twilio, Africa's Talking, or Meta's WhatsApp
-  Business API). That requires the server to call the provider directly using the
-  stored key, which isn't implemented yet. Start from `whatsappOtpKey` and
-  `smsApiKey` in `app/api/settings/route.ts`.
-
----
-
-## 5. Backing up your data
-
-Everything lives in one file: `data/db.json`. Back it up like you would any file
-— copy it somewhere safe on a schedule. If you're running via Docker, back up the
-`somoexpress-data` volume instead:
-
-```bash
-docker run --rm -v somoexpress-data:/data -v $(pwd):/backup alpine tar czf /backup/somoexpress-backup.tar.gz /data
-```
-
-Writes are serialized and written atomically (to a temp file, then renamed), so a
-crash mid-write can't truncate the database.
-
-If your delivery volume outgrows a single JSON file (heavy concurrent writes, a
-need for real reporting/queries, or a multi-instance deploy), migrate
-`lib/db.ts` to a real database — every route and page only calls the two
-functions that module exports (`getDb` and `updateDb`), so that's a contained
-change.
 
 ---
 
 ## 6. Troubleshooting
 
-- **"Could not reach the server"** on the login screen — the app isn't running,
-  or a reverse proxy in front of it is misconfigured.
-- **Google Maps button stays disabled** — no Maps key has been saved in Settings
-  yet, or the key doesn't have Places API + Distance Matrix API enabled with
-  billing on. Check the browser console for the specific Google error.
-- **Everyone is bounced back to the login screen** — `JWT_SECRET` changed (or is
-  being generated fresh on each restart), which invalidates every existing
-  session cookie. Set a fixed secret in `.env`.
-- **`npm start` fails with EADDRINUSE** — something else is already on port 4000.
-- **Forgot the admin password** — stop the server, open `data/db.json`, find the
-  admin account under `accounts`, and either restore an earlier backup or ask a
-  developer to run a small script using `lib/password.ts`'s `hashPassword()` to
-  set a new hash directly in the file.
+- **"Supabase admin client needs …"** — `SUPABASE_SECRET_KEY` is missing from
+  `.env`. Restart the dev server after adding it.
+- **Everything 500s with "relation does not exist"** — migrations haven't been
+  applied. Run `npx supabase db push`.
+- **A signed-in user sees no data** — RLS is doing its job but the role claim is
+  missing or stale. Roles come from `app_metadata.portal_role`, which is set at
+  account creation and only refreshes when the token does; sign out and back in.
+- **"Incorrect username or password"** for an account you just created — check the
+  password was copied from the one-time reveal dialog. Supabase returns the same
+  message for an unknown username, on purpose.
+- **Everyone bounced to login after a deploy** — check the Supabase URL and
+  publishable key were present at build time, not just at runtime.
+- **Forgot the admin password** — reset it from the Supabase dashboard
+  (**Authentication → Users**), or `psql`/SQL editor against `auth.users`.
 
 ---
 
-## 7. Environment variables
+## 7. Migrating from the JSON-file version
 
-| Variable | Default | What it does |
-| --- | --- | --- |
-| `JWT_SECRET` | insecure dev default (warns on boot) | Signs session cookies. **Set this.** |
-| `JWT_EXPIRES_IN` | `30d` | How long a login stays valid. |
-| `SOMO_DB_PATH` | `./data/db.json` | Where the database file lives. |
-| `PORT` | `4000` | Used by the Docker image. Local runs set the port via the `-p` flag in `package.json`. |
-| `BUILD_STANDALONE` | unset | Set to `1` at build time for a self-contained Docker output. The Dockerfile does this; you don't need to. |
+The previous release stored everything in `data/db.json`. That file and its
+loader are gone. If you have a populated one from an older deploy, note that
+passwords **cannot** be carried over — bcrypt hashes can't be imported into
+Supabase Auth through the admin API. Recreate the accounts and hand out fresh
+passwords; riders, deliveries, pricing and settings can be inserted directly.

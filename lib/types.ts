@@ -1,19 +1,14 @@
+// App-facing domain types.
+//
+// These stay camelCase while the database is snake_case. The mapping happens in
+// the per-domain query modules (lib/accounts.ts, lib/riders.ts, lib/deliveries.ts,
+// lib/settings.ts), which keeps SQL column naming out of the React components.
+
 export type Role = 'admin' | 'ops' | 'merchant';
 
 export const ROLES: Role[] = ['admin', 'ops', 'merchant'];
 
-/** Full account record as stored in db.json — includes the bcrypt hash. */
-export interface Account {
-  username: string;
-  phone: string;
-  passwordHash: string;
-  role: Role;
-  companyName: string;
-  active: boolean;
-  createdAt: string;
-}
-
-/** Account shape safe to send to a browser. Never contains passwordHash. */
+/** Account shape safe to send to a browser. */
 export interface PublicAccount {
   username: string;
   role: Role;
@@ -62,8 +57,9 @@ export const DELIVERY_TYPES: { value: DeliveryType; label: string }[] = [
 export interface Delivery {
   id: string;
   date: string;
-  /** Merchant company name this request belongs to. */
+  /** Merchant company name captured at submission time. */
   customer: string;
+  merchantId: string;
   submittedBy: string;
   pickup: string;
   dropoff: string;
@@ -108,16 +104,9 @@ export interface AppSettings {
   logoDataUrl: string;
 }
 
-export interface Database {
-  accounts: Record<string, Account>;
-  riders: Record<string, Rider>;
-  deliveries: Record<string, Delivery>;
-  pricingParams: PricingParams;
-  appSettings: AppSettings;
-}
-
-/** The signed-in identity attached to a request. */
+/** The signed-in identity. `id` is the auth.users UUID, and the RLS subject. */
 export interface SessionUser {
+  id: string;
   username: string;
   role: Role;
   companyName: string;

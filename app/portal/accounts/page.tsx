@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
-import { getDb } from '@/lib/db';
-import { getSessionUser, publicAccount, roleAllows } from '@/lib/session';
+import { getSessionUser, roleAllows } from '@/lib/session';
+import { listAccounts } from '@/lib/accounts';
 import { AccountsPane } from '@/components/accounts/AccountsPane';
 
 export default async function AccountsPage() {
@@ -8,7 +8,7 @@ export default async function AccountsPage() {
   if (!user) redirect('/login');
   if (!roleAllows(user, 'admin')) redirect('/portal/new');
 
-  // publicAccount() strips the bcrypt hash before anything crosses to the client.
-  const accounts = Object.values(getDb().accounts).map(publicAccount);
-  return <AccountsPane accounts={accounts} currentUsername={user.username} />;
+  // listAccounts returns PublicAccount rows only — no password material exists
+  // outside Supabase Auth to leak in the first place.
+  return <AccountsPane accounts={await listAccounts()} currentUsername={user.username} />;
 }

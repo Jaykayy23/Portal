@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
-import { getDb } from '@/lib/db';
 import { getSessionUser, roleAllows } from '@/lib/session';
+import { getPricingParams } from '@/lib/settings';
 import { PricingForm } from '@/components/pricing/PricingForm';
 
 export default async function PricingPage() {
@@ -8,5 +8,5 @@ export default async function PricingPage() {
   if (!user) redirect('/login');
   if (!roleAllows(user, 'admin')) redirect('/portal/new');
 
-  return <PricingForm params={getDb().pricingParams} />;
+  return <PricingForm params={await getPricingParams()} />;
 }

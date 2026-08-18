@@ -1,25 +1,18 @@
-// bcrypt lives in its own module (separate from lib/jwt.ts) because it is
-// Node-only — importing it from anything the Edge middleware touches would
-// break the build.
+// Temporary passwords for admin-provisioned accounts.
+//
+// bcrypt is gone: Supabase Auth stores and verifies password hashes now. All that
+// remains is generating the one-time password an admin hands to a new account
+// holder.
 
-import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 
-export async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, 10);
-}
-
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(password, hash);
-}
-
 /**
- * Temporary password handed to a new account holder by the admin who created it.
- * Uses crypto.randomBytes rather than Math.random so a temp password can't be
- * guessed from the timing of the account's creation.
+ * Uses crypto.randomBytes rather than Math.random, so a temp password can't be
+ * guessed from the time the account was created. The alphabet omits look-alike
+ * characters (l/1, o/0) because these get read aloud and written down.
  */
 export function genTempPassword(): string {
   const alphabet = 'abcdefghijkmnopqrstuvwxyz23456789';
-  const bytes = crypto.randomBytes(10);
+  const bytes = crypto.randomBytes(12);
   return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
 }

@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { badRequest, handle, notFound, readJson, requireUser } from '@/lib/http';
-import { updateDb } from '@/lib/db';
-import { genTempPassword, hashPassword } from '@/lib/password';
-import { publicAccount } from '@/lib/session';
+import { badRequest, handle, readJson, requireUser } from '@/lib/http';
+import { AccountError, updateAccount } from '@/lib/accounts';
+import { normalizeUsername } from '@/lib/identity';
 
 interface PatchBody {
   active?: boolean;
@@ -12,27 +11,19 @@ interface PatchBody {
 export async function PATCH(req: Request, ctx: { params: Promise<{ username: string }> }) {
   return handle(async () => {
     const admin = await requireUser('admin');
-    const key = decodeURIComponent((await ctx.params).username).toLowerCase();
+    const target = normalizeUsername(decodeURIComponent((await ctx.params).username));
     const { active, resetPassword } = await readJson<PatchBody>(req);
 
-    if (active === false && key === admin.username.toLowerCase()) {
+    if (active === false && target === normalizeUsername(admin.username)) {
       badRequest("You can't deactivate your own account.");
     }
 
-    const newPassword = resetPassword ? genTempPassword() : null;
-    const passwordHash = newPassword ? await hashPassword(newPassword) : null;
-
-    // Both changes land in one write, so an admin resetting a password on a
-    // deactivated account can't end up with half of the change applied.
-    const account = await updateDb((d) => {
-      const existing = d.accounts[key];
-      if (!existing) return null;
-      if (typeof active === 'boolean') existing.active = active;
-      if (passwordHash) existing.passwordHash = passwordHash;
-      return publicAccount(existing);
-    });
-    if (!account) notFound('Account not found.');
-
-    return NextResponse.json({ account, password: newPassword || undefined });
+    try {
+      const result = await updateAccount(target, { active, resetPassword });
+      return NextResponse.json({ account: result.account, password: result.password });
+    } catch (e) {
+      if (e instanceof AccountError) badRequest(e.message);
+      throw e;
+    }
   });
 }

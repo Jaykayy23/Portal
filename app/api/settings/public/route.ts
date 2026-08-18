@@ -1,19 +1,12 @@
 import { NextResponse } from 'next/server';
 import { handle } from '@/lib/http';
-import { getDb } from '@/lib/db';
+import { getLogoDataUrl } from '@/lib/settings';
 
 /**
- * Branding only. The login screen has to render the portal's logo before anyone
- * is signed in, so this stays unauthenticated — but nothing else lives here.
- *
- * Note this is narrower than the original Express route, which also returned
- * `mapsApiKey` to anonymous callers despite the docs saying it went only to
- * logged-in browsers. The Maps key is now handed to the client by the
- * authenticated portal layout instead. See app/portal/layout.tsx.
+ * Branding only. The login screen renders the portal's logo before anyone is
+ * signed in, so this stays unauthenticated — and nothing else lives here. The
+ * Maps key is handed to signed-in clients by the portal layout instead.
  */
 export async function GET() {
-  return handle(async () => {
-    const { logoDataUrl } = getDb().appSettings;
-    return NextResponse.json({ logoDataUrl: logoDataUrl || '' });
-  });
+  return handle(async () => NextResponse.json({ logoDataUrl: await getLogoDataUrl() }));
 }

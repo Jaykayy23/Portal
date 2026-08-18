@@ -1,70 +1,83 @@
-// Server-side session helpers. Node runtime only (reads the database).
+// Server-side session helpers, backed by Supabase Auth.
 //
-// The JWT lives in an httpOnly cookie, so page-level JavaScript can never read
-// it and an XSS can't exfiltrate a session. Every call re-reads the account
-// from the database, which means deactivating an account takes effect on the
-// account holder's very next request rather than whenever their token expires.
+// Replaces the previous bcrypt + hand-rolled JWT cookie scheme. Supabase issues
+// and refreshes the session cookie; middleware keeps it fresh.
+//
+// Every call re-reads the profile row, so deactivating an account takes effect on
+// that person's very next request rather than whenever their token expires — the
+// same guarantee the old implementation had.
 
-import { cookies } from 'next/headers';
-import type { Account, PublicAccount, Role, SessionUser } from './types';
-import { getDb } from './db';
-import {
-  SESSION_COOKIE,
-  expiresInSeconds,
-  signSessionToken,
-  verifySessionToken,
-} from './jwt';
+import type { PublicAccount, Role, SessionUser } from './types';
+import type { Database } from './database.types';
+import { createSupabaseServerClient } from './supabase/server';
+import { createAdminClient } from './supabase/admin';
 
-export { SESSION_COOKIE };
+type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 
-export function publicAccount(acc: Account): PublicAccount {
+export function publicAccount(p: ProfileRow): PublicAccount {
   return {
-    username: acc.username,
-    role: acc.role,
-    companyName: acc.companyName,
-    phone: acc.phone,
-    active: acc.active !== false,
-    createdAt: acc.createdAt,
+    username: p.username,
+    role: p.role,
+    companyName: p.company_name,
+    phone: p.phone,
+    active: p.active,
+    createdAt: p.created_at,
   };
 }
 
-export function toSessionUser(acc: Account): SessionUser {
+export function toSessionUser(p: ProfileRow): SessionUser {
   return {
-    username: acc.username,
-    role: acc.role,
-    companyName: acc.companyName || acc.username,
-    phone: acc.phone,
+    id: p.id,
+    username: p.username,
+    role: p.role,
+    companyName: p.company_name || p.username,
+    phone: p.phone,
   };
 }
 
-/** The signed-in user, or null. Safe to call from pages, layouts and handlers. */
+/**
+ * The signed-in user, or null. Safe from pages, layouts and Route Handlers.
+ *
+ * getClaims() verifies the JWT against the project's public JWKS without a
+ * network call. The profile lookup that follows is the authoritative check —
+ * a banned or deactivated account resolves to null here.
+ */
 export async function getSessionUser(): Promise<SessionUser | null> {
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  const payload = await verifySessionToken(token);
-  if (!payload) return null;
-  const account = getDb().accounts[payload.username.toLowerCase()];
-  if (!account || account.active === false) return null;
-  return toSessionUser(account);
+  const supabase = await createSupabaseServerClient();
+
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const userId = claimsData?.claims?.sub;
+  if (!userId) return null;
+
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error || !profile || !profile.active) return null;
+  return toSessionUser(profile);
 }
 
-/** Issues the session cookie after a successful login or first-run setup. */
-export async function setSessionCookie(username: string): Promise<void> {
-  const token = await signSessionToken({ username });
-  (await cookies()).set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge: expiresInSeconds(),
-  });
+export async function signOut(): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  await supabase.auth.signOut();
 }
 
-export async function clearSessionCookie(): Promise<void> {
-  (await cookies()).delete(SESSION_COOKIE);
-}
+/**
+ * True once any account exists — drives the setup-vs-login decision.
+ *
+ * Uses the admin client because at this point there is no session, and profiles
+ * is not readable by `anon`.
+ */
+export async function hasAnyAccount(): Promise<boolean> {
+  const admin = createAdminClient();
+  const { count, error } = await admin
+    .from('profiles')
+    .select('id', { count: 'exact', head: true });
 
-export function hasAnyAccount(): boolean {
-  return Object.keys(getDb().accounts).length > 0;
+  if (error) throw new Error(`Could not reach the database: ${error.message}`);
+  return (count ?? 0) > 0;
 }
 
 export function roleAllows(user: SessionUser | null, ...roles: Role[]): boolean {

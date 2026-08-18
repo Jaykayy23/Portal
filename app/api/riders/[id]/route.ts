@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { badRequest, handle, notFound, readJson, requireUser } from '@/lib/http';
-import { updateDb } from '@/lib/db';
+import { RiderError, setRiderStatus } from '@/lib/riders';
 import { RIDER_STATUSES, type RiderStatus } from '@/lib/types';
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -9,18 +9,14 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     const { id } = await ctx.params;
     const { status } = await readJson<{ status: RiderStatus }>(req);
 
-    if (status !== undefined && !RIDER_STATUSES.includes(status)) {
+    if (!status || !RIDER_STATUSES.includes(status)) {
       badRequest(`Invalid rider status. Expected one of: ${RIDER_STATUSES.join(', ')}.`);
     }
-
-    const rider = await updateDb((d) => {
-      const existing = d.riders[id];
-      if (!existing) return null;
-      if (status) existing.status = status;
-      return existing;
-    });
-    if (!rider) notFound('Rider not found.');
-
-    return NextResponse.json({ rider });
+    try {
+      return NextResponse.json({ rider: await setRiderStatus(id, status) });
+    } catch (e) {
+      if (e instanceof RiderError) notFound(e.message);
+      throw e;
+    }
   });
 }

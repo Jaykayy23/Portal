@@ -1,21 +1,25 @@
 # One-command deployment. Put this behind a reverse proxy (Nginx, Caddy,
 # Traefik) for TLS/HTTPS on a real domain — see README.md.
+#
+# State lives in Supabase, so this service is stateless: no volumes, and safe to
+# recreate or run more than one of.
 
 services:
   somoexpress:
     build:
       context: .
       dockerfile: Dockerfile
+      # NEXT_PUBLIC_* must be present at build time — Next inlines them into the
+      # client bundle rather than reading them at runtime.
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?Set NEXT_PUBLIC_SUPABASE_URL in .env}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:?Set NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in .env}
     restart: unless-stopped
     ports:
       - "4000:4000"
     environment:
       - PORT=4000
-      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in a .env file before running}
-      - JWT_EXPIRES_IN=30d
-      - SOMO_DB_PATH=/app/data/db.json
-    volumes:
-      - somoexpress-data:/app/data
-
-volumes:
-  somoexpress-data:
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}
+      # Runtime only — never a build arg, so it stays out of the image layers.
+      - SUPABASE_SECRET_KEY=${SUPABASE_SECRET_KEY:?Set SUPABASE_SECRET_KEY in .env}

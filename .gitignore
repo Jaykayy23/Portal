@@ -12,8 +12,5 @@ build/
 *.tsbuildinfo
 next-env.d.ts
 
-# Live data — never commit real merchant/rider records.
-/data/db.json
-
 *.log
 .DS_Store

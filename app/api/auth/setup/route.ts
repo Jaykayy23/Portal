@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import { badRequest, handle, readJson } from '@/lib/http';
-import { getDb, updateDb } from '@/lib/db';
-import { hashPassword } from '@/lib/password';
-import { publicAccount, setSessionCookie } from '@/lib/session';
-import type { Account } from '@/lib/types';
+import { hasAnyAccount } from '@/lib/session';
+import { createAccount, AccountError } from '@/lib/accounts';
+import { isValidUsername, USERNAME_RULE } from '@/lib/identity';
 
 interface SetupBody {
   username: string;
@@ -18,32 +17,30 @@ export async function POST(req: Request) {
     if (!username || !phone || !password) {
       badRequest('Username, phone number and password are all required.');
     }
+    if (!isValidUsername(username)) badRequest(USERNAME_RULE);
 
-    if (Object.keys(getDb().accounts).length > 0) {
+    // Supabase Auth's own floor is 6 characters; state it rather than surfacing
+    // a raw provider error.
+    if (password.length < 8) {
+      badRequest('Choose a password of at least 8 characters.');
+    }
+    if (await hasAnyAccount()) {
       badRequest('Setup has already been completed. Please log in.');
     }
 
-    const passwordHash = await hashPassword(password);
-    const account: Account = {
-      username,
-      phone,
-      passwordHash,
-      role: 'admin',
-      companyName: username,
-      active: true,
-      createdAt: new Date().toISOString(),
-    };
-
-    // The emptiness check is repeated inside the serialized write so two
-    // simultaneous setup requests can't both create an admin.
-    const created = await updateDb((d) => {
-      if (Object.keys(d.accounts).length > 0) return false;
-      d.accounts[username.toLowerCase()] = account;
-      return true;
-    });
-    if (!created) badRequest('Setup has already been completed. Please log in.');
-
-    await setSessionCookie(account.username);
-    return NextResponse.json({ user: publicAccount(account) });
+    try {
+      const { account } = await createAccount({
+        username,
+        phone,
+        role: 'admin',
+        password,
+      });
+      // The client signs in straight after, which is what mints the session
+      // cookie — createUser on the server does not establish one.
+      return NextResponse.json({ user: account });
+    } catch (e) {
+      if (e instanceof AccountError) badRequest(e.message);
+      throw e;
+    }
   });
 }

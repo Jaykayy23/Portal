@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, errMessage } from '@/lib/api';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { usernameToEmail } from '@/lib/identity';
 import { useToast } from '@/components/Toast';
-import type { PublicAccount } from '@/lib/types';
 
 export function LoginForm({ nextPath }: { nextPath: string }) {
   const router = useRouter();
@@ -22,20 +22,34 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
       return;
     }
     setBusy(true);
-    try {
-      const data = await api<{ user: PublicAccount }>('/auth/login', {
-        method: 'POST',
-        body: { username: username.trim(), password },
-      });
-      toast(`Welcome back, ${data.user.companyName}`);
-      // The session cookie is set by the response, so a refresh is what makes
-      // the server-rendered portal see it.
-      router.replace(nextPath);
-      router.refresh();
-    } catch (e) {
-      setError(errMessage(e));
+
+    // Sign in from the browser so the Supabase SDK sets and manages its own
+    // session cookies. Doing this server-side would leave the client unaware of
+    // the session until the next full load.
+    const supabase = createSupabaseBrowserClient();
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      // The synthetic address is an implementation detail — people type a username.
+      email: usernameToEmail(username),
+      password,
+    });
+
+    if (signInError) {
+      // Supabase returns the same "Invalid login credentials" for an unknown
+      // account and a wrong password, which is the right behaviour — it avoids
+      // confirming which usernames exist.
+      setError(
+        signInError.message === 'Invalid login credentials'
+          ? 'Incorrect username or password.'
+          : signInError.message
+      );
       setBusy(false);
+      return;
     }
+
+    toast('Signed in');
+    router.replace(nextPath);
+    // Makes the server re-render with the new session cookie visible.
+    router.refresh();
   }
 
   return (
@@ -52,6 +66,8 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
           className="somo-input"
           placeholder="Username"
           autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />

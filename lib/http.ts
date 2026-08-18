@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server';
 import type { Role, SessionUser } from './types';
 import { getSessionUser } from './session';
+import { missingEnv } from './config';
 
 export class HttpError extends Error {
   constructor(
@@ -21,6 +22,18 @@ export class HttpError extends Error {
  * anything unexpected becomes a 500 with the detail logged, not leaked.
  */
 export async function handle(fn: () => Promise<NextResponse>): Promise<NextResponse> {
+  // A misconfigured deploy is a 503 with the missing variable names, not an
+  // anonymous 500 that only shows up in the server log.
+  const missing = missingEnv();
+  if (missing.length) {
+    return NextResponse.json(
+      {
+        error: `Server is not configured: missing ${missing.join(', ')}. See .env.example.`,
+      },
+      { status: 503 }
+    );
+  }
+
   try {
     return await fn();
   } catch (err) {

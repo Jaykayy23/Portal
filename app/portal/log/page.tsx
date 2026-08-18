@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
-import { getDb } from '@/lib/db';
 import { getSessionUser } from '@/lib/session';
+import { getPricingParams } from '@/lib/settings';
 import { listDeliveriesFor } from '@/lib/deliveries';
+import { listRiders } from '@/lib/riders';
 import { DeliveryLog } from '@/components/delivery/DeliveryLog';
 import { isOpsOrAdmin } from '@/lib/types';
 
@@ -10,11 +11,13 @@ export default async function DeliveryLogPage() {
   if (!user) redirect('/login');
 
   const canManage = isOpsOrAdmin(user);
-  const db = getDb();
-  // The scoping (merchants see only their own rows) happens server-side, so a
-  // merchant's browser never receives another merchant's deliveries at all.
-  const records = listDeliveriesFor(user);
-  const riders = canManage ? Object.values(db.riders) : [];
+  // Scoping is enforced by the RLS SELECT policy, so a merchant's browser never
+  // receives another merchant's deliveries at all.
+  const [records, riders, params] = await Promise.all([
+    listDeliveriesFor(user),
+    canManage ? listRiders() : Promise.resolve([]),
+    getPricingParams(),
+  ]);
 
   return (
     <div className="somo-card" style={{ marginTop: 0 }}>
@@ -27,7 +30,7 @@ export default async function DeliveryLogPage() {
       <DeliveryLog
         records={records}
         riders={riders}
-        opsPhone={db.pricingParams.opsPhone}
+        opsPhone={params.opsPhone}
         canManage={canManage}
       />
     </div>

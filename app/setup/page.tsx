@@ -1,17 +1,22 @@
 import { redirect } from 'next/navigation';
-import { getDb } from '@/lib/db';
+import { missingEnv } from '@/lib/config';
+import { ConfigError } from '@/components/ConfigError';
+import { getLogoDataUrl } from '@/lib/settings';
 import { hasAnyAccount } from '@/lib/session';
 import { AuthShell } from '@/components/auth/AuthShell';
 import { SetupForm } from '@/components/auth/SetupForm';
 
 export const dynamic = 'force-dynamic';
 
-export default function SetupPage() {
+export default async function SetupPage() {
+  const missing = missingEnv();
+  if (missing.length) return <ConfigError missing={missing} />;
+
   // Setup is a one-time door: once any account exists, this route is closed.
-  if (hasAnyAccount()) redirect('/login');
+  if (await hasAnyAccount()) redirect('/login');
 
   return (
-    <AuthShell logoDataUrl={getDb().appSettings.logoDataUrl}>
+    <AuthShell logoDataUrl={await getLogoDataUrl()}>
       <SetupForm />
     </AuthShell>
   );

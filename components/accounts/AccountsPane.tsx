@@ -227,9 +227,9 @@ export function AccountsPane({
         )}
 
         <div className="somo-note">
-          Passwords are hashed with bcrypt on the server and never stored or sent in plain text after
-          creation — the only time a password is shown is right after you create the account or reset
-          it, so you can hand it to the account holder.
+          Passwords are stored and verified by Supabase Auth and never held by this app in plain text
+          — the only time a password is shown is right after you create the account or reset it, so
+          you can hand it to the account holder.
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 /**
  * The square logo tile. Falls back to the "SX" wordmark when no logo has been
- * uploaded. Logos are base64 data URLs out of db.json, so a plain <img> is
+ * uploaded. Logos are stored as base64 data URLs, so a plain <img> is
  * right here — next/image would try to optimise something already inlined.
  */
 export function BrandMark({ logoDataUrl }: { logoDataUrl?: string }) {

@@ -1,19 +1,29 @@
 import { redirect } from 'next/navigation';
-import { getDb } from '@/lib/db';
+import { missingEnv } from '@/lib/config';
+import { ConfigError } from '@/components/ConfigError';
 import { getSessionUser } from '@/lib/session';
+import { getLogoDataUrl, getMapsApiKeyForSignedInUser } from '@/lib/settings';
 import { BrandMark } from '@/components/BrandMark';
 import { LogoutButton } from '@/components/LogoutButton';
 import { PortalTabs } from '@/components/PortalTabs';
 import { MapsProvider } from '@/components/MapsProvider';
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
-  // middleware.ts checks the cookie's signature; this is the check that reads the
-  // database, so a deactivated or deleted account is locked out immediately
-  // rather than whenever its token happens to expire.
+  // middleware refreshes and validates the session cookie; this is the check that
+  // reads the profile row, so a banned or deactivated account is locked out on its
+  // very next request rather than whenever its token expires.
+  const missing = missingEnv();
+  if (missing.length) return <ConfigError missing={missing} />;
+
   const user = await getSessionUser();
   if (!user) redirect('/login');
 
-  const { logoDataUrl, mapsApiKey } = getDb().appSettings;
+  // The Maps key legitimately reaches signed-in browsers (Maps JS runs
+  // client-side). The provider secrets in app_settings never leave the server.
+  const [logoDataUrl, mapsApiKey] = await Promise.all([
+    getLogoDataUrl(),
+    getMapsApiKeyForSignedInUser(),
+  ]);
 
   return (
     <MapsProvider mapsApiKey={mapsApiKey}>
