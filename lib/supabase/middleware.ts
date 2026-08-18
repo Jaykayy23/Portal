@@ -2,8 +2,13 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import type { Database } from '@/lib/database.types';
 
-/** Routes reachable without a session. */
-const PUBLIC_PATHS = ['/login', '/setup', '/auth'];
+/**
+ * Routes reachable without a session.
+ *
+ * '/theme-preview' is a development-only static page for reviewing the theme; it
+ * returns 404 in production. Remove both it and app/theme-preview/ when done.
+ */
+const PUBLIC_PATHS = ['/login', '/setup', '/auth', '/theme-preview'];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));

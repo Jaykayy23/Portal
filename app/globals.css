@@ -14,7 +14,9 @@ body {
   padding: 0;
 }
 body {
-  background: #0a0e13;
+  /* Page behind the app shell. One step darker than the shell so the card reads
+     as a raised surface without needing a heavy shadow. */
+  background: var(--muted);
   min-height: 100vh;
   display: flex;
   align-items: flex-start;
@@ -23,16 +25,29 @@ body {
 }
 
 #somo-root {
-  --bg: #10161d;
-  --panel: #1a222b;
-  --panel-2: #212b36;
-  --line: #2c3846;
-  --text: #eceef0;
-  --muted: #8fa0af;
-  --amber: #ffb020;
-  --amber-dim: #7a5a19;
-  --teal: #33c7b0;
-  --danger: #ff6b5c;
+  /* Every colour in the .somo-* layer below comes through these aliases, which
+     now resolve to the shadcn light tokens defined in :root.
+
+     Depth is inverted from the old dark theme: there, cards were lighter than
+     their surroundings. On light, cards are white and separated by a border,
+     with inputs recessed to the muted grey.
+
+     Note --somo-muted, not --muted: shadcn uses --muted for a background, while
+     this layer means "muted text". Defining --muted here would shadow shadcn's
+     token for any component nested inside #somo-root. */
+  --bg: var(--card);
+  --panel: var(--card);
+  --panel-2: var(--muted);
+  --line: var(--border);
+  --text: var(--foreground);
+  --somo-muted: var(--muted-foreground);
+  /* Two ambers: the darkened one for text and hairlines (it needs 4.5:1 against
+     white), the bright one only for filled surfaces carrying dark text. */
+  --amber: var(--brand-amber-text);
+  --amber-fill: var(--brand-amber);
+  --amber-dim: var(--brand-amber-text);
+  --teal: var(--brand-teal);
+  --danger: var(--destructive);
   --font-display: "Space Grotesk", sans-serif;
   --font-body: "Inter", sans-serif;
   --font-mono: "IBM Plex Mono", monospace;
@@ -46,7 +61,10 @@ body {
   border-radius: 14px;
   overflow: hidden;
   min-height: 640px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 8px 28px rgb(0 0 0 / 0.06);
+  border: 1px solid var(--line);
   display: flex;
   flex-direction: column;
 }
@@ -56,6 +74,17 @@ body {
 #somo-root a {
   color: inherit;
 }
+/* The rule above wins on ID specificity over the class-based link colours in the
+   notify modal, so re-assert those at matching specificity. */
+#somo-root .somo-notify-contact .btns a.wa {
+  color: var(--teal);
+}
+#somo-root .somo-notify-contact .btns a.sms {
+  color: var(--text);
+}
+#somo-root .somo-maps-hint a {
+  color: var(--teal);
+}
 
 .somo-header {
   display: flex;
@@ -63,7 +92,7 @@ body {
   justify-content: space-between;
   padding: 20px 26px;
   border-bottom: 1px solid var(--line);
-  background: linear-gradient(180deg, #141c24, #10161d);
+  background: var(--card);
   gap: 12px;
 }
 .somo-brand {
@@ -75,13 +104,13 @@ body {
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  background: var(--amber);
+  background: var(--amber-fill);
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-mono);
   font-weight: 700;
-  color: #10161d;
+  color: var(--brand-amber-ink);
   font-size: 15px;
   flex-shrink: 0;
   overflow: hidden;
@@ -99,7 +128,7 @@ body {
 }
 .somo-sub {
   font-size: 11.5px;
-  color: var(--muted);
+  color: var(--somo-muted);
   font-family: var(--font-mono);
   letter-spacing: 0.4px;
   text-transform: uppercase;
@@ -129,21 +158,21 @@ body {
   text-transform: uppercase;
 }
 .somo-role-tag.merchant {
-  background: rgba(51, 199, 176, 0.15);
+  background: var(--brand-teal-soft);
   color: var(--teal);
 }
 .somo-role-tag.ops {
-  background: rgba(108, 158, 255, 0.15);
-  color: #8fadff;
+  background: var(--brand-ops-soft);
+  color: var(--brand-ops);
 }
 .somo-role-tag.admin {
-  background: rgba(255, 176, 32, 0.15);
+  background: var(--brand-amber-soft);
   color: var(--amber);
 }
 .somo-merchant-badge button {
   background: var(--panel-2);
   border: 1px solid var(--line);
-  color: var(--muted);
+  color: var(--somo-muted);
   font-size: 11px;
   padding: 5px 10px;
   border-radius: 999px;
@@ -164,14 +193,14 @@ body {
   gap: 4px;
   padding: 0 26px;
   border-bottom: 1px solid var(--line);
-  background: #121820;
+  background: var(--card);
   overflow-x: auto;
 }
 .somo-tab {
   padding: 13px 16px;
   font-size: 13.5px;
   font-weight: 500;
-  color: var(--muted);
+  color: var(--somo-muted);
   cursor: pointer;
   border-bottom: 2px solid transparent;
   user-select: none;
@@ -246,13 +275,13 @@ body {
   font-size: 12px;
 }
 .somo-card h3 .tag-note {
-  color: var(--muted);
+  color: var(--somo-muted);
   font-weight: 400;
   font-size: 11.5px;
   margin-left: auto;
 }
 .somo-card-intro {
-  color: var(--muted);
+  color: var(--somo-muted);
   font-size: 12.5px;
   margin-top: -8px;
   margin-bottom: 16px;
@@ -266,7 +295,7 @@ label.somo-field {
 label.somo-field span {
   display: block;
   font-size: 11.5px;
-  color: var(--muted);
+  color: var(--somo-muted);
   margin-bottom: 6px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -288,7 +317,7 @@ label.somo-field span {
   border-color: var(--amber);
 }
 .somo-input::placeholder {
-  color: #5b6b79;
+  color: var(--somo-muted);
 }
 .somo-input:disabled {
   opacity: 0.6;
@@ -313,7 +342,7 @@ label.somo-field span {
   border-radius: 8px;
   font-size: 12.5px;
   cursor: pointer;
-  color: var(--muted);
+  color: var(--somo-muted);
 }
 .somo-check.checked {
   border-color: var(--amber-dim);
@@ -352,7 +381,7 @@ label.somo-field span {
 }
 .somo-maps-hint {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--somo-muted);
   margin: -8px 0 14px 0;
   line-height: 1.5;
 }
@@ -398,7 +427,7 @@ label.somo-field span {
 .somo-route .dist {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--muted);
+  color: var(--somo-muted);
   white-space: nowrap;
 }
 
@@ -417,7 +446,7 @@ label.somo-field span {
 }
 .somo-price-row .l {
   font-size: 12.5px;
-  color: var(--muted);
+  color: var(--somo-muted);
 }
 .somo-price-row .v {
   font-family: var(--font-mono);
@@ -425,7 +454,7 @@ label.somo-field span {
 }
 .somo-price-row.main .v {
   font-size: 24px;
-  color: var(--amber);
+  color: var(--brand-amber-display);
   font-weight: 600;
 }
 .somo-price-row.main .l {
@@ -439,9 +468,9 @@ label.somo-field span {
 
 .somo-flag {
   display: none;
-  background: rgba(255, 107, 92, 0.12);
-  border: 1px solid var(--danger);
-  color: #ffb4ac;
+  background: var(--destructive-soft);
+  border: 1px solid var(--destructive-line);
+  color: var(--destructive-text);
   padding: 10px 12px;
   border-radius: 8px;
   font-size: 12.5px;
@@ -460,8 +489,8 @@ label.somo-field span {
   font-family: var(--font-body);
   font-weight: 600;
   font-size: 14px;
-  background: var(--amber);
-  color: #12181f;
+  background: var(--amber-fill);
+  color: var(--brand-amber-ink);
 }
 .somo-btn:hover {
   filter: brightness(1.06);
@@ -488,7 +517,7 @@ label.somo-field span {
   left: 50%;
   transform: translateX(-50%) translateY(20px);
   background: var(--teal);
-  color: #0d2622;
+  color: var(--card);
   padding: 10px 18px;
   border-radius: 8px;
   font-size: 13px;
@@ -520,18 +549,18 @@ table.somo-table th {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--muted);
+  color: var(--somo-muted);
   padding: 8px 10px;
   border-bottom: 1px solid var(--line);
   font-weight: 500;
 }
 table.somo-table td {
   padding: 10px;
-  border-bottom: 1px solid #202a34;
+  border-bottom: 1px solid var(--line);
   vertical-align: middle;
 }
 table.somo-table tr:hover td {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgb(0 0 0 / 0.02);
 }
 .somo-price-cell {
   font-family: var(--font-mono);
@@ -541,12 +570,12 @@ table.somo-table tr:hover td {
   color: var(--amber);
 }
 .somo-rider-sub {
-  color: var(--muted);
+  color: var(--somo-muted);
   font-family: var(--font-mono);
   font-size: 11.5px;
 }
 .somo-unassigned {
-  color: var(--muted);
+  color: var(--somo-muted);
 }
 .somo-badge {
   display: inline-block;
@@ -557,19 +586,19 @@ table.somo-table tr:hover td {
   white-space: nowrap;
 }
 .b-requested {
-  background: #2c3846;
-  color: #c6d2dc;
+  background: var(--muted);
+  color: var(--somo-muted);
 }
 .b-approval {
-  background: rgba(255, 107, 92, 0.15);
-  color: #ffb4ac;
+  background: var(--destructive-soft);
+  color: var(--destructive-text);
 }
 .b-assigned {
-  background: rgba(255, 176, 32, 0.15);
+  background: var(--brand-amber-soft);
   color: var(--amber);
 }
 .b-delivered {
-  background: rgba(51, 199, 176, 0.15);
+  background: var(--brand-teal-soft);
   color: var(--teal);
 }
 .somo-status-select {
@@ -585,7 +614,7 @@ table.somo-table tr:hover td {
 .somo-empty {
   text-align: center;
   padding: 50px 20px;
-  color: var(--muted);
+  color: var(--somo-muted);
 }
 .somo-empty .big {
   font-family: var(--font-display);
@@ -596,7 +625,7 @@ table.somo-table tr:hover td {
 
 .somo-note {
   font-size: 11.5px;
-  color: var(--muted);
+  color: var(--somo-muted);
   margin-top: 14px;
   line-height: 1.5;
   border-top: 1px solid var(--line);
@@ -611,7 +640,7 @@ table.somo-table tr:hover td {
 .somo-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(8, 11, 15, 0.7);
+  background: rgb(0 0 0 / 0.45);
   display: none;
   align-items: center;
   justify-content: center;
@@ -640,7 +669,7 @@ table.somo-table tr:hover td {
   font-size: 17px;
 }
 .somo-modal p {
-  color: var(--muted);
+  color: var(--somo-muted);
   font-size: 12.5px;
   margin: 0 0 16px 0;
   line-height: 1.5;
@@ -654,7 +683,7 @@ table.somo-table tr:hover td {
 .somo-loading {
   text-align: center;
   padding: 60px 20px;
-  color: var(--muted);
+  color: var(--somo-muted);
   font-size: 13px;
 }
 
@@ -691,7 +720,7 @@ table.somo-table tr:hover td {
 .somo-rider-card .phone,
 .somo-account-card .sub {
   font-size: 11.5px;
-  color: var(--muted);
+  color: var(--somo-muted);
   font-family: var(--font-mono);
 }
 .somo-account-card .right {
@@ -704,7 +733,7 @@ table.somo-table tr:hover td {
    than overlaying a portal that is already rendered behind it. */
 .somo-auth-overlay {
   flex: 1;
-  background: radial-gradient(circle at 30% 20%, #182430 0%, #10161d 70%);
+  background: radial-gradient(circle at 30% 20%, var(--card) 0%, var(--muted) 75%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -729,7 +758,7 @@ table.somo-table tr:hover td {
   text-align: center;
 }
 .somo-auth-card .sub-text {
-  color: var(--muted);
+  color: var(--somo-muted);
   font-size: 12.5px;
   text-align: center;
   margin: 0 0 22px 0;
@@ -737,9 +766,9 @@ table.somo-table tr:hover td {
 }
 .somo-auth-error {
   display: none;
-  background: rgba(255, 107, 92, 0.12);
-  border: 1px solid var(--danger);
-  color: #ffb4ac;
+  background: var(--destructive-soft);
+  border: 1px solid var(--destructive-line);
+  color: var(--destructive-text);
   padding: 9px 12px;
   border-radius: 8px;
   font-size: 12.5px;
@@ -762,7 +791,7 @@ table.somo-table tr:hover td {
   background: var(--panel-2);
   cursor: pointer;
   font-size: 12.5px;
-  color: var(--muted);
+  color: var(--somo-muted);
 }
 .somo-role-opt.selected {
   border-color: var(--amber);
@@ -784,7 +813,7 @@ table.somo-table tr:hover td {
 .somo-notify-contact .num {
   font-family: var(--font-mono);
   font-size: 11.5px;
-  color: var(--muted);
+  color: var(--somo-muted);
   margin-bottom: 10px;
 }
 .somo-notify-contact .btns {
@@ -801,9 +830,9 @@ table.somo-table tr:hover td {
   text-decoration: none;
 }
 .somo-notify-contact .btns a.wa {
-  background: rgba(51, 199, 176, 0.15);
+  background: var(--brand-teal-soft);
   color: var(--teal);
-  border: 1px solid rgba(51, 199, 176, 0.3);
+  border: 1px solid var(--brand-teal-line);
 }
 .somo-notify-contact .btns a.sms {
   background: var(--panel);
@@ -812,7 +841,7 @@ table.somo-table tr:hover td {
 }
 .somo-notify-contact .unavailable {
   font-size: 11.5px;
-  color: var(--muted);
+  color: var(--somo-muted);
   font-style: italic;
 }
 .somo-notify-btn {
@@ -950,6 +979,37 @@ table.somo-table tr:hover td {
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* --- SomoExpress brand --------------------------------------------------
+     shadcn's neutral base is monochrome; these carry the product's identity on
+     top of it. Contrast ratios are against the surface each one sits on. */
+  --brand-amber: #f5a524; /* filled surfaces only */
+  --brand-amber-ink: #241a02; /* text on an amber fill — 8.4:1 */
+  /* Bright amber cannot reach 4.5:1 on white, so small text uses a deepened
+     ochre. Verified 5.6:1 on white and 5.1:1 on --brand-amber-soft. */
+  --brand-amber-text: #965a00;
+  /* Reserved for the 24px/600 recommended price. At that size WCAG's large-text
+     bar is 3:1, which this clears at 3.9:1, so the headline figure stays vivid. */
+  --brand-amber-display: #b87200;
+  --brand-amber-soft: #fdf3e0; /* tinted badge background */
+  --brand-teal: #0e7c6b; /* on white — 4.9:1 */
+  --brand-teal-soft: #e6f4f1;
+  --brand-teal-line: #c3e3dc;
+  --brand-ops: #3b5bdb; /* on white — 5.9:1 */
+  --brand-ops-soft: #e8ecfb;
+  --destructive-soft: #fef2f2;
+  --destructive-text: #b42318; /* on --destructive-soft — 6.2:1 */
+  --destructive-line: #f3b9b4;
+
+  /* shadcn's neutral --muted-foreground (#737373) clears 4.5:1 on white but not
+     on the recessed input grey, where most muted labels actually sit. */
+  --muted-foreground: #707070;
+
+  /* Primary is the brand amber rather than shadcn's near-black, so any shadcn
+     component added later picks up the same accent as the .somo-* layer. */
+  --primary: var(--brand-amber);
+  --primary-foreground: var(--brand-amber-ink);
+  --ring: var(--brand-amber-text);
 }
 
 .dark {
