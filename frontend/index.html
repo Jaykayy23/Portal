@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SomoExpress — Merchant Delivery Portal</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!--
+  If the frontend is ever hosted on a different origin/domain than the
+  backend (e.g. static frontend on Netlify, API on its own server), set the
+  full backend URL here, e.g. window.SOMO_API_BASE = 'https://api.example.com/api';
+  Leave it as null when frontend and backend are served from the same place
+  (the default — see backend/server.js, which serves this folder itself).
+-->
+<script>window.SOMO_API_BASE = null;</script>
+
+<div id="somo-root">
+
+  <!-- ===================== AUTH OVERLAY ===================== -->
+  <div class="somo-auth-overlay show" id="auth-overlay">
+    <div class="somo-auth-card">
+      <div class="somo-auth-logo">
+        <div class="somo-mark" id="brand-mark-auth">SX</div>
+        <div>
+          <div class="somo-title">SomoExpress</div>
+          <div class="somo-sub">Merchant delivery portal</div>
+        </div>
+      </div>
+
+      <div id="auth-setup-pane">
+        <h2>Create the admin account</h2>
+        <p class="sub-text">No accounts exist yet on this portal. Set up the first admin login — you'll use it to create merchant and ops accounts afterward.</p>
+        <div class="somo-auth-error" id="setup-error"></div>
+        <label class="somo-field"><span>Admin username</span><input class="somo-input" id="setup-username" placeholder="e.g. ops.admin"></label>
+        <label class="somo-field"><span>Phone number (required)</span><input class="somo-input" id="setup-phone" placeholder="e.g. 024 000 0000" type="tel"></label>
+        <label class="somo-field"><span>Password</span><input class="somo-input" id="setup-password" type="password" placeholder="Choose a password"></label>
+        <label class="somo-field"><span>Confirm password</span><input class="somo-input" id="setup-password2" type="password" placeholder="Repeat password"></label>
+        <button class="somo-btn" id="setup-submit">Create admin account</button>
+      </div>
+
+      <div id="auth-login-pane" style="display:none;">
+        <h2>Log in</h2>
+        <p class="sub-text">Use the username and password issued to you. Merchant and ops accounts are created by your SomoExpress admin.</p>
+        <div class="somo-auth-error" id="login-error"></div>
+        <label class="somo-field"><span>Username</span><input class="somo-input" id="login-username" placeholder="Username"></label>
+        <label class="somo-field"><span>Password</span><input class="somo-input" id="login-password" type="password" placeholder="Password"></label>
+        <button class="somo-btn" id="login-submit">Log in</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== APP ===================== -->
+  <div class="somo-header">
+    <div class="somo-brand">
+      <div class="somo-mark" id="brand-mark-header">SX</div>
+      <div>
+        <div class="somo-title">SomoExpress</div>
+        <div class="somo-sub">Merchant delivery portal · interim</div>
+      </div>
+    </div>
+    <div class="somo-header-right">
+      <div class="somo-merchant-badge" id="somo-merchant-badge" style="display:none;">
+        <span id="somo-merchant-name">—</span>
+        <span class="somo-role-tag" id="somo-role-tag">merchant</span>
+        <button id="somo-logout-btn">Log out</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="somo-tabs" id="somo-tabs">
+    <div class="somo-tab active" data-pane="new">New delivery</div>
+    <div class="somo-tab" data-pane="log">My deliveries</div>
+    <div class="somo-tab" data-pane="riders" id="tab-riders">Riders</div>
+    <div class="somo-tab" data-pane="pricing" id="tab-pricing">Pricing settings</div>
+    <div class="somo-tab" data-pane="accounts" id="tab-accounts">Accounts</div>
+    <div class="somo-tab" data-pane="settings" id="tab-settings">Settings</div>
+  </div>
+
+  <div class="somo-body">
+
+    <!-- NEW DELIVERY -->
+    <div class="somo-pane active" id="pane-new">
+      <div class="somo-grid">
+        <div>
+          <div class="somo-card">
+            <h3><span class="n">01</span> Trip details</h3>
+            <div class="somo-route">
+              <div class="dot a"></div>
+              <div class="line"><div class="line-fill" id="route-fill"></div></div>
+              <div class="dot b"></div>
+              <div class="dist" id="route-dist">0.0 km</div>
+            </div>
+            <label class="somo-field"><span>Pickup location</span><input class="somo-input" id="f-pickup" placeholder="e.g. Osu, Oxford Street"></label>
+            <label class="somo-field"><span>Drop-off location</span><input class="somo-input" id="f-dropoff" placeholder="e.g. East Legon, American House"></label>
+            <label class="somo-field">
+              <span>Driving distance (km)</span>
+              <div class="somo-inline-btn-row">
+                <input class="somo-input" id="f-distance" type="number" min="0" step="0.1" placeholder="0.0">
+                <button class="somo-mini-btn" id="btn-calc-distance" disabled title="Ask an admin to add a Google Maps API key in Settings">Get from Maps</button>
+              </div>
+            </label>
+            <div class="somo-maps-hint" id="maps-hint">
+              Manual entry is active. An admin can add a Google Maps API key (Places + Distance Matrix) in the Settings tab to enable location autocomplete and automatic driving-distance lookup for everyone.
+            </div>
+            <label class="somo-field">
+              <span>Delivery type</span>
+              <select class="somo-select" id="f-type">
+                <option value="Standard">Standard</option>
+                <option value="Express">Express (same-day)</option>
+                <option value="Fragile">Fragile / handle with care</option>
+              </select>
+            </label>
+            <label class="somo-field"><span>Surcharges</span><div class="somo-checks" id="f-surcharges"></div></label>
+            <label class="somo-field"><span>Declared value of item (GHS, required)</span><input class="somo-input" id="f-value" type="number" min="0" step="1" placeholder="e.g. 300"></label>
+            <div class="somo-note" style="margin-top:-6px; border-top:none; padding-top:0;">Used for handling care and liability — required before a request can be logged.</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="somo-card">
+            <h3><span class="n">02</span> Recommended price</h3>
+            <div class="somo-price-box">
+              <div class="somo-price-row main"><span class="l">Recommended</span><span class="v" id="p-recommended">GHS 0</span></div>
+              <div class="somo-divider"></div>
+              <div class="somo-price-row"><span class="l">Minimum negotiable</span><span class="v" id="p-minimum">GHS 0</span></div>
+              <div class="somo-price-row"><span class="l">Base fare + distance</span><span class="v" id="p-breakdown">—</span></div>
+            </div>
+            <label class="somo-field"><span>Corporate customer / merchant</span><input class="somo-input" id="f-customer" placeholder="Company name"></label>
+            <label class="somo-field"><span>Agreed price (GHS)</span><input class="somo-input" id="f-agreed" type="number" min="0" step="0.5" placeholder="0.00"></label>
+            <div class="somo-flag" id="approval-flag">⚠ Agreed price is below the minimum negotiable price. This quote will be logged as <strong>requires approval</strong>.</div>
+            <button class="somo-btn" id="submit-request">Log delivery request</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOG -->
+    <div class="somo-pane" id="pane-log">
+      <div class="somo-card" style="margin-top:0;">
+        <h3><span class="n">—</span> <span id="log-title">My delivery log</span><span class="tag-note" id="log-scope-note">visible only to you</span></h3>
+        <div id="log-content"><div class="somo-loading">Loading log…</div></div>
+      </div>
+    </div>
+
+    <!-- RIDERS (admin/ops) -->
+    <div class="somo-pane" id="pane-riders">
+      <div class="somo-card" style="margin-top:0;">
+        <h3><span class="n">—</span> Rider roster <span class="tag-note">shared, managed by admin/ops</span></h3>
+        <div class="somo-row2" style="align-items:end;">
+          <label class="somo-field"><span>Rider name</span><input class="somo-input" id="rider-name" placeholder="e.g. Kwame Boateng"></label>
+          <label class="somo-field"><span>Phone number (required)</span><input class="somo-input" id="rider-phone" placeholder="024 000 0000" type="tel"></label>
+        </div>
+        <div class="somo-row2" style="align-items:end;">
+          <label class="somo-field"><span>Motorbike registration number (required)</span><input class="somo-input" id="rider-reg" placeholder="e.g. GT 1234-24"></label>
+          <label class="somo-field"><span>Motorbike model (required)</span><input class="somo-input" id="rider-model" placeholder="e.g. Bajaj Boxer 150"></label>
+        </div>
+        <button class="somo-btn small" id="add-rider">Add rider</button>
+        <div id="riders-content" style="margin-top:18px;"><div class="somo-loading">Loading riders…</div></div>
+      </div>
+    </div>
+
+    <!-- PRICING SETTINGS (admin only) -->
+    <div class="somo-pane" id="pane-pricing">
+      <div class="somo-card" style="margin-top:0; max-width:480px;">
+        <h3><span class="n">03</span> Pricing parameters</h3>
+        <p style="color:var(--muted); font-size:12.5px; margin-top:-8px; margin-bottom:18px; line-height:1.5;">Editable by admin. Changes apply immediately to new quotes for everyone using this portal.</p>
+        <div class="somo-row2">
+          <label class="somo-field"><span>Base fare (GHS)</span><input class="somo-input" id="pp-base" type="number" min="0" step="0.5"></label>
+          <label class="somo-field"><span>Rate per km (GHS)</span><input class="somo-input" id="pp-rate" type="number" min="0" step="0.5"></label>
+        </div>
+        <div class="somo-row2">
+          <label class="somo-field"><span>Minimum fare (GHS)</span><input class="somo-input" id="pp-minfare" type="number" min="0" step="0.5"></label>
+          <label class="somo-field"><span>Min. negotiable (% of recommended)</span><input class="somo-input" id="pp-minpct" type="number" min="0" max="100" step="1"></label>
+        </div>
+        <label class="somo-field"><span>Ops team alert phone number (WhatsApp/SMS)</span><input class="somo-input" id="pp-opsphone" type="tel" placeholder="e.g. 024 000 0000"></label>
+        <button class="somo-btn ghost" id="save-pricing" style="margin-top:6px;">Save pricing parameters</button>
+        <div class="somo-note">Recommended price = max(minimum fare, base fare + rate × distance) + surcharges.<br>Minimum negotiable = recommended price × min. negotiable %.<br>The ops phone number is used to generate one-tap WhatsApp/SMS alerts — see the "Notify" button on each row in the delivery log.</div>
+      </div>
+    </div>
+
+    <!-- ACCOUNTS (admin only) -->
+    <div class="somo-pane" id="pane-accounts">
+      <div class="somo-card" style="margin-top:0;">
+        <h3><span class="n">—</span> Create account <span class="tag-note">issue login access</span></h3>
+        <p style="color:var(--muted); font-size:12.5px; margin-top:-8px; margin-bottom:16px; line-height:1.5;">
+          <strong>Merchant</strong> — sees and submits only their own delivery requests.
+          <strong>Ops team</strong> — sees every delivery, manages the rider roster, assigns riders, and sends alerts, but can't touch pricing or accounts.
+          <strong>Admin</strong> — everything Ops can do, plus pricing settings, account management, and portal settings.
+        </p>
+        <div class="somo-row2">
+          <label class="somo-field"><span>Role</span>
+            <div class="somo-role-choice">
+              <div class="somo-role-opt selected" data-newrole="merchant">Merchant</div>
+              <div class="somo-role-opt" data-newrole="ops">Ops team</div>
+              <div class="somo-role-opt" data-newrole="admin">Admin</div>
+            </div>
+          </label>
+          <label class="somo-field" id="new-company-field"><span>Company / merchant name</span><input class="somo-input" id="new-company" placeholder="e.g. Jumia, Mr Wu"></label>
+        </div>
+        <div class="somo-row2">
+          <label class="somo-field"><span>Username</span><input class="somo-input" id="new-username" placeholder="username"></label>
+          <label class="somo-field"><span>Phone number (required)</span><input class="somo-input" id="new-phone" placeholder="e.g. 024 000 0000" type="tel"></label>
+        </div>
+        <label class="somo-field"><span>Temporary password</span><input class="somo-input" id="new-password" placeholder="Leave blank to auto-generate" type="text"></label>
+        <button class="somo-btn small" id="create-account">Create account</button>
+      </div>
+      <div class="somo-card">
+        <h3><span class="n">—</span> Existing accounts</h3>
+        <div id="accounts-content"><div class="somo-loading">Loading accounts…</div></div>
+        <div class="somo-note">
+          Passwords are hashed with bcrypt on the server and never stored or sent in plain text after creation — the only time a password is shown is right after you create the account or reset it, so you can hand it to the account holder.
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS (admin only) -->
+    <div class="somo-pane" id="pane-settings">
+      <div class="somo-card" style="margin-top:0; max-width:520px;">
+        <h3><span class="n">—</span> Branding</h3>
+        <div style="display:flex; align-items:center; gap:16px; margin-bottom:16px;">
+          <div id="logo-preview" style="width:56px; height:56px; border-radius:12px; background:var(--panel-2); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-weight:700; color:var(--amber); overflow:hidden; flex-shrink:0;">SX</div>
+          <div style="flex:1;">
+            <input class="somo-input" id="logo-file" type="file" accept="image/*">
+          </div>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button class="somo-btn small" id="save-logo">Save logo</button>
+          <button class="somo-btn ghost small" id="remove-logo">Remove logo</button>
+        </div>
+        <div class="somo-note">Shows in the header and login screen for everyone using this portal. Keep the file small (a square icon under ~500KB works best).</div>
+      </div>
+
+      <div class="somo-card" style="max-width:520px;">
+        <h3><span class="n">—</span> API keys <span class="tag-note">stored server-side</span></h3>
+        <label class="somo-field"><span>Google Maps API key (Places + Distance Matrix)</span><input class="somo-input" id="set-maps-key" type="password" placeholder="AIza…"></label>
+        <label class="somo-field"><span>WhatsApp OTP / Business API key</span><input class="somo-input" id="set-whatsapp-key" type="password" placeholder="e.g. Meta WhatsApp Business API token"></label>
+        <label class="somo-field"><span>SMS API key</span><input class="somo-input" id="set-sms-key" type="password" placeholder="e.g. Twilio / Africa's Talking API key"></label>
+
+        <div id="other-keys-list"></div>
+        <button class="somo-btn ghost small" id="add-other-key" style="margin-bottom:14px;">+ Add another key</button>
+        <button class="somo-btn" id="save-api-keys">Save API keys</button>
+
+        <div class="somo-note">
+          These live in the backend's database file, not in the browser — regular users never receive them (only the Google Maps key is sent to logged-in browsers, since Maps JS has to load client-side; restrict it by HTTP referrer in Google Cloud Console). The WhatsApp/SMS keys are stored ready for a provider integration; today, actual message sending still goes through the one-tap WhatsApp/SMS links on the Notify button, since sending via a provider API requires this backend to call that provider directly — ask your developer to wire that up when you're ready to automate it.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="somo-modal-backdrop" id="reveal-modal">
+  <div class="somo-modal">
+    <h3 id="reveal-title">New password</h3>
+    <p>Share this with the account holder — it won't be shown again.</p>
+    <div class="somo-price-box" style="text-align:center; font-family: var(--font-mono); font-size: 16px;" id="reveal-value">—</div>
+    <button class="somo-btn ghost" id="reveal-close" style="margin-top:14px;">Done</button>
+  </div>
+</div>
+
+<div class="somo-modal-backdrop" id="notify-modal">
+  <div class="somo-modal" style="width:400px;">
+    <h3>Send delivery alerts</h3>
+    <p>These open WhatsApp or your SMS app with the message pre-filled — tap send there to actually deliver it. No message leaves this device until you do.</p>
+    <div id="notify-content"></div>
+    <button class="somo-btn ghost" id="notify-close" style="margin-top:14px;">Close</button>
+  </div>
+</div>
+
+<div class="somo-toast" id="somo-toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

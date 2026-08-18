@@ -1,0 +1,24 @@
+version: "3.8"
+
+# One-command deployment: the backend serves the frontend itself, so this
+# is the whole app. Put this behind a reverse proxy (Nginx, Caddy, Traefik)
+# for TLS/HTTPS on a real domain — see README.md.
+
+services:
+  somoexpress:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in a .env file before running}
+      - JWT_EXPIRES_IN=30d
+      - CORS_ORIGIN=*
+    volumes:
+      - somoexpress-data:/app/backend/data
+
+volumes:
+  somoexpress-data:
