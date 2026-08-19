@@ -47,11 +47,13 @@ body {
   --amber-dim: var(--brand-amber-text);
   --teal: var(--brand-teal);
   --danger: var(--destructive);
-  /* These read the variables next/font sets on <html>. The literal family
-     names stay as a fallback for anyone who has the face installed locally. */
-  --font-display: var(--font-grotesk), "Space Grotesk", sans-serif;
+  /* Inter is the single typeface for the whole portal. The three tokens stay
+     as separate names so the stylesheet keeps expressing intent (display /
+     body / numeric), but they all resolve to Inter now. The literal family
+     name stays as a fallback for anyone who has the face installed locally. */
+  --font-display: var(--font-sans), "Inter", sans-serif;
   --font-body: var(--font-sans), "Inter", sans-serif;
-  --font-mono: var(--font-plex-mono), "IBM Plex Mono", monospace;
+  --font-mono: var(--font-sans), "Inter", sans-serif;
 
   position: relative;
   width: 100%;
@@ -59,6 +61,9 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
+  /* Inter's proportional digits would make the mono-token numerics (prices,
+     distances, IDs) jitter, so lock figures to fixed width portal-wide. */
+  font-variant-numeric: tabular-nums;
   border-radius: 14px;
   overflow: hidden;
   min-height: 640px;
