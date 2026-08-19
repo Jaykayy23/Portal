@@ -173,6 +173,23 @@ export interface Database {
         };
         Relationships: [];
       };
+      rate_limits: {
+        Row: { bucket: string; window_start: string; hits: number };
+        Insert: { bucket: string; window_start?: string; hits?: number };
+        Update: { window_start?: string; hits?: number };
+        Relationships: [];
+      };
+      idempotency_keys: {
+        Row: {
+          id: string;
+          response: Json | null;
+          created_at: string;
+          expires_at: string;
+        };
+        Insert: { id: string; response?: Json | null; expires_at: string };
+        Update: { response?: Json | null };
+        Relationships: [];
+      };
       delivery_confirmations: {
         Row: {
           id: string;
@@ -238,7 +255,12 @@ export interface Database {
       };
     };
     Views: Record<never, never>;
-    Functions: Record<never, never>;
+    Functions: {
+      rate_limit_hit: {
+        Args: { p_bucket: string; p_limit: number; p_window_seconds: number };
+        Returns: { allowed: boolean; retry_after_seconds: number }[];
+      };
+    };
     Enums: Record<never, never>;
     CompositeTypes: Record<never, never>;
   };

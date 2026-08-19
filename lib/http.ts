@@ -10,7 +10,9 @@ import { missingEnv } from './config';
 export class HttpError extends Error {
   constructor(
     public status: number,
-    message: string
+    message: string,
+    /** Response headers the status needs to be actionable, e.g. Retry-After. */
+    public headers?: Record<string, string>
   ) {
     super(message);
     this.name = 'HttpError';
@@ -38,7 +40,10 @@ export async function handle(fn: () => Promise<NextResponse>): Promise<NextRespo
     return await fn();
   } catch (err) {
     if (err instanceof HttpError) {
-      return NextResponse.json({ error: err.message }, { status: err.status });
+      return NextResponse.json(
+        { error: err.message },
+        { status: err.status, headers: err.headers }
+      );
     }
     console.error(err);
     return NextResponse.json({ error: 'Something went wrong on the server.' }, { status: 500 });

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { HttpError, badRequest, handle, readJson, requireUser } from '@/lib/http';
+import { enforceRateLimit } from '@/lib/rateLimit';
 import { AccountError, createAccount, listAccounts } from '@/lib/accounts';
 import { isValidUsername, USERNAME_RULE } from '@/lib/identity';
 import { ROLES, type Role } from '@/lib/types';
@@ -26,9 +27,15 @@ interface CreateBody {
   companyName?: string;
 }
 
+// Each call provisions an auth user, which is the most expensive write in the
+// portal and the one hardest to undo in bulk. Nobody onboards forty accounts in
+// five minutes by hand.
+const PER_USER = { limit: 20, windowSeconds: 300 };
+
 export async function POST(req: Request) {
   return handle(async () => {
     const user = await requireUser('admin', 'ops');
+    await enforceRateLimit('account-create', user.id, PER_USER);
     const { username, phone, password, role, companyName } = await readJson<CreateBody>(req);
 
     if (!username || !phone) badRequest('Username and phone number are required.');

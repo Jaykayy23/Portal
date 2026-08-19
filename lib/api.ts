@@ -15,6 +15,13 @@ export class ApiError extends Error {
 interface ApiOptions {
   method?: string;
   body?: unknown;
+  /**
+   * Marks this request as a retry-safe repeat of an earlier one. Reuse the same
+   * value when re-sending after a failure whose outcome you don't know: the
+   * server replays the first response instead of doing the work twice. Generate
+   * a fresh one for a genuinely new action.
+   */
+  idempotencyKey?: string;
 }
 
 export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Promise<T> {
@@ -22,7 +29,10 @@ export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Pro
   try {
     res = await fetch(`/api${path}`, {
       method: opts.method || 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(opts.idempotencyKey ? { 'Idempotency-Key': opts.idempotencyKey } : {}),
+      },
       credentials: 'same-origin',
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     });

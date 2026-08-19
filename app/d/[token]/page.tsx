@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import { missingEnv } from '@/lib/config';
+import { clientIpFrom, hitRateLimit } from '@/lib/rateLimit';
 import { ConfigError } from '@/components/ConfigError';
 import { BrandMark } from '@/components/BrandMark';
 import { getLogoDataUrl } from '@/lib/settings';
@@ -15,6 +17,11 @@ export const metadata: Metadata = {
   title: 'Confirm delivery — SomoExpress',
   robots: { index: false, follow: false },
 };
+
+// The page is a public URL doing two database reads, so it gets the same
+// treatment as the endpoint behind it — generous, because a rider reloading a
+// page on bad signal is normal and being locked out mid-delivery is not.
+const PER_IP = { limit: 60, windowSeconds: 300 };
 
 /** Short path label, kept apart from the summary so it reads well on a phone. */
 function Row({ label, value }: { label: string; value: string }) {
@@ -66,6 +73,37 @@ function copyFor(view: CompletionView): { heading: string; sub: string } {
   }
 }
 
+/** The card body, shared by the normal page and the rate-limited one. */
+function Card({
+  logoDataUrl,
+  heading,
+  sub,
+  children,
+}: {
+  logoDataUrl: string;
+  heading: string;
+  sub: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="somo-auth-overlay">
+      <div className="somo-auth-card">
+        <div className="somo-auth-logo">
+          <BrandMark logoDataUrl={logoDataUrl} />
+          <div>
+            <div className="somo-title">SomoExpress</div>
+            <div className="somo-sub">Delivery confirmation</div>
+          </div>
+        </div>
+
+        <h2>{heading}</h2>
+        <p className="sub-text">{sub}</p>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /**
  * The rider's completion page — the only page in the portal with no session.
  *
@@ -82,28 +120,33 @@ export default async function ConfirmDeliveryPage({
   if (missing.length) return <ConfigError missing={missing} />;
 
   const { token } = await params;
-  const [view, logoDataUrl] = await Promise.all([loadConfirmation(token), getLogoDataUrl()]);
+  const logoDataUrl = await getLogoDataUrl();
+
+  // Checked before the token is looked up, so a flood costs one counter write
+  // rather than two reads. A page cannot send Retry-After usefully, so the wait
+  // is spelled out in the copy instead.
+  const ip = clientIpFrom(await headers());
+  if (ip) {
+    const { allowed, retryAfterSeconds } = await hitRateLimit('confirm-page', ip, PER_IP);
+    if (!allowed) {
+      return (
+        <Card
+          logoDataUrl={logoDataUrl}
+          heading="Too many attempts"
+          sub={`Please wait about ${Math.ceil(retryAfterSeconds / 60)} minute(s) and open the link again.`}
+        />
+      );
+    }
+  }
+
+  const view = await loadConfirmation(token);
   const { heading, sub } = copyFor(view);
 
   return (
-    <div className="somo-auth-overlay">
-      <div className="somo-auth-card">
-        <div className="somo-auth-logo">
-          <BrandMark logoDataUrl={logoDataUrl} />
-          <div>
-            <div className="somo-title">SomoExpress</div>
-            <div className="somo-sub">Delivery confirmation</div>
-          </div>
-        </div>
-
-        <h2>{heading}</h2>
-        <p className="sub-text">{sub}</p>
-
-        {view.summary ? <Summary summary={view.summary} /> : null}
-
-        {view.state === 'pending' ? <ConfirmDelivery token={token} /> : null}
-        {view.state === 'confirmed' ? <ConfirmedNote confirmedAt={view.confirmedAt} /> : null}
-      </div>
-    </div>
+    <Card logoDataUrl={logoDataUrl} heading={heading} sub={sub}>
+      {view.summary ? <Summary summary={view.summary} /> : null}
+      {view.state === 'pending' ? <ConfirmDelivery token={token} /> : null}
+      {view.state === 'confirmed' ? <ConfirmedNote confirmedAt={view.confirmedAt} /> : null}
+    </Card>
   );
 }

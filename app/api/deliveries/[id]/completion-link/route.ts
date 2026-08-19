@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server';
 import { absoluteOrigin, badRequest, handle, requireUser } from '@/lib/http';
+import { enforceRateLimit } from '@/lib/rateLimit';
 import { ConfirmationError, issueCompletionLink } from '@/lib/deliveryConfirmation';
+
+// Every call writes a row, so an ops browser stuck in a loop — a modal
+// re-mounting, a script left running — would fill the table. The per-delivery
+// limit is the tighter one because a single order legitimately needs one link,
+// or a few if ops re-sends the message.
+const PER_USER = { limit: 40, windowSeconds: 300 };
+const PER_DELIVERY = { limit: 10, windowSeconds: 300 };
 
 /**
  * Mints the rider's completion link. Ops/admin only.
@@ -17,6 +25,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   return handle(async () => {
     const user = await requireUser('admin', 'ops');
     const { id } = await ctx.params;
+
+    await enforceRateLimit('completion-link-user', user.id, PER_USER);
+    await enforceRateLimit('completion-link-delivery', id, PER_DELIVERY);
 
     try {
       const { token, expiresAt } = await issueCompletionLink(id, user.id);

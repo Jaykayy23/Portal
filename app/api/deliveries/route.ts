@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { badRequest, handle, readJson, requireUser } from '@/lib/http';
+import { enforceRateLimit } from '@/lib/rateLimit';
+import { idempotencyKey, withIdempotency } from '@/lib/idempotency';
 import { calcPrice } from '@/lib/pricing';
 import { getDeliveryOptions, getPricingParams } from '@/lib/settings';
 import { DeliveryError, createDelivery, listDeliveriesFor } from '@/lib/deliveries';
@@ -29,6 +31,10 @@ interface CreateBody {
 /** A day. Anything beyond this is a typo or a probe, not a delivery. */
 const MAX_DURATION_MIN = 24 * 60;
 
+// A busy merchant files a handful an hour, not thirty in five minutes. High
+// enough that nobody working normally will ever see it.
+const PER_USER = { limit: 30, windowSeconds: 300 };
+
 /**
  * Price is recalculated here from the saved pricing parameters, so whatever
  * recommended/minimum the browser displayed is irrelevant — a merchant cannot
@@ -38,10 +44,18 @@ const MAX_DURATION_MIN = 24 * 60;
  * Distance and estimated time are still taken from the request, because both are
  * editable by hand in the form (the Maps lookup only prefills them). They are the
  * inputs to the price, not the price, and ops sees both on every row in the log.
+ *
+ * Idempotent when the browser sends an Idempotency-Key: the same key returns the
+ * delivery created by the first attempt rather than filing a second one. That is
+ * for the merchant on a bad signal whose response never arrived, not for abuse —
+ * the rate limit above covers that.
  */
 export async function POST(req: Request) {
   return handle(async () => {
     const user = await requireUser();
+    await enforceRateLimit('delivery-create', user.id, PER_USER);
+
+    const key = idempotencyKey(req);
     const body = await readJson<CreateBody>(req);
     const {
       pickup,
@@ -129,28 +143,34 @@ export async function POST(req: Request) {
     const hasAgreed = agreed !== undefined && agreed !== null && agreed !== '';
     const finalAgreed = hasAgreed ? Number(agreed) : recommended;
 
-    try {
-      const delivery = await createDelivery({
-        merchantId,
-        customer: finalCustomer,
-        submittedBy: user.id,
-        pickup,
-        dropoff,
-        distance: Number(distance),
-        durationMin: minutes,
-        type: type || 'Standard',
-        itemCategory: finalCategory,
-        surcharges: Array.isArray(surcharges) ? surcharges : [],
-        declaredValue: Number(declaredValue),
-        recommended,
-        minimum,
-        agreed: finalAgreed,
-        status: finalAgreed < minimum ? 'Requires approval' : 'Requested',
-      });
-      return NextResponse.json({ delivery });
-    } catch (e) {
-      if (e instanceof DeliveryError) badRequest(e.message);
-      throw e;
-    }
+    // Only the write is wrapped: a request rejected by the validation above never
+    // claims the key, so fixing the input and resubmitting works normally.
+    const created = await withIdempotency('delivery-create', user.id, key, async () => {
+      try {
+        const delivery = await createDelivery({
+          merchantId,
+          customer: finalCustomer,
+          submittedBy: user.id,
+          pickup,
+          dropoff,
+          distance: Number(distance),
+          durationMin: minutes,
+          type: type || 'Standard',
+          itemCategory: finalCategory,
+          surcharges: Array.isArray(surcharges) ? surcharges : [],
+          declaredValue: Number(declaredValue),
+          recommended,
+          minimum,
+          agreed: finalAgreed,
+          status: finalAgreed < minimum ? 'Requires approval' : 'Requested',
+        });
+        return { delivery };
+      } catch (e) {
+        if (e instanceof DeliveryError) badRequest(e.message);
+        throw e;
+      }
+    });
+
+    return NextResponse.json(created);
   });
 }

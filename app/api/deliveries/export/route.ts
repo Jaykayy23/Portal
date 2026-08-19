@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { badRequest, handle, requireUser } from '@/lib/http';
+import { enforceRateLimit } from '@/lib/rateLimit';
 import { listDeliveriesFor } from '@/lib/deliveries';
 import { getPricingParams } from '@/lib/settings';
 import { deliveriesToXlsx, exportFileName } from '@/lib/deliveryExport';
@@ -15,9 +16,16 @@ export const runtime = 'nodejs';
  * caller's session, so the RLS SELECT policy decides what lands in the file — a
  * merchant's export can only ever contain their own rows.
  */
-export async function GET() {
+// The most expensive endpoint in the app: it reads the caller's entire delivery
+// history and zips a workbook out of it, in the Node runtime. Nobody legitimately
+// needs more than a handful of these in a few minutes.
+const PER_USER = { limit: 5, windowSeconds: 300 };
+
+export async function GET(req: Request) {
   return handle(async () => {
     const user = await requireUser();
+    await enforceRateLimit('delivery-export', user.id, PER_USER);
+
     const [records, params] = await Promise.all([
       listDeliveriesFor(user),
       getPricingParams(),

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { badRequest, handle, readJson } from '@/lib/http';
+import { enforceIpRateLimit } from '@/lib/rateLimit';
 import { hasAnyAccount } from '@/lib/session';
 import { createAccount, AccountError } from '@/lib/accounts';
 import { isValidUsername, USERNAME_RULE } from '@/lib/identity';
@@ -10,9 +11,16 @@ interface SetupBody {
   password: string;
 }
 
+// Unauthenticated by necessity — there is no account to authenticate as yet.
+// hasAnyAccount() closes it the moment the first admin exists, so the limit only
+// has to cover the window before that, plus the endless probing every public URL
+// attracts afterwards.
+const PER_IP = { limit: 5, windowSeconds: 900 };
+
 // First-run only: creates the one and only way in when no accounts exist yet.
 export async function POST(req: Request) {
   return handle(async () => {
+    await enforceIpRateLimit('setup', req, PER_IP);
     const { username, phone, password } = await readJson<SetupBody>(req);
     if (!username || !phone || !password) {
       badRequest('Username, phone number and password are all required.');

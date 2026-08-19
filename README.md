@@ -151,6 +151,8 @@ Who can reach what:
 | `riders` | — | — | read + write | read + write |
 | `app_settings` (API keys) | — | — | — | via server only |
 | `delivery_confirmations` | — | — | — | via server only |
+| `rate_limits` | — | — | — | via server only |
+| `idempotency_keys` | — | — | — | via server only |
 
 `app_settings` is granted to **no** public role: the WhatsApp/SMS provider keys
 are only ever read by the server's service-role client, after the caller has been
@@ -170,6 +172,53 @@ Two deliberate exceptions:
   expires in 72 hours. Only the sha256 of the token is stored, so a database dump
   yields nothing clickable, and the page shows no price, no declared value and no
   other order. The link stops working the moment the delivery is reassigned.
+
+### Rate limiting
+
+Counters live in Postgres (`rate_limits` + `public.rate_limit_hit()`), not in the
+Node process: on Vercel "the server" is a pool of lambdas, so an in-memory Map
+would reset on every cold start and count separately in each instance. See
+[lib/rateLimit.ts](lib/rateLimit.ts).
+
+| Endpoint | Bucket | Limit |
+| --- | --- | --- |
+| `POST /api/delivery-confirm/[token]` | IP / token | 20 / 10 per 5 min |
+| `GET /d/[token]` (rider page) | IP | 60 per 5 min |
+| `POST /api/auth/setup` | IP | 5 per 15 min |
+| `GET /api/auth/bootstrap-status` | IP | 60 per 5 min |
+| `POST /api/deliveries` | user | 30 per 5 min |
+| `GET /api/deliveries/export` | user | 5 per 5 min |
+| `POST /api/deliveries/[id]/completion-link` | user / delivery | 40 / 10 per 5 min |
+| `POST /api/accounts` | user | 20 per 5 min |
+
+Two deliberate choices:
+
+- **It fails open.** If the database is unreachable the check logs and allows the
+  request. A limiter that turns a slow database into a portal-wide outage is a
+  worse problem than the one it prevents — and every endpoint behind it still has
+  its own authorisation.
+- **Login is not in the table.** The browser signs in against Supabase Auth
+  directly, which applies its own per-IP limits. Proxying login through a Route
+  Handler purely to count it would mean giving up the SDK's cookie handling.
+
+Over-limit responses are `429` with a `Retry-After` header. Everything else —
+ordinary authenticated reads — is left unlimited: it is cheap, RLS already bounds
+what it returns, and a limit would cost a round trip per page load to prevent
+nothing.
+
+### Idempotency
+
+`POST /api/deliveries` accepts an `Idempotency-Key` header. The New delivery form
+generates one per submission attempt and keeps it until the request succeeds, so
+a merchant on a bad signal who taps twice gets back the delivery already filed
+rather than a duplicate. Successful responses are cached for 24 hours in
+`idempotency_keys`; failures release the key so a corrected retry works normally,
+and a second request arriving while the first is still running gets a `409`.
+
+The other write endpoints are already idempotent by construction and take no key:
+`PATCH /api/deliveries/[id]` sets the same row to the same values, the rider
+confirmation claims its link with `confirmed_at is null`, and account creation
+collides on the username unique index. See [lib/idempotency.ts](lib/idempotency.ts).
 
 ---
 

@@ -35,6 +35,15 @@ export function NewDeliveryForm({
 
   const pickupRef = useRef<HTMLInputElement>(null);
   const dropoffRef = useRef<HTMLInputElement>(null);
+  /**
+   * Identifies this submission attempt to the server, and survives a retry.
+   *
+   * Kept until a submission succeeds, then cleared. So a merchant whose request
+   * reached the server but whose response was lost — the roadside-signal case —
+   * gets back the delivery that was already filed when they tap again, instead
+   * of filing a second one. A new form submission gets a new key.
+   */
+  const submitKey = useRef('');
 
   const [pickup, setPickup] = useState('');
   const [dropoff, setDropoff] = useState('');
@@ -149,8 +158,11 @@ export function NewDeliveryForm({
 
     setBusy(true);
     try {
+      if (!submitKey.current) submitKey.current = crypto.randomUUID();
+
       const data = await api<{ delivery: DeliveryWithMerchant }>('/deliveries', {
         method: 'POST',
+        idempotencyKey: submitKey.current,
         body: {
           pickup: pickup.trim(),
           dropoff: dropoff.trim(),
@@ -170,6 +182,9 @@ export function NewDeliveryForm({
           ? 'Logged — flagged for approval'
           : 'Delivery request logged'
       );
+
+      // Consumed: the next submission is a different delivery.
+      submitKey.current = '';
 
       setPickup('');
       setDropoff('');
