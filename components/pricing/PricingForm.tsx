@@ -110,7 +110,8 @@ export function PricingForm({ params }: { params: PricingParams }) {
 
       <div className="somo-note">
         Recommended price = max(minimum fare, base fare + rate × distance + rate per minute ×
-        estimated driving time) + surcharges.
+        estimated driving time) + surge charges. The surge charge list and its amounts are set on the
+        Settings tab.
         <br />
         The driving time comes from Google Maps at the moment of quoting, so two runs of the same
         distance price differently when one of them sits in traffic. Set the per-minute rate to 0 to

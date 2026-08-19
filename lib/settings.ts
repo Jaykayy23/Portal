@@ -2,8 +2,9 @@
 //
 // Three different audiences, so three different access paths:
 //
-//   pricing_params  every signed-in role reads it (the quote preview needs it),
-//                   admin writes it — both via the user's session, under RLS.
+//   pricing_params  every signed-in role reads it (the quote preview and the
+//                   surge charge options need it), admin writes it — both via the
+//                   user's session, under RLS.
 //   branding        world-readable, because the login screen renders the logo
 //                   before anyone signs in.
 //   app_settings    granted to no public role at all. Only the service-role
@@ -11,6 +12,7 @@
 
 import { createSupabaseServerClient } from './supabase/server';
 import { createAdminClient } from './supabase/admin';
+import { DEFAULT_SURCHARGES } from './pricing';
 import type { AppSettings, OtherKey, PricingParams } from './types';
 import type { Database } from './database.types';
 
@@ -18,35 +20,56 @@ export class SettingsError extends Error {}
 
 // --- pricing -----------------------------------------------------------------
 
+function toPricingParams(row: Database['public']['Tables']['pricing_params']['Row']): PricingParams {
+  return {
+    base: Number(row.base),
+    rate: Number(row.rate),
+    // `|| 0` so the portal keeps quoting on distance alone if the app is
+    // deployed before the per_min migration lands, rather than NaN-ing every price.
+    perMin: Number(row.per_min) || 0,
+    minFare: Number(row.min_fare),
+    minPct: Number(row.min_pct),
+    opsPhone: row.ops_phone,
+    // Same reasoning as per_min: an app deployed ahead of the surcharges
+    // migration falls back to the built-in list rather than losing the field.
+    surcharges: Array.isArray(row.surcharges)
+      ? row.surcharges.map((s) => ({ id: s.id, label: s.label, amount: Number(s.amount) || 0 }))
+      : DEFAULT_SURCHARGES,
+  };
+}
+
 export async function getPricingParams(): Promise<PricingParams> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.from('pricing_params').select('*').eq('id', 1).single();
 
   if (error) throw new SettingsError(error.message);
-  return {
-    base: Number(data.base),
-    rate: Number(data.rate),
-    // `|| 0` so the portal keeps quoting on distance alone if the app is
-    // deployed before the per_min migration lands, rather than NaN-ing every price.
-    perMin: Number(data.per_min) || 0,
-    minFare: Number(data.min_fare),
-    minPct: Number(data.min_pct),
-    opsPhone: data.ops_phone,
-  };
+  return toPricingParams(data);
 }
 
-export async function savePricingParams(params: PricingParams): Promise<PricingParams> {
+/**
+ * Writes only the fields present in `patch`, because pricing is edited from two
+ * places now — the Pricing tab saves the fares, the Settings tab saves the surge
+ * charge list — and neither should clobber the other's fields.
+ *
+ * Admin-only, enforced by RLS rather than here: the session client is used
+ * deliberately so a non-admin write updates zero rows.
+ */
+export async function savePricingParams(patch: Partial<PricingParams>): Promise<PricingParams> {
   const supabase = await createSupabaseServerClient();
+  const update: Database['public']['Tables']['pricing_params']['Update'] = {};
+  if (patch.base !== undefined) update.base = patch.base;
+  if (patch.rate !== undefined) update.rate = patch.rate;
+  if (patch.perMin !== undefined) update.per_min = patch.perMin;
+  if (patch.minFare !== undefined) update.min_fare = patch.minFare;
+  if (patch.minPct !== undefined) update.min_pct = patch.minPct;
+  if (patch.opsPhone !== undefined) update.ops_phone = patch.opsPhone;
+  if (patch.surcharges !== undefined) update.surcharges = patch.surcharges;
+
+  if (Object.keys(update).length === 0) return getPricingParams();
+
   const { data, error } = await supabase
     .from('pricing_params')
-    .update({
-      base: params.base,
-      rate: params.rate,
-      per_min: params.perMin,
-      min_fare: params.minFare,
-      min_pct: params.minPct,
-      ops_phone: params.opsPhone,
-    })
+    .update(update)
     .eq('id', 1)
     .select('*')
     .maybeSingle();
@@ -55,16 +78,7 @@ export async function savePricingParams(params: PricingParams): Promise<PricingP
   // RLS blocks the write for non-admins, which shows up as zero rows updated.
   if (!data) throw new SettingsError('You do not have access to change pricing.');
 
-  return {
-    base: Number(data.base),
-    rate: Number(data.rate),
-    // `|| 0` so the portal keeps quoting on distance alone if the app is
-    // deployed before the per_min migration lands, rather than NaN-ing every price.
-    perMin: Number(data.per_min) || 0,
-    minFare: Number(data.min_fare),
-    minPct: Number(data.min_pct),
-    opsPhone: data.ops_phone,
-  };
+  return toPricingParams(data);
 }
 
 // --- branding ----------------------------------------------------------------

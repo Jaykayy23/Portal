@@ -1,12 +1,15 @@
-import type { PricingParams } from './types';
+import type { PricingParams, SurchargeOption } from './types';
 
-export interface SurchargeOption {
-  id: string;
-  label: string;
-  amount: number;
-}
+export type { SurchargeOption };
 
-export const SURCHARGE_OPTIONS: SurchargeOption[] = [
+/**
+ * The list a fresh install starts with, and the fallback when the app is
+ * deployed ahead of the surcharges migration — without it the surge charge field
+ * would silently disappear from the New delivery form.
+ *
+ * Not the live list: that is `params.surcharges`, which admin edits under Settings.
+ */
+export const DEFAULT_SURCHARGES: SurchargeOption[] = [
   { id: 'rush', label: 'Same-day rush', amount: 15 },
   { id: 'fragile', label: 'Fragile handling', amount: 10 },
   { id: 'afterhours', label: 'After-hours (past 8pm)', amount: 12 },
@@ -22,14 +25,31 @@ function round2(n: number): number {
 }
 
 /**
+ * Turns a label into a stable id. Used when admin adds a surge charge, since
+ * deliveries store ids rather than labels.
+ */
+export function surchargeId(label: string): string {
+  return (
+    label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'surcharge'
+  );
+}
+
+/**
  * Recommended price = max(minimum fare, base fare + rate x distance + per-min x time)
- *                     + surcharges.
+ *                     + surge charges.
  * Minimum negotiable = recommended price x min. negotiable %.
  *
  * Time is the estimated driving minutes for the route, which is what makes two
  * runs of equal distance price differently when one of them crawls through
  * traffic. It sits inside the max() alongside distance because the minimum fare
  * is a floor on the whole trip, not on the distance component alone.
+ *
+ * Surge charge amounts come from `params`, never from the caller, so a merchant
+ * cannot submit a surge charge worth -50 GHS. Ids that are not in the configured
+ * list — an option admin has since deleted, say — add nothing.
  *
  * Shared by the client-side preview and the Route Handler that actually writes
  * the record — but the Route Handler's result is the only one stored, so a
@@ -44,8 +64,9 @@ export function calcPrice(
   const distance = Number(distanceKm) || 0;
   const minutes = Number(durationMin) || 0;
   const base = params.base + params.rate * distance + params.perMin * minutes;
+  const options = params.surcharges ?? [];
   const surchargeTotal = surchargeIds.reduce((sum, id) => {
-    const opt = SURCHARGE_OPTIONS.find((o) => o.id === id);
+    const opt = options.find((o) => o.id === id);
     return sum + (opt ? opt.amount : 0);
   }, 0);
   const recommended = Math.max(params.minFare, base) + surchargeTotal;

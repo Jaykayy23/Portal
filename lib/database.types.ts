@@ -15,6 +15,13 @@ export interface OtherKeyRow {
   value: string;
 }
 
+/** One selectable surge charge, as stored in pricing_params.surcharges. */
+export interface SurchargeRow {
+  id: string;
+  label: string;
+  amount: number;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -138,6 +145,7 @@ export interface Database {
           min_fare: number;
           min_pct: number;
           ops_phone: string;
+          surcharges: SurchargeRow[];
           updated_at: string;
         };
         Insert: {
@@ -148,6 +156,7 @@ export interface Database {
           min_fare?: number;
           min_pct?: number;
           ops_phone?: string;
+          surcharges?: SurchargeRow[];
         };
         Update: {
           base?: number;
@@ -156,6 +165,7 @@ export interface Database {
           min_fare?: number;
           min_pct?: number;
           ops_phone?: string;
+          surcharges?: SurchargeRow[];
         };
         Relationships: [];
       };

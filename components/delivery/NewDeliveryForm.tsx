@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, errMessage } from '@/lib/api';
 import { fmtMoney } from '@/lib/format';
-import { SURCHARGE_OPTIONS, calcPrice } from '@/lib/pricing';
+import { calcPrice } from '@/lib/pricing';
 import { useToast } from '@/components/Toast';
 import { useMaps } from '@/components/MapsProvider';
 import { NotifyModal } from '@/components/delivery/NotifyModal';
@@ -49,6 +49,10 @@ export function NewDeliveryForm({
 
   const km = parseFloat(distance) || 0;
   const mins = parseFloat(durationMin) || 0;
+
+  // Set by admin under Settings, so an install with none configured simply shows
+  // no surge charge field.
+  const surchargeOptions = params.surcharges ?? [];
 
   // Preview only. The Route Handler recalculates from the same parameters and
   // stores its own result, so this can never inflate or discount a real quote.
@@ -288,24 +292,26 @@ export function NewDeliveryForm({
               </select>
             </label>
 
-            <label className="somo-field">
-              <span>Surcharges</span>
-              <div className="somo-checks">
-                {SURCHARGE_OPTIONS.map((opt) => {
-                  const checked = surcharges.includes(opt.id);
-                  return (
-                    <label key={opt.id} className={`somo-check${checked ? ' checked' : ''}`}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleSurcharge(opt.id)}
-                      />{' '}
-                      {opt.label} (+GHS {opt.amount})
-                    </label>
-                  );
-                })}
-              </div>
-            </label>
+            {surchargeOptions.length > 0 && (
+              <label className="somo-field">
+                <span>Surge charges</span>
+                <div className="somo-checks">
+                  {surchargeOptions.map((opt) => {
+                    const checked = surcharges.includes(opt.id);
+                    return (
+                      <label key={opt.id} className={`somo-check${checked ? ' checked' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleSurcharge(opt.id)}
+                        />{' '}
+                        {opt.label} (+GHS {opt.amount})
+                      </label>
+                    );
+                  })}
+                </div>
+              </label>
+            )}
 
             <label className="somo-field">
               <span>Declared value of item (GHS, required)</span>

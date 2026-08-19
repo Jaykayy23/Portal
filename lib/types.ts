@@ -85,6 +85,17 @@ export interface DeliveryWithMerchant extends Delivery {
   merchantPhone?: string;
 }
 
+/**
+ * One selectable surge charge. Configured by admin under Settings, so the id is
+ * whatever was slugified from the label when the row was created — deliveries
+ * store these ids, which is why an existing one is never rewritten.
+ */
+export interface SurchargeOption {
+  id: string;
+  label: string;
+  amount: number;
+}
+
 export interface PricingParams {
   base: number;
   rate: number;
@@ -93,6 +104,8 @@ export interface PricingParams {
   minFare: number;
   minPct: number;
   opsPhone: string;
+  /** Surge charges offered on the New delivery form, in display order. */
+  surcharges: SurchargeOption[];
 }
 
 export interface OtherKey {
