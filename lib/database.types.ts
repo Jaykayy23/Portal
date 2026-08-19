@@ -86,6 +86,8 @@ export interface Database {
           created_at: string;
           merchant_id: string;
           customer: string;
+          recipient_name: string;
+          recipient_phone: string;
           submitted_by: string;
           pickup: string;
           dropoff: string;
@@ -110,6 +112,8 @@ export interface Database {
           id?: string;
           merchant_id: string;
           customer: string;
+          recipient_name?: string;
+          recipient_phone?: string;
           submitted_by: string;
           pickup: string;
           dropoff: string;

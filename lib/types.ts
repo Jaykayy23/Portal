@@ -59,6 +59,9 @@ export interface Delivery {
   date: string;
   /** Merchant company name captured at submission time. */
   customer: string;
+  /** The person receiving the parcel at the drop-off. Not the merchant. */
+  recipientName: string;
+  recipientPhone: string;
   merchantId: string;
   submittedBy: string;
   pickup: string;

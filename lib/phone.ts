@@ -7,6 +7,20 @@ export function normalizePhone(raw: string | undefined | null): string {
   return digits;
 }
 
+/**
+ * True if the number could plausibly be dialled.
+ *
+ * Deliberately loose: it checks the digit count after normalisation, not the
+ * network prefix. A rider's number that MTN issues next year should not be
+ * rejected by a list this app has no business maintaining — and the cost of a
+ * wrong number is a rider who has to call ops, not a corrupted record. The
+ * range covers a local 0-prefixed Ghana number through the longest E.164 one.
+ */
+export function isValidPhone(raw: string | undefined | null): boolean {
+  const digits = normalizePhone(raw);
+  return digits.length >= 9 && digits.length <= 15;
+}
+
 /** wa.me deep link that pre-fills a message. Null when there's no usable number. */
 export function waLink(phone: string, message: string): string | null {
   const p = normalizePhone(phone);

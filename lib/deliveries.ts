@@ -18,6 +18,9 @@ export function fromRow(r: DeliveryRow): Delivery {
     id: r.id,
     date: r.created_at,
     customer: r.customer,
+    // Blank on rows filed before recipients were captured.
+    recipientName: r.recipient_name ?? '',
+    recipientPhone: r.recipient_phone ?? '',
     merchantId: r.merchant_id,
     submittedBy: r.submitted_by,
     pickup: r.pickup,
@@ -74,6 +77,8 @@ export async function listDeliveriesFor(user: SessionUser): Promise<DeliveryWith
 export interface CreateDeliveryInput {
   merchantId: string;
   customer: string;
+  recipientName: string;
+  recipientPhone: string;
   submittedBy: string;
   pickup: string;
   dropoff: string;
@@ -96,6 +101,8 @@ export async function createDelivery(input: CreateDeliveryInput): Promise<Delive
     .insert({
       merchant_id: input.merchantId,
       customer: input.customer,
+      recipient_name: input.recipientName,
+      recipient_phone: input.recipientPhone,
       submitted_by: input.submittedBy,
       pickup: input.pickup,
       dropoff: input.dropoff,

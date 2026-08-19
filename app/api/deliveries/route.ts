@@ -3,6 +3,7 @@ import { badRequest, handle, readJson, requireUser } from '@/lib/http';
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { idempotencyKey, withIdempotency } from '@/lib/idempotency';
 import { calcPrice } from '@/lib/pricing';
+import { isValidPhone } from '@/lib/phone';
 import { getDeliveryOptions, getPricingParams } from '@/lib/settings';
 import { DeliveryError, createDelivery, listDeliveriesFor } from '@/lib/deliveries';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -26,6 +27,8 @@ interface CreateBody {
   declaredValue: number | string;
   agreed?: number | string;
   customer?: string;
+  recipientName?: string;
+  recipientPhone?: string;
 }
 
 /** A day. Anything beyond this is a typo or a probe, not a delivery. */
@@ -68,6 +71,8 @@ export async function POST(req: Request) {
       declaredValue,
       agreed,
       customer,
+      recipientName,
+      recipientPhone,
     } = body;
 
     if (!pickup || !dropoff || !distance) {
@@ -90,6 +95,17 @@ export async function POST(req: Request) {
     }
     if (type !== undefined && !DELIVERY_TYPES.some((t) => t.value === type)) {
       badRequest('Invalid delivery type.');
+    }
+
+    // The recipient is who the rider is actually delivering to, so both fields
+    // are required — a drop-off address with nobody to ask for is what sends a
+    // rider back to base with the parcel.
+    const finalRecipientName = String(recipientName ?? '').trim();
+    const finalRecipientPhone = String(recipientPhone ?? '').trim();
+    if (!finalRecipientName) badRequest("Enter the recipient's name.");
+    if (!finalRecipientPhone) badRequest("Enter the recipient's phone number.");
+    if (!isValidPhone(finalRecipientPhone)) {
+      badRequest('That recipient phone number does not look like a real number.');
     }
 
     const [params, options] = await Promise.all([getPricingParams(), getDeliveryOptions()]);
@@ -150,6 +166,8 @@ export async function POST(req: Request) {
         const delivery = await createDelivery({
           merchantId,
           customer: finalCustomer,
+          recipientName: finalRecipientName,
+          recipientPhone: finalRecipientPhone,
           submittedBy: user.id,
           pickup,
           dropoff,

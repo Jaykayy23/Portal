@@ -63,6 +63,10 @@ function columnsFor(opts: DeliveryExportOptions): Column<DeliveryWithMerchant>[]
   columns.push(
     { header: header('Pickup'), width: 30, cell: (r) => r.pickup },
     { header: header('Drop-off'), width: 30, cell: (r) => r.dropoff },
+    // Null rather than '' for rows filed before recipients were captured, so the
+    // cell is genuinely empty in Excel instead of holding an empty string.
+    { header: header('Recipient'), width: 22, cell: (r) => r.recipientName || null },
+    { header: header('Recipient phone'), width: 16, cell: (r) => r.recipientPhone || null },
     {
       header: header('Distance (km)'),
       width: 14,

@@ -238,6 +238,14 @@ collides on the username unique index. See [lib/idempotency.ts](lib/idempotency.
   Handler re-checks the submitted label against the configured list. The chosen
   label is copied onto the delivery row, the same way rider details are, so
   renaming or removing a category never rewrites past records.
+- **The recipient** (name and phone of whoever is receiving the parcel) is its
+  own required section on the New delivery form. Required in the browser and
+  again in the Route Handler, which also sanity-checks the number. Note the
+  naming: `deliveries.customer` is the corporate merchant who filed the request,
+  `recipient_name` / `recipient_phone` is the individual at the drop-off. The
+  rider's WhatsApp alert carries it so they can call ahead, the log shows it
+  under the route, and the export has it as two columns. Rows filed before this
+  existed show a dash rather than blocking.
 - **Google Maps** (autocomplete + driving-distance lookup) works once an admin
   saves a Maps API key with Places API and Distance Matrix API enabled and billing
   on.

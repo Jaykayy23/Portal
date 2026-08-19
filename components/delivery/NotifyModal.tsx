@@ -103,7 +103,12 @@ function RiderContact({ record }: { record: DeliveryWithMerchant }) {
 
   const sid = shortId(record.id);
   const item = record.itemCategory ? ` Item: ${record.itemCategory}.` : '';
-  const base = `New SomoExpress delivery assigned to you. Order #${sid}. Pickup: ${record.pickup}. Drop-off: ${record.dropoff}. Customer: ${record.customer}.${item} Declared value: GHS ${record.declaredValue}. Type: ${record.type}. Please confirm pickup.`;
+  // The whole point of collecting the recipient: the rider can call ahead rather
+  // than stand at a gate. Dropped for rows filed before the field existed.
+  const recipient = record.recipientName
+    ? ` Recipient: ${record.recipientName} (${record.recipientPhone}).`
+    : '';
+  const base = `New SomoExpress delivery assigned to you. Order #${sid}. Pickup: ${record.pickup}. Drop-off: ${record.dropoff}.${recipient} Merchant: ${record.customer}.${item} Declared value: GHS ${record.declaredValue}. Type: ${record.type}. Please confirm pickup.`;
 
   // If the link could not be minted the alert still goes out — a rider who knows
   // about the job without a link beats a rider who hears nothing at all.

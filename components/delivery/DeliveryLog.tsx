@@ -134,6 +134,17 @@ export function DeliveryLog({
                 {canManage && <td>{r.customer}</td>}
                 <td>
                   {r.pickup} → {r.dropoff}
+                  {/* Sits under the route rather than in its own column: it is
+                      who is waiting at that drop-off, and the table is wide
+                      enough already. Blank on pre-recipient rows. */}
+                  {r.recipientName ? (
+                    <>
+                      <br />
+                      <span className="somo-rider-sub">
+                        {r.recipientName} · {r.recipientPhone}
+                      </span>
+                    </>
+                  ) : null}
                 </td>
                 <td className="somo-price-cell">{r.distance.toFixed(1)} km</td>
                 <td className="somo-price-cell">

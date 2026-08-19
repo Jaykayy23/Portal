@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { api, errMessage } from '@/lib/api';
 import { fmtMoney } from '@/lib/format';
 import { calcPrice } from '@/lib/pricing';
+import { isValidPhone } from '@/lib/phone';
 import { useToast } from '@/components/Toast';
 import { useMaps } from '@/components/MapsProvider';
 import { NotifyModal } from '@/components/delivery/NotifyModal';
@@ -54,6 +55,9 @@ export function NewDeliveryForm({
   const [surcharges, setSurcharges] = useState<string[]>([]);
   const [declaredValue, setDeclaredValue] = useState('');
   const [customer, setCustomer] = useState(user.role === 'merchant' ? user.companyName : '');
+  // The individual at the drop-off, not the merchant filing the request.
+  const [recipientName, setRecipientName] = useState('');
+  const [recipientPhone, setRecipientPhone] = useState('');
   const [agreed, setAgreed] = useState('');
   const [agreedEdited, setAgreedEdited] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -155,6 +159,16 @@ export function NewDeliveryForm({
       toast('Declared value of the item is required');
       return;
     }
+    if (!recipientName.trim()) {
+      toast("Enter the recipient's name");
+      return;
+    }
+    // Checked here for a fast answer; the server checks the same thing, and the
+    // server's answer is the one that decides.
+    if (!isValidPhone(recipientPhone)) {
+      toast("Enter a valid phone number for the recipient");
+      return;
+    }
 
     setBusy(true);
     try {
@@ -174,6 +188,8 @@ export function NewDeliveryForm({
           declaredValue: Number(declaredValue),
           agreed: agreedNumber,
           customer: customer.trim() || user.companyName,
+          recipientName: recipientName.trim(),
+          recipientPhone: recipientPhone.trim(),
         },
       });
 
@@ -191,6 +207,8 @@ export function NewDeliveryForm({
       setDistance('');
       setDurationMin('');
       setDeclaredValue('');
+      setRecipientName('');
+      setRecipientPhone('');
       setItemCategory('');
       setSurcharges([]);
       setAgreed('');
@@ -375,12 +393,50 @@ export function NewDeliveryForm({
               Used for handling care and liability — required before a request can be logged.
             </div>
           </div>
+
+          {/* Its own card rather than another field under Trip details: this is
+              about a person, not the route, and it is the block a rider ends up
+              reading off their phone at the gate. */}
+          <div className="somo-card">
+            <h3>
+              <span className="n">02</span> Recipient
+              <span className="tag-note">who is receiving it</span>
+            </h3>
+
+            <label className="somo-field">
+              <span>Recipient name (required)</span>
+              <input
+                className="somo-input"
+                placeholder="e.g. Ama Boateng"
+                autoComplete="off"
+                value={recipientName}
+                onChange={(e) => setRecipientName(e.target.value)}
+              />
+            </label>
+
+            <label className="somo-field">
+              <span>Recipient phone (required)</span>
+              <input
+                className="somo-input"
+                type="tel"
+                inputMode="tel"
+                placeholder="e.g. 024 123 4567"
+                autoComplete="off"
+                value={recipientPhone}
+                onChange={(e) => setRecipientPhone(e.target.value)}
+              />
+            </label>
+            <div className="somo-note borderless">
+              The rider gets these in their alert, so they can call ahead instead of
+              waiting at the gate.
+            </div>
+          </div>
         </div>
 
         <div>
           <div className="somo-card">
             <h3>
-              <span className="n">02</span> Recommended price
+              <span className="n">03</span> Recommended price
             </h3>
 
             <div className="somo-price-box">
