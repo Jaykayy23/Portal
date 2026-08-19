@@ -47,9 +47,9 @@ export async function getPricingParams(): Promise<PricingParams> {
 }
 
 /**
- * Writes only the fields present in `patch`, because pricing is edited from two
- * places now — the Pricing tab saves the fares, the Settings tab saves the surge
- * charge list — and neither should clobber the other's fields.
+ * Writes only the fields present in `patch`, because the Pricing tab has two
+ * separate forms — the fares and the surge charge list — and neither should
+ * clobber the other's fields.
  *
  * Admin-only, enforced by RLS rather than here: the session client is used
  * deliberately so a non-admin write updates zero rows.

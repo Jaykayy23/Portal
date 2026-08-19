@@ -17,7 +17,7 @@ const MAX_SURCHARGES = 20;
 const MAX_SURCHARGE_AMOUNT = 100_000;
 
 /**
- * Surge charges arrive from the Settings tab as free-form rows, so ids are worked
+ * Surge charges arrive from the Pricing tab as free-form rows, so ids are worked
  * out here rather than trusted from the browser: an existing id is kept (past
  * deliveries reference it), and a new row gets one slugified from its label,
  * de-duplicated against the rest of the list.
@@ -51,8 +51,8 @@ function normaliseSurcharges(input: unknown): SurchargeOption[] {
   });
 }
 
-// Admin only. Writes just the fields the caller sent, so the Pricing tab (fares)
-// and the Settings tab (surge charges) can each save without touching the other.
+// Admin only. Writes just the fields the caller sent, so the fares form and the
+// surge charge list can each save without touching the other.
 export async function POST(req: Request) {
   return handle(async () => {
     await requireUser('admin');

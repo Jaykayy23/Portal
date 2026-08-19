@@ -4,17 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, errMessage } from '@/lib/api';
 import { useToast } from '@/components/Toast';
-import type { AppSettings, OtherKey, PricingParams, SurchargeOption } from '@/lib/types';
+import type { AppSettings, OtherKey } from '@/lib/types';
 
 const MAX_LOGO_BYTES = 900 * 1024;
 
-export function SettingsPane({
-  settings,
-  pricing,
-}: {
-  settings: AppSettings;
-  pricing: PricingParams;
-}) {
+export function SettingsPane({ settings }: { settings: AppSettings }) {
   const router = useRouter();
   const toast = useToast();
 
@@ -24,11 +18,7 @@ export function SettingsPane({
   const [otherKeys, setOtherKeys] = useState<OtherKey[]>(settings.otherKeys ?? []);
   const [logoPreview, setLogoPreview] = useState(settings.logoDataUrl);
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  // Surge charges live in pricing_params, not app_settings, but they are edited
-  // here because this tab is the admin-only one — merchants read the list to tick
-  // the options, and only admin ever sets the amounts.
-  const [surcharges, setSurcharges] = useState<SurchargeOption[]>(pricing.surcharges ?? []);
-  const [busy, setBusy] = useState<'keys' | 'logo' | 'surcharges' | null>(null);
+  const [busy, setBusy] = useState<'keys' | 'logo' | null>(null);
 
   async function saveApiKeys(e: React.FormEvent) {
     e.preventDefault();
@@ -51,30 +41,6 @@ export function SettingsPane({
       toast(errMessage(err));
     }
     setBusy(null);
-  }
-
-  async function saveSurcharges(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy('surcharges');
-    try {
-      const { params } = await api<{ params: PricingParams }>('/pricing', {
-        method: 'POST',
-        body: { surcharges: surcharges.filter((s) => s.label.trim()) },
-      });
-      // Ids for newly added rows are assigned server-side, so take the saved list
-      // back rather than keeping the local one.
-      setSurcharges(params.surcharges);
-      toast('Surge charges saved for the whole portal');
-      // The New delivery form is server-rendered with these options.
-      router.refresh();
-    } catch (err) {
-      toast(errMessage(err));
-    }
-    setBusy(null);
-  }
-
-  function updateSurcharge(index: number, patch: Partial<SurchargeOption>) {
-    setSurcharges((rows) => rows.map((r, i) => (i === index ? { ...r, ...patch } : r)));
   }
 
   async function saveLogo() {
@@ -163,72 +129,6 @@ export function SettingsPane({
           square icon under ~500KB works best).
         </div>
       </div>
-
-      <form className="somo-card" style={{ maxWidth: 520 }} onSubmit={saveSurcharges}>
-        <h3>
-          <span className="n">—</span> Surge charges
-          <span className="tag-note">admin only</span>
-        </h3>
-        <p className="somo-card-intro">
-          The optional extras merchants can tick on a new delivery. Each ticked charge is added on
-          top of the recommended price.
-        </p>
-
-        {surcharges.length === 0 ? (
-          <div className="somo-note" style={{ marginTop: 0 }}>
-            No surge charges — the option disappears from the New delivery form until you add one.
-          </div>
-        ) : (
-          surcharges.map((s, i) => (
-            <div className="somo-otherkey-row" key={s.id || i}>
-              <input
-                className="somo-input"
-                placeholder="Name (e.g. Same-day rush)"
-                value={s.label}
-                onChange={(e) => updateSurcharge(i, { label: e.target.value })}
-              />
-              <div className="value-cell">
-                <input
-                  className="somo-input"
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  placeholder="Amount (GHS)"
-                  value={String(s.amount)}
-                  onChange={(e) => updateSurcharge(i, { amount: parseFloat(e.target.value) || 0 })}
-                />
-                <button
-                  type="button"
-                  className="somo-mini-btn"
-                  aria-label={`Remove ${s.label || 'surge charge'}`}
-                  onClick={() => setSurcharges((rows) => rows.filter((_, j) => j !== i))}
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-
-        <button
-          type="button"
-          className="somo-btn ghost small"
-          style={{ marginBottom: 14 }}
-          onClick={() => setSurcharges((rows) => [...rows, { id: '', label: '', amount: 0 }])}
-        >
-          + Add a surge charge
-        </button>
-
-        <button className="somo-btn" type="submit" disabled={busy === 'surcharges'}>
-          {busy === 'surcharges' ? 'Saving…' : 'Save surge charges'}
-        </button>
-
-        <div className="somo-note">
-          Changes apply immediately to new quotes for everyone using this portal. Deliveries already
-          filed keep the price they were quoted, so editing or removing a charge never rewrites
-          history. The per-km, per-minute and base fares are on the Pricing tab.
-        </div>
-      </form>
 
       <form className="somo-card" style={{ maxWidth: 520 }} onSubmit={saveApiKeys}>
         <h3>
