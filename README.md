@@ -172,6 +172,11 @@ Two deliberate exceptions:
 - **Pricing** is recalculated server-side from the saved parameters. The form
   shows a live preview, but the stored number is the server's, so a client can't
   submit a fabricated price — nor file a request under another merchant's name.
+- **Excel export** on the deliveries tab is a real `.xlsx`, built server-side by
+  [lib/deliveryExport.ts](lib/deliveryExport.ts) from whatever
+  `listDeliveriesFor` returns — so RLS decides the contents and a merchant's file
+  can only hold their own rows. Money and distances are written as numbers with a
+  display format, not as text, so the sheet can be summed and sorted.
 - **Item categories** (what is being sent — food, medication, documents…) are a
   list an admin edits under Settings, stored in `delivery_options`. The New
   delivery form requires a choice whenever the list is non-empty, and the Route

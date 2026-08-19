@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, errMessage } from '@/lib/api';
+import { api, apiDownload, errMessage } from '@/lib/api';
 import { fmtDateTime, fmtMoney } from '@/lib/format';
 import { useToast } from '@/components/Toast';
 import { NotifyModal } from '@/components/delivery/NotifyModal';
@@ -36,6 +36,7 @@ export function DeliveryLog({
   const router = useRouter();
   const toast = useToast();
   const [notify, setNotify] = useState<DeliveryWithMerchant | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   if (records.length === 0) {
     return (
@@ -46,6 +47,18 @@ export function DeliveryLog({
           : 'Requests you submit will show up here — visible only to you.'}
       </div>
     );
+  }
+
+  async function exportToExcel() {
+    setExporting(true);
+    try {
+      // The server decides the columns and the filename — a merchant's file has
+      // no merchant column, and only ever their own rows.
+      await apiDownload('/deliveries/export', 'somoexpress-deliveries.xlsx');
+    } catch (e) {
+      toast(errMessage(e));
+    }
+    setExporting(false);
   }
 
   async function changeStatus(id: string, status: DeliveryStatus) {
@@ -77,6 +90,22 @@ export function DeliveryLog({
 
   return (
     <>
+      <div className="somo-table-actions">
+        <button
+          type="button"
+          className="somo-btn ghost small"
+          onClick={exportToExcel}
+          disabled={exporting}
+          title={
+            canManage
+              ? 'Download every delivery as an Excel file'
+              : 'Download your delivery history as an Excel file'
+          }
+        >
+          {exporting ? 'Preparing…' : 'Export to Excel'}
+        </button>
+      </div>
+
       <div className="somo-table-wrap">
         <table className="somo-table">
           <thead>

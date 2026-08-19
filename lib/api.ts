@@ -47,6 +47,52 @@ export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Pro
   return data as T;
 }
 
+/**
+ * Fetches a file endpoint and hands it to the browser as a download.
+ *
+ * Separate from api() because the response is a binary body, not JSON — but an
+ * error still arrives as the usual `{ error }` JSON, so a failed export shows the
+ * same toast as any other failed request rather than dumping JSON into a tab
+ * (which is what a plain <a download> would do).
+ */
+export async function apiDownload(path: string, fallbackName: string): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, { credentials: 'same-origin' });
+  } catch {
+    throw new ApiError('Could not reach the server — check your connection.', 0);
+  }
+
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`;
+    try {
+      const data = await res.json();
+      if (data && typeof data === 'object' && typeof data.error === 'string') message = data.error;
+    } catch {
+      /* not a JSON error body */
+    }
+    throw new ApiError(message, res.status);
+  }
+
+  // The server names the file; the fallback covers a proxy that strips the header.
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+
+  const url = URL.createObjectURL(await res.blob());
+  try {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = match?.[1] || fallbackName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } finally {
+    // Revoking immediately is safe: the click has already handed the blob to the
+    // browser's download manager.
+    URL.revokeObjectURL(url);
+  }
+}
+
 export function errMessage(e: unknown): string {
   return e instanceof Error ? e.message : 'Something went wrong.';
 }
