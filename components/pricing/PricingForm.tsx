@@ -93,21 +93,21 @@ export function PricingForm({ params }: { params: PricingParams }) {
         <div className="somo-row2">
           <label className="somo-field">
             <span>Base fare (GHS)</span>
-            <input className="somo-input" type="number" min="0" step="0.5" {...field('base')} />
+            <input className="somo-input" type="number" min="0" step="0.01" {...field('base')} />
           </label>
           <label className="somo-field">
             <span>Rate per km (GHS)</span>
-            <input className="somo-input" type="number" min="0" step="0.5" {...field('rate')} />
+            <input className="somo-input" type="number" min="0" step="0.01" {...field('rate')} />
           </label>
         </div>
         <div className="somo-row2">
           <label className="somo-field">
             <span>Rate per minute (GHS)</span>
-            <input className="somo-input" type="number" min="0" step="0.5" {...field('perMin')} />
+            <input className="somo-input" type="number" min="0" step="0.01" {...field('perMin')} />
           </label>
           <label className="somo-field">
             <span>Minimum fare (GHS)</span>
-            <input className="somo-input" type="number" min="0" step="0.5" {...field('minFare')} />
+            <input className="somo-input" type="number" min="0" step="0.01" {...field('minFare')} />
           </label>
         </div>
         <div className="somo-row2">
@@ -186,7 +186,7 @@ export function PricingForm({ params }: { params: PricingParams }) {
                   className="somo-input"
                   type="number"
                   min="0"
-                  step="0.5"
+                  step="0.01"
                   placeholder="Amount (GHS)"
                   value={String(s.amount)}
                   onChange={(e) => updateSurcharge(i, { amount: parseFloat(e.target.value) || 0 })}

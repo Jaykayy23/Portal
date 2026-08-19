@@ -383,7 +383,7 @@ export function NewDeliveryForm({
                 className="somo-input"
                 type="number"
                 min="0"
-                step="1"
+                step="0.01"
                 placeholder="e.g. 300"
                 value={declaredValue}
                 onChange={(e) => setDeclaredValue(e.target.value)}
@@ -484,7 +484,7 @@ export function NewDeliveryForm({
                 className="somo-input"
                 type="number"
                 min="0"
-                step="0.5"
+                step="0.01"
                 placeholder="0.00"
                 value={agreedValue}
                 onChange={(e) => {
