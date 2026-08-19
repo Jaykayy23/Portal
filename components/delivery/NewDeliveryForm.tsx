@@ -393,10 +393,12 @@ export function NewDeliveryForm({
               Used for handling care and liability — required before a request can be logged.
             </div>
           </div>
+        </div>
 
-          {/* Its own card rather than another field under Trip details: this is
-              about a person, not the route, and it is the block a rider ends up
-              reading off their phone at the gate. */}
+        <div>
+          {/* Top of the right column, beside the route rather than below it: the
+              recipient is short, and burying it under Trip details put it a long
+              scroll away from the submit button. */}
           <div className="somo-card">
             <h3>
               <span className="n">02</span> Recipient
@@ -431,9 +433,7 @@ export function NewDeliveryForm({
               waiting at the gate.
             </div>
           </div>
-        </div>
 
-        <div>
           <div className="somo-card">
             <h3>
               <span className="n">03</span> Recommended price
