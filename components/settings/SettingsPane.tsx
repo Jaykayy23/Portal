@@ -122,10 +122,11 @@ export function SettingsPane({
   }
 
   return (
-    // Two cards to a row on a wide screen, so the whole of Settings is visible
-    // without scrolling; one column on narrow ones.
+    // Branding spans the top; the feature cards below it go two to a row on a wide
+    // screen, so the whole of Settings is visible without scrolling. One column on
+    // narrow ones.
     <div className="somo-settings-grid">
-      <div className="somo-card">
+      <div className="somo-card span-full">
         <h3>
           <span className="n">—</span> Branding
         </h3>

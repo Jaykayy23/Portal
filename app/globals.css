@@ -895,6 +895,9 @@ table.somo-table tr:hover td {
   align-items: center;
   gap: 16px;
   margin-bottom: 16px;
+  /* The branding card spans the full width of Settings, but a file picker has no
+     use for 1200px — keep the controls at a readable size. */
+  max-width: 520px;
 }
 .somo-btn-row {
   display: flex;
@@ -913,6 +916,11 @@ table.somo-table tr:hover td {
    grid the gap does that job. */
 .somo-settings-grid > .somo-card + .somo-card {
   margin-top: 0;
+}
+/* Branding sits across the top: it is the one card that is about the portal
+   itself rather than one feature of it. */
+.somo-settings-grid > .span-full {
+  grid-column: 1 / -1;
 }
 @media (max-width: 900px) {
   .somo-settings-grid {
