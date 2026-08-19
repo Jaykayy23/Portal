@@ -8,6 +8,8 @@ interface Tab {
   href: string;
   label: string;
   roles: Role[];
+  /** Override where the same route means something narrower to one role. */
+  labelByRole?: Partial<Record<Role, string>>;
 }
 
 const TABS: Tab[] = [
@@ -15,7 +17,14 @@ const TABS: Tab[] = [
   { href: '/portal/log', label: 'My deliveries', roles: ['admin', 'ops', 'merchant'] },
   { href: '/portal/riders', label: 'Riders', roles: ['admin', 'ops'] },
   { href: '/portal/pricing', label: 'Pricing settings', roles: ['admin'] },
-  { href: '/portal/accounts', label: 'Accounts', roles: ['admin'] },
+  {
+    href: '/portal/accounts',
+    label: 'Accounts',
+    roles: ['admin', 'ops'],
+    // Ops only ever sees merchants there, so naming it 'Accounts' would promise
+    // more than the pane delivers.
+    labelByRole: { ops: 'Merchants' },
+  },
   { href: '/portal/settings', label: 'Settings', roles: ['admin'] },
 ];
 
@@ -34,7 +43,7 @@ export function PortalTabs({ role }: { role: Role }) {
           href={tab.href}
           className={`somo-tab${pathname === tab.href ? ' active' : ''}`}
         >
-          {tab.label}
+          {tab.labelByRole?.[role] ?? tab.label}
         </Link>
       ))}
     </nav>

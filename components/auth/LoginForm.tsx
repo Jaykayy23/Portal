@@ -56,8 +56,8 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
     <form onSubmit={submit}>
       <h2>Log in</h2>
       <p className="sub-text">
-        Use the username and password issued to you. Merchant and ops accounts are created by your
-        SomoExpress admin.
+        Use the username and password issued to you. Accounts are issued by your SomoExpress admin
+        or, for merchants, by the ops team.
       </p>
       <div className={`somo-auth-error${error ? ' show' : ''}`}>{error}</div>
       <label className="somo-field">

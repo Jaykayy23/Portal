@@ -1,9 +1,11 @@
 // Account provisioning.
 //
-// Every account is created by an admin, so all of this runs through the
-// service-role client: creating an auth user is a privileged operation, and the
-// portal role has to land in app_metadata (never user_metadata, which the account
-// holder could edit and which RLS therefore must not trust).
+// Admin creates any account; ops creates merchants only (enforced in the Route
+// Handler, since the create path below bypasses RLS). Either way this runs
+// through the service-role client: creating an auth user is a privileged
+// operation, and the portal role has to land in app_metadata (never
+// user_metadata, which the account holder could edit and which RLS therefore
+// must not trust).
 
 import { createAdminClient } from './supabase/admin';
 import { createSupabaseServerClient } from './supabase/server';
@@ -85,13 +87,20 @@ export async function createAccount(input: CreateAccountInput): Promise<CreatedA
   return { account: publicAccount(profile), password };
 }
 
-/** Admin account list. Reads through the caller's session so RLS applies. */
-export async function listAccounts(): Promise<PublicAccount[]> {
+/**
+ * The account list. Reads through the caller's session so RLS applies: admin
+ * sees every account, ops sees merchants only.
+ *
+ * `role` narrows it further for callers that want one kind of account — the ops
+ * Merchants pane passes 'merchant' so the query says what it means rather than
+ * relying on the policy to silently drop the rest.
+ */
+export async function listAccounts(opts: { role?: Role } = {}): Promise<PublicAccount[]> {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('created_at', { ascending: true });
+  let query = supabase.from('profiles').select('*');
+  if (opts.role) query = query.eq('role', opts.role);
+
+  const { data, error } = await query.order('created_at', { ascending: true });
 
   if (error) throw new AccountError(error.message);
   return (data ?? []).map(publicAccount);

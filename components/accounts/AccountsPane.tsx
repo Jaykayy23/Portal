@@ -21,12 +21,19 @@ interface Reveal {
 export function AccountsPane({
   accounts,
   currentUsername,
+  viewerRole,
 }: {
   accounts: PublicAccount[];
   currentUsername: string;
+  viewerRole: Role;
 }) {
   const router = useRouter();
   const toast = useToast();
+
+  // Ops provisions merchants and nothing else: no role picker, no reset or
+  // deactivate. Both server routes reject anything more, so this is only about
+  // not offering an action that can't succeed.
+  const merchantsOnly = viewerRole !== 'admin';
 
   const [role, setRole] = useState<Role>('merchant');
   const [username, setUsername] = useState('');
@@ -58,9 +65,9 @@ export function AccountsPane({
       setPhone('');
       setPassword('');
       setCompany('');
-      // Shown once, to the admin who set it, so it can be handed over.
+      // Shown once, to whoever set it, so it can be handed over.
       setReveal({
-        title: 'Account created',
+        title: merchantsOnly ? 'Merchant created' : 'Account created',
         value: `${data.account.username} / ${data.password}`,
       });
       router.refresh();
@@ -102,31 +109,43 @@ export function AccountsPane({
     <>
       <form className="somo-card" style={{ marginTop: 0 }} onSubmit={createAccount}>
         <h3>
-          <span className="n">—</span> Create account
+          <span className="n">—</span> {merchantsOnly ? 'Create merchant' : 'Create account'}
           <span className="tag-note">issue login access</span>
         </h3>
         <p className="somo-card-intro">
-          <strong>Merchant</strong> — sees and submits only their own delivery requests.{' '}
-          <strong>Ops team</strong> — sees every delivery, manages the rider roster, assigns riders,
-          and sends alerts, but can&rsquo;t touch pricing or accounts. <strong>Admin</strong> —
-          everything Ops can do, plus pricing settings, account management, and portal settings.
+          {merchantsOnly ? (
+            <>
+              A <strong>merchant</strong> account sees and submits only its own delivery requests.
+              Ops accounts create merchants; ops, admin and pricing accounts are issued by an admin.
+            </>
+          ) : (
+            <>
+              <strong>Merchant</strong> — sees and submits only their own delivery requests.{' '}
+              <strong>Ops team</strong> — sees every delivery, manages the rider roster, assigns
+              riders, sends alerts, and creates merchant accounts, but can&rsquo;t touch pricing or
+              other accounts. <strong>Admin</strong> — everything Ops can do, plus pricing settings,
+              full account management, and portal settings.
+            </>
+          )}
         </p>
 
         <div className="somo-row2">
-          <label className="somo-field">
-            <span>Role</span>
-            <div className="somo-role-choice">
-              {ROLE_CHOICES.map((choice) => (
-                <div
-                  key={choice.value}
-                  className={`somo-role-opt${role === choice.value ? ' selected' : ''}`}
-                  onClick={() => setRole(choice.value)}
-                >
-                  {choice.label}
-                </div>
-              ))}
-            </div>
-          </label>
+          {!merchantsOnly && (
+            <label className="somo-field">
+              <span>Role</span>
+              <div className="somo-role-choice">
+                {ROLE_CHOICES.map((choice) => (
+                  <div
+                    key={choice.value}
+                    className={`somo-role-opt${role === choice.value ? ' selected' : ''}`}
+                    onClick={() => setRole(choice.value)}
+                  >
+                    {choice.label}
+                  </div>
+                ))}
+              </div>
+            </label>
+          )}
           {role === 'merchant' && (
             <label className="somo-field">
               <span>Company / merchant name</span>
@@ -174,18 +193,18 @@ export function AccountsPane({
         </label>
 
         <button className="somo-btn small" type="submit" disabled={busy}>
-          {busy ? 'Creating…' : 'Create account'}
+          {busy ? 'Creating…' : merchantsOnly ? 'Create merchant' : 'Create account'}
         </button>
       </form>
 
       <div className="somo-card">
         <h3>
-          <span className="n">—</span> Existing accounts
+          <span className="n">—</span> {merchantsOnly ? 'Merchant accounts' : 'Existing accounts'}
         </h3>
 
         {accounts.length === 0 ? (
           <div className="somo-empty">
-            <div className="big">No accounts yet</div>
+            <div className="big">{merchantsOnly ? 'No merchants yet' : 'No accounts yet'}</div>
           </div>
         ) : (
           accounts.map((a) => {
@@ -204,23 +223,25 @@ export function AccountsPane({
                     {a.active === false ? 'inactive' : 'active'}
                   </div>
                 </div>
-                <div className="right">
-                  <button className="somo-mini-btn" onClick={() => resetPassword(a.username)}>
-                    Reset password
-                  </button>
-                  <button
-                    className="somo-mini-btn"
-                    // The server rejects this too; disabling it just avoids
-                    // offering an action that can only fail.
-                    disabled={isSelf && a.active !== false}
-                    title={
-                      isSelf && a.active !== false ? "You can't deactivate your own account." : ''
-                    }
-                    onClick={() => toggleActive(a.username, a.active === false)}
-                  >
-                    {a.active === false ? 'Reactivate' : 'Deactivate'}
-                  </button>
-                </div>
+                {!merchantsOnly && (
+                  <div className="right">
+                    <button className="somo-mini-btn" onClick={() => resetPassword(a.username)}>
+                      Reset password
+                    </button>
+                    <button
+                      className="somo-mini-btn"
+                      // The server rejects this too; disabling it just avoids
+                      // offering an action that can only fail.
+                      disabled={isSelf && a.active !== false}
+                      title={
+                        isSelf && a.active !== false ? "You can't deactivate your own account." : ''
+                      }
+                      onClick={() => toggleActive(a.username, a.active === false)}
+                    >
+                      {a.active === false ? 'Reactivate' : 'Deactivate'}
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })
@@ -228,8 +249,10 @@ export function AccountsPane({
 
         <div className="somo-note">
           Passwords are stored and verified by Supabase Auth and never held by this app in plain text
-          — the only time a password is shown is right after you create the account or reset it, so
-          you can hand it to the account holder.
+          — the only time a password is shown is right after you create the account
+          {merchantsOnly ? '' : ' or reset it'}, so you can hand it to the account holder.
+          {merchantsOnly &&
+            ' Resetting a merchant password or deactivating an account is an admin action.'}
         </div>
       </div>
 

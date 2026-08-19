@@ -105,8 +105,14 @@ Consequences worth knowing:
 - `ACCOUNT_EMAIL_DOMAIN` in [lib/identity.ts](lib/identity.ts) is effectively
   permanent. Changing it after accounts exist orphans every login.
 - Accounts are created with the service-role key, so provisioning always happens
-  server-side, and the plaintext password is returned exactly once to the admin
-  who created it.
+  server-side, and the plaintext password is returned exactly once to whoever
+  created it.
+- **Ops creates merchant accounts only.** Because the create path runs as
+  service_role it bypasses RLS, so that limit lives in
+  [app/api/accounts/route.ts](app/api/accounts/route.ts) — an ops caller asking
+  for any role but `merchant` gets a 403. Resetting a password and
+  activating/deactivating stay admin-only. Ops can read merchant profile rows
+  (and only those) so the Merchants pane can list them.
 
 Roles live in the JWT's **`app_metadata`**, never `user_metadata` — the latter is
 editable by the account holder and must not be trusted for authorization.
@@ -139,7 +145,7 @@ Who can reach what:
 | --- | --- | --- | --- | --- |
 | `branding` (logo) | read | read | read | read + write |
 | `pricing_params` | — | read | read | read + write |
-| `profiles` | — | own row | own row | all + write |
+| `profiles` | — | own row | own row + merchant rows | all + write |
 | `deliveries` | — | own rows, insert | all, update | all, update |
 | `riders` | — | — | read + write | read + write |
 | `app_settings` (API keys) | — | — | — | via server only |
