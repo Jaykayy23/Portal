@@ -36,6 +36,7 @@ export function NewDeliveryForm({
   const [pickup, setPickup] = useState('');
   const [dropoff, setDropoff] = useState('');
   const [distance, setDistance] = useState('');
+  const [durationMin, setDurationMin] = useState('');
   const [type, setType] = useState<DeliveryType>('Standard');
   const [surcharges, setSurcharges] = useState<string[]>([]);
   const [declaredValue, setDeclaredValue] = useState('');
@@ -47,10 +48,14 @@ export function NewDeliveryForm({
   const [notify, setNotify] = useState<DeliveryWithMerchant | null>(null);
 
   const km = parseFloat(distance) || 0;
+  const mins = parseFloat(durationMin) || 0;
 
   // Preview only. The Route Handler recalculates from the same parameters and
   // stores its own result, so this can never inflate or discount a real quote.
-  const quote = useMemo(() => calcPrice(params, km, surcharges), [params, km, surcharges]);
+  const quote = useMemo(
+    () => calcPrice(params, km, mins, surcharges),
+    [params, km, mins, surcharges]
+  );
 
   // Mirror the recommended price into the agreed field until someone types over
   // it, matching the original portal's behaviour.
@@ -81,7 +86,9 @@ export function NewDeliveryForm({
     setSurcharges((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
   }
 
-  function getDistanceFromMaps() {
+  // Distance and time come from the same Distance Matrix response, so a route
+  // lookup fills both inputs to the price in one call.
+  function getRouteFromMaps() {
     if (!maps.ready || !window.google?.maps) {
       toast('Google Maps is not ready yet');
       return;
@@ -103,7 +110,10 @@ export function NewDeliveryForm({
         const element = response?.rows?.[0]?.elements?.[0];
         if (status === 'OK' && element?.status === 'OK' && element.distance) {
           setDistance((element.distance.value / 1000).toFixed(1));
-          toast('Distance filled from Google Maps');
+          // duration_in_traffic needs a departureTime on the request, which this
+          // one does not set, so this is the typical-conditions estimate.
+          if (element.duration) setDurationMin(Math.round(element.duration.value / 60).toFixed(0));
+          toast('Distance and time filled from Google Maps');
         } else {
           toast('Could not calculate that route — enter distance manually');
         }
@@ -130,6 +140,7 @@ export function NewDeliveryForm({
           pickup: pickup.trim(),
           dropoff: dropoff.trim(),
           distance: km,
+          durationMin: mins,
           type,
           surcharges,
           declaredValue: Number(declaredValue),
@@ -147,6 +158,7 @@ export function NewDeliveryForm({
       setPickup('');
       setDropoff('');
       setDistance('');
+      setDurationMin('');
       setDeclaredValue('');
       setSurcharges([]);
       setAgreed('');
@@ -178,7 +190,9 @@ export function NewDeliveryForm({
                 />
               </div>
               <div className="dot b" />
-              <div className="dist">{km.toFixed(1)} km</div>
+              <div className="dist">
+                {km.toFixed(1)} km{mins > 0 ? ` · ${mins.toFixed(0)} min` : ''}
+              </div>
             </div>
 
             <label className="somo-field">
@@ -219,10 +233,10 @@ export function NewDeliveryForm({
                   type="button"
                   className="somo-mini-btn"
                   disabled={!maps.ready || calculating}
-                  onClick={getDistanceFromMaps}
+                  onClick={getRouteFromMaps}
                   title={
                     maps.configured
-                      ? 'Look up the driving distance with Google Maps'
+                      ? 'Look up the driving distance and time with Google Maps'
                       : 'Ask an admin to add a Google Maps API key in Settings'
                   }
                 >
@@ -235,7 +249,27 @@ export function NewDeliveryForm({
               <div className="somo-maps-hint">
                 Manual entry is active. An admin can add a Google Maps API key (Places + Distance
                 Matrix) in the Settings tab to enable location autocomplete and automatic
-                driving-distance lookup for everyone.
+                driving distance and time lookup for everyone.
+              </div>
+            )}
+
+            <label className="somo-field">
+              <span>Estimated driving time (min)</span>
+              <input
+                className="somo-input"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="0"
+                value={durationMin}
+                onChange={(e) => setDurationMin(e.target.value)}
+              />
+            </label>
+            {params.perMin > 0 && (
+              <div className="somo-note borderless">
+                Priced at GHS {params.perMin}/min, so a slow route through traffic costs more than
+                an open run of the same distance. Filled by &ldquo;Get from Maps&rdquo;, or type it
+                in. Leave it at 0 to quote on distance alone.
               </div>
             )}
 
@@ -313,6 +347,14 @@ export function NewDeliveryForm({
                   GHS {params.base} + {params.rate}/km × {km.toFixed(1)}km
                 </span>
               </div>
+              {params.perMin > 0 && (
+                <div className="somo-price-row">
+                  <span className="l">Time</span>
+                  <span className="v">
+                    GHS {params.perMin}/min × {mins.toFixed(0)}min
+                  </span>
+                </div>
+              )}
             </div>
 
             <label className="somo-field">

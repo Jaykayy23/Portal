@@ -63,7 +63,7 @@ export function NotifyModal({
 
   const opsMessage = hasRider
     ? `SomoExpress order #${sid} assigned. Rider: ${record.riderName} (${record.riderPhone}). Customer: ${record.customer}. Route: ${record.pickup} -> ${record.dropoff}.`
-    : `New SomoExpress delivery request #${sid}: ${record.customer} — ${record.pickup} -> ${record.dropoff} (${record.distance.toFixed(1)}km). Declared value GHS ${record.declaredValue}. Recommended GHS ${record.recommended.toFixed(2)}, agreed GHS ${record.agreed.toFixed(2)}. Please assign a rider.`;
+    : `New SomoExpress delivery request #${sid}: ${record.customer} — ${record.pickup} -> ${record.dropoff} (${record.distance.toFixed(1)}km${record.durationMin > 0 ? `, ~${record.durationMin.toFixed(0)}min` : ''}). Declared value GHS ${record.declaredValue}. Recommended GHS ${record.recommended.toFixed(2)}, agreed GHS ${record.agreed.toFixed(2)}. Please assign a rider.`;
 
   const riderMessage = `New SomoExpress delivery assigned to you. Order #${sid}. Pickup: ${record.pickup}. Drop-off: ${record.dropoff}. Customer: ${record.customer}. Declared value: GHS ${record.declaredValue}. Type: ${record.type}. Please confirm pickup.`;
 

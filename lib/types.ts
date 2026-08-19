@@ -64,6 +64,8 @@ export interface Delivery {
   pickup: string;
   dropoff: string;
   distance: number;
+  /** Estimated driving time in minutes, captured with the distance at quote time. */
+  durationMin: number;
   type: DeliveryType;
   surcharges: string[];
   declaredValue: number;
@@ -86,6 +88,8 @@ export interface DeliveryWithMerchant extends Delivery {
 export interface PricingParams {
   base: number;
   rate: number;
+  /** GHS per minute of estimated driving time. 0 disables time-based pricing. */
+  perMin: number;
   minFare: number;
   minPct: number;
   opsPhone: string;

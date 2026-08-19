@@ -85,6 +85,7 @@ export function DeliveryLog({
               {canManage && <th>Customer</th>}
               <th>Route</th>
               <th>Distance</th>
+              <th>Time</th>
               <th>Type</th>
               <th>Value</th>
               <th>Recommended</th>
@@ -105,6 +106,9 @@ export function DeliveryLog({
                   {r.pickup} → {r.dropoff}
                 </td>
                 <td className="somo-price-cell">{r.distance.toFixed(1)} km</td>
+                <td className="somo-price-cell">
+                  {r.durationMin > 0 ? `${r.durationMin.toFixed(0)} min` : '—'}
+                </td>
                 <td>{r.type}</td>
                 <td className="somo-price-cell">GHS {(r.declaredValue || 0).toFixed(0)}</td>
                 <td className="somo-price-cell">{fmtMoney(r.recommended)}</td>

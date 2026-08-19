@@ -83,6 +83,7 @@ export interface Database {
           pickup: string;
           dropoff: string;
           distance: number;
+          duration_min: number;
           type: 'Standard' | 'Express' | 'Fragile';
           surcharges: string[];
           declared_value: number;
@@ -104,6 +105,7 @@ export interface Database {
           pickup: string;
           dropoff: string;
           distance: number;
+          duration_min?: number;
           type?: 'Standard' | 'Express' | 'Fragile';
           surcharges?: string[];
           declared_value: number;
@@ -132,6 +134,7 @@ export interface Database {
           id: number;
           base: number;
           rate: number;
+          per_min: number;
           min_fare: number;
           min_pct: number;
           ops_phone: string;
@@ -141,6 +144,7 @@ export interface Database {
           id?: number;
           base?: number;
           rate?: number;
+          per_min?: number;
           min_fare?: number;
           min_pct?: number;
           ops_phone?: string;
@@ -148,6 +152,7 @@ export interface Database {
         Update: {
           base?: number;
           rate?: number;
+          per_min?: number;
           min_fare?: number;
           min_pct?: number;
           ops_phone?: string;

@@ -22,8 +22,14 @@ function round2(n: number): number {
 }
 
 /**
- * Recommended price = max(minimum fare, base fare + rate x distance) + surcharges.
+ * Recommended price = max(minimum fare, base fare + rate x distance + per-min x time)
+ *                     + surcharges.
  * Minimum negotiable = recommended price x min. negotiable %.
+ *
+ * Time is the estimated driving minutes for the route, which is what makes two
+ * runs of equal distance price differently when one of them crawls through
+ * traffic. It sits inside the max() alongside distance because the minimum fare
+ * is a floor on the whole trip, not on the distance component alone.
  *
  * Shared by the client-side preview and the Route Handler that actually writes
  * the record — but the Route Handler's result is the only one stored, so a
@@ -32,10 +38,12 @@ function round2(n: number): number {
 export function calcPrice(
   params: PricingParams,
   distanceKm: number | string,
+  durationMin: number | string = 0,
   surchargeIds: string[] = []
 ): PriceQuote {
   const distance = Number(distanceKm) || 0;
-  const base = params.base + params.rate * distance;
+  const minutes = Number(durationMin) || 0;
+  const base = params.base + params.rate * distance + params.perMin * minutes;
   const surchargeTotal = surchargeIds.reduce((sum, id) => {
     const opt = SURCHARGE_OPTIONS.find((o) => o.id === id);
     return sum + (opt ? opt.amount : 0);

@@ -23,6 +23,7 @@ export function fromRow(r: DeliveryRow): Delivery {
     pickup: r.pickup,
     dropoff: r.dropoff,
     distance: Number(r.distance),
+    durationMin: Number(r.duration_min) || 0,
     type: r.type,
     surcharges: r.surcharges ?? [],
     declaredValue: Number(r.declared_value),
@@ -75,6 +76,7 @@ export interface CreateDeliveryInput {
   pickup: string;
   dropoff: string;
   distance: number;
+  durationMin: number;
   type: Delivery['type'];
   surcharges: string[];
   declaredValue: number;
@@ -95,6 +97,7 @@ export async function createDelivery(input: CreateDeliveryInput): Promise<Delive
       pickup: input.pickup,
       dropoff: input.dropoff,
       distance: input.distance,
+      duration_min: input.durationMin,
       type: input.type,
       surcharges: input.surcharges,
       declared_value: input.declaredValue,

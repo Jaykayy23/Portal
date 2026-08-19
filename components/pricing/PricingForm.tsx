@@ -12,6 +12,7 @@ export function PricingForm({ params }: { params: PricingParams }) {
   const [form, setForm] = useState({
     base: String(params.base),
     rate: String(params.rate),
+    perMin: String(params.perMin),
     minFare: String(params.minFare),
     minPct: String(params.minPct),
     opsPhone: params.opsPhone || '',
@@ -35,6 +36,7 @@ export function PricingForm({ params }: { params: PricingParams }) {
         body: {
           base: parseFloat(form.base) || 0,
           rate: parseFloat(form.rate) || 0,
+          perMin: parseFloat(form.perMin) || 0,
           minFare: parseFloat(form.minFare) || 0,
           minPct: parseFloat(form.minPct) || 0,
           opsPhone: form.opsPhone.trim(),
@@ -71,9 +73,15 @@ export function PricingForm({ params }: { params: PricingParams }) {
       </div>
       <div className="somo-row2">
         <label className="somo-field">
+          <span>Rate per minute (GHS)</span>
+          <input className="somo-input" type="number" min="0" step="0.5" {...field('perMin')} />
+        </label>
+        <label className="somo-field">
           <span>Minimum fare (GHS)</span>
           <input className="somo-input" type="number" min="0" step="0.5" {...field('minFare')} />
         </label>
+      </div>
+      <div className="somo-row2">
         <label className="somo-field">
           <span>Min. negotiable (% of recommended)</span>
           <input
@@ -101,7 +109,12 @@ export function PricingForm({ params }: { params: PricingParams }) {
       </button>
 
       <div className="somo-note">
-        Recommended price = max(minimum fare, base fare + rate × distance) + surcharges.
+        Recommended price = max(minimum fare, base fare + rate × distance + rate per minute ×
+        estimated driving time) + surcharges.
+        <br />
+        The driving time comes from Google Maps at the moment of quoting, so two runs of the same
+        distance price differently when one of them sits in traffic. Set the per-minute rate to 0 to
+        quote on distance alone.
         <br />
         Minimum negotiable = recommended price × min. negotiable %.
         <br />

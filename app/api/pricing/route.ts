@@ -18,6 +18,7 @@ export async function POST(req: Request) {
     const params = await savePricingParams({
       base: Number(body.base) || 0,
       rate: Number(body.rate) || 0,
+      perMin: Number(body.perMin) || 0,
       minFare: Number(body.minFare) || 0,
       minPct: Number(body.minPct) || 0,
       opsPhone: body.opsPhone || '',

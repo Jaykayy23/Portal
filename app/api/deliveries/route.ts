@@ -17,6 +17,7 @@ interface CreateBody {
   pickup: string;
   dropoff: string;
   distance: number | string;
+  durationMin?: number | string;
   type?: DeliveryType;
   surcharges?: string[];
   declaredValue: number | string;
@@ -24,22 +25,41 @@ interface CreateBody {
   customer?: string;
 }
 
+/** A day. Anything beyond this is a typo or a probe, not a delivery. */
+const MAX_DURATION_MIN = 24 * 60;
+
 /**
  * Price is recalculated here from the saved pricing parameters, so whatever
  * recommended/minimum the browser displayed is irrelevant — a merchant cannot
  * submit a fabricated price. The RLS INSERT policy independently guarantees the
  * row can only be filed under the submitter's own merchant id.
+ *
+ * Distance and estimated time are still taken from the request, because both are
+ * editable by hand in the form (the Maps lookup only prefills them). They are the
+ * inputs to the price, not the price, and ops sees both on every row in the log.
  */
 export async function POST(req: Request) {
   return handle(async () => {
     const user = await requireUser();
     const body = await readJson<CreateBody>(req);
-    const { pickup, dropoff, distance, type, surcharges, declaredValue, agreed, customer } = body;
+    const { pickup, dropoff, distance, durationMin, type, surcharges, declaredValue, agreed, customer } =
+      body;
 
     if (!pickup || !dropoff || !distance) {
       badRequest('Pickup, drop-off and distance are required.');
     }
     if (Number(distance) <= 0) badRequest('Distance must be greater than zero.');
+    // Time is optional: a manually entered route, or one where the Maps lookup
+    // failed, simply prices with no time component. Only nonsense is rejected.
+    const minutes = durationMin === undefined || durationMin === null || durationMin === ''
+      ? 0
+      : Number(durationMin);
+    if (!Number.isFinite(minutes) || minutes < 0) {
+      badRequest('Estimated time must be zero or more minutes.');
+    }
+    if (minutes > MAX_DURATION_MIN) {
+      badRequest('Estimated time looks wrong — it cannot exceed 24 hours.');
+    }
     if (!declaredValue || Number(declaredValue) <= 0) {
       badRequest('Declared value of the item is required.');
     }
@@ -51,6 +71,7 @@ export async function POST(req: Request) {
     const { recommended, minimum } = calcPrice(
       params,
       distance,
+      minutes,
       Array.isArray(surcharges) ? surcharges : []
     );
 
@@ -88,6 +109,7 @@ export async function POST(req: Request) {
         pickup,
         dropoff,
         distance: Number(distance),
+        durationMin: minutes,
         type: type || 'Standard',
         surcharges: Array.isArray(surcharges) ? surcharges : [],
         declaredValue: Number(declaredValue),

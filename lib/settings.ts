@@ -26,6 +26,9 @@ export async function getPricingParams(): Promise<PricingParams> {
   return {
     base: Number(data.base),
     rate: Number(data.rate),
+    // `|| 0` so the portal keeps quoting on distance alone if the app is
+    // deployed before the per_min migration lands, rather than NaN-ing every price.
+    perMin: Number(data.per_min) || 0,
     minFare: Number(data.min_fare),
     minPct: Number(data.min_pct),
     opsPhone: data.ops_phone,
@@ -39,6 +42,7 @@ export async function savePricingParams(params: PricingParams): Promise<PricingP
     .update({
       base: params.base,
       rate: params.rate,
+      per_min: params.perMin,
       min_fare: params.minFare,
       min_pct: params.minPct,
       ops_phone: params.opsPhone,
@@ -54,6 +58,9 @@ export async function savePricingParams(params: PricingParams): Promise<PricingP
   return {
     base: Number(data.base),
     rate: Number(data.rate),
+    // `|| 0` so the portal keeps quoting on distance alone if the app is
+    // deployed before the per_min migration lands, rather than NaN-ing every price.
+    perMin: Number(data.per_min) || 0,
     minFare: Number(data.min_fare),
     minPct: Number(data.min_pct),
     opsPhone: data.ops_phone,
