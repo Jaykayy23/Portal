@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { badRequest, handle, readJson, requireUser } from '@/lib/http';
 import { calcPrice } from '@/lib/pricing';
-import { getPricingParams } from '@/lib/settings';
+import { getDeliveryOptions, getPricingParams } from '@/lib/settings';
 import { DeliveryError, createDelivery, listDeliveriesFor } from '@/lib/deliveries';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { DELIVERY_TYPES, type DeliveryType } from '@/lib/types';
@@ -19,6 +19,7 @@ interface CreateBody {
   distance: number | string;
   durationMin?: number | string;
   type?: DeliveryType;
+  itemCategory?: string;
   surcharges?: string[];
   declaredValue: number | string;
   agreed?: number | string;
@@ -42,8 +43,18 @@ export async function POST(req: Request) {
   return handle(async () => {
     const user = await requireUser();
     const body = await readJson<CreateBody>(req);
-    const { pickup, dropoff, distance, durationMin, type, surcharges, declaredValue, agreed, customer } =
-      body;
+    const {
+      pickup,
+      dropoff,
+      distance,
+      durationMin,
+      type,
+      itemCategory,
+      surcharges,
+      declaredValue,
+      agreed,
+      customer,
+    } = body;
 
     if (!pickup || !dropoff || !distance) {
       badRequest('Pickup, drop-off and distance are required.');
@@ -67,7 +78,24 @@ export async function POST(req: Request) {
       badRequest('Invalid delivery type.');
     }
 
-    const params = await getPricingParams();
+    const [params, options] = await Promise.all([getPricingParams(), getDeliveryOptions()]);
+
+    // The category has to be one the admin actually configured — the form sends a
+    // label, so without this check anything could be typed into the record. It is
+    // required whenever there is a list to choose from, and skipped entirely when
+    // an install has none, which is also when the form hides the field.
+    const category = String(itemCategory ?? '').trim();
+    let finalCategory = '';
+    if (options.itemCategories.length > 0) {
+      if (!category) badRequest('Choose what kind of item is being sent.');
+      const match = options.itemCategories.find((c) => c.toLowerCase() === category.toLowerCase());
+      if (!match) badRequest('That item category is no longer available — pick another.');
+      // The configured spelling is stored, not the caller's.
+      finalCategory = match;
+    } else if (category) {
+      badRequest('No item categories are configured for this portal.');
+    }
+
     const { recommended, minimum } = calcPrice(
       params,
       distance,
@@ -111,6 +139,7 @@ export async function POST(req: Request) {
         distance: Number(distance),
         durationMin: minutes,
         type: type || 'Standard',
+        itemCategory: finalCategory,
         surcharges: Array.isArray(surcharges) ? surcharges : [],
         declaredValue: Number(declaredValue),
         recommended,

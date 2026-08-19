@@ -92,6 +92,7 @@ export interface Database {
           distance: number;
           duration_min: number;
           type: 'Standard' | 'Express' | 'Fragile';
+          item_category: string;
           surcharges: string[];
           declared_value: number;
           recommended: number;
@@ -114,6 +115,7 @@ export interface Database {
           distance: number;
           duration_min?: number;
           type?: 'Standard' | 'Express' | 'Fragile';
+          item_category?: string;
           surcharges?: string[];
           declared_value: number;
           recommended: number;
@@ -167,6 +169,12 @@ export interface Database {
           ops_phone?: string;
           surcharges?: SurchargeRow[];
         };
+        Relationships: [];
+      };
+      delivery_options: {
+        Row: { id: number; item_categories: string[]; updated_at: string };
+        Insert: { id?: number; item_categories?: string[] };
+        Update: { item_categories?: string[] };
         Relationships: [];
       };
       branding: {

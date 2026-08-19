@@ -60,12 +60,15 @@ export function NotifyModal({
 
   const sid = shortId(record.id);
   const hasRider = !!record.riderId;
+  // Rows filed before item categories existed have none, so the sentence is
+  // dropped rather than sent half-empty.
+  const item = record.itemCategory ? ` Item: ${record.itemCategory}.` : '';
 
   const opsMessage = hasRider
     ? `SomoExpress order #${sid} assigned. Rider: ${record.riderName} (${record.riderPhone}). Customer: ${record.customer}. Route: ${record.pickup} -> ${record.dropoff}.`
-    : `New SomoExpress delivery request #${sid}: ${record.customer} — ${record.pickup} -> ${record.dropoff} (${record.distance.toFixed(1)}km${record.durationMin > 0 ? `, ~${record.durationMin.toFixed(0)}min` : ''}). Declared value GHS ${record.declaredValue}. Recommended GHS ${record.recommended.toFixed(2)}, agreed GHS ${record.agreed.toFixed(2)}. Please assign a rider.`;
+    : `New SomoExpress delivery request #${sid}: ${record.customer} — ${record.pickup} -> ${record.dropoff} (${record.distance.toFixed(1)}km${record.durationMin > 0 ? `, ~${record.durationMin.toFixed(0)}min` : ''}).${item} Declared value GHS ${record.declaredValue}. Recommended GHS ${record.recommended.toFixed(2)}, agreed GHS ${record.agreed.toFixed(2)}. Please assign a rider.`;
 
-  const riderMessage = `New SomoExpress delivery assigned to you. Order #${sid}. Pickup: ${record.pickup}. Drop-off: ${record.dropoff}. Customer: ${record.customer}. Declared value: GHS ${record.declaredValue}. Type: ${record.type}. Please confirm pickup.`;
+  const riderMessage = `New SomoExpress delivery assigned to you. Order #${sid}. Pickup: ${record.pickup}. Drop-off: ${record.dropoff}. Customer: ${record.customer}.${item} Declared value: GHS ${record.declaredValue}. Type: ${record.type}. Please confirm pickup.`;
 
   const merchantMessage = `Your SomoExpress delivery (order #${sid}) has been assigned to rider ${record.riderName}, phone ${record.riderPhone}, riding a ${record.riderModel || 'motorbike'} (reg. ${record.riderReg || 'n/a'}). Pickup location: ${record.pickup}. Drop-off: ${record.dropoff}.`;
 

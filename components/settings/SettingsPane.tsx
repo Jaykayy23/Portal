@@ -4,11 +4,17 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, errMessage } from '@/lib/api';
 import { useToast } from '@/components/Toast';
-import type { AppSettings, OtherKey } from '@/lib/types';
+import type { AppSettings, DeliveryOptions, OtherKey } from '@/lib/types';
 
 const MAX_LOGO_BYTES = 900 * 1024;
 
-export function SettingsPane({ settings }: { settings: AppSettings }) {
+export function SettingsPane({
+  settings,
+  options,
+}: {
+  settings: AppSettings;
+  options: DeliveryOptions;
+}) {
   const router = useRouter();
   const toast = useToast();
 
@@ -18,7 +24,10 @@ export function SettingsPane({ settings }: { settings: AppSettings }) {
   const [otherKeys, setOtherKeys] = useState<OtherKey[]>(settings.otherKeys ?? []);
   const [logoPreview, setLogoPreview] = useState(settings.logoDataUrl);
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [busy, setBusy] = useState<'keys' | 'logo' | null>(null);
+  // What merchants pick from on the New delivery form. Stored in
+  // delivery_options, not app_settings — every signed-in role has to read it.
+  const [itemCategories, setItemCategories] = useState<string[]>(options.itemCategories ?? []);
+  const [busy, setBusy] = useState<'keys' | 'logo' | 'categories' | null>(null);
 
   async function saveApiKeys(e: React.FormEvent) {
     e.preventDefault();
@@ -41,6 +50,30 @@ export function SettingsPane({ settings }: { settings: AppSettings }) {
       toast(errMessage(err));
     }
     setBusy(null);
+  }
+
+  async function saveItemCategories(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy('categories');
+    try {
+      const { options: saved } = await api<{ options: DeliveryOptions }>('/delivery-options', {
+        method: 'POST',
+        body: { itemCategories },
+      });
+      // Blank rows are dropped server-side, so take the saved list back rather
+      // than keeping the local one.
+      setItemCategories(saved.itemCategories);
+      toast('Item categories saved for the whole portal');
+      // The New delivery form is server-rendered with these options.
+      router.refresh();
+    } catch (err) {
+      toast(errMessage(err));
+    }
+    setBusy(null);
+  }
+
+  function updateItemCategory(index: number, label: string) {
+    setItemCategories((rows) => rows.map((r, i) => (i === index ? label : r)));
   }
 
   async function saveLogo() {
@@ -89,8 +122,10 @@ export function SettingsPane({ settings }: { settings: AppSettings }) {
   }
 
   return (
-    <>
-      <div className="somo-card" style={{ marginTop: 0, maxWidth: 520 }}>
+    // Two cards to a row on a wide screen, so the whole of Settings is visible
+    // without scrolling; one column on narrow ones.
+    <div className="somo-settings-grid">
+      <div className="somo-card">
         <h3>
           <span className="n">—</span> Branding
         </h3>
@@ -130,7 +165,63 @@ export function SettingsPane({ settings }: { settings: AppSettings }) {
         </div>
       </div>
 
-      <form className="somo-card" style={{ maxWidth: 520 }} onSubmit={saveApiKeys}>
+      <form className="somo-card" onSubmit={saveItemCategories}>
+        <h3>
+          <span className="n">—</span> Item categories
+          <span className="tag-note">New delivery form</span>
+        </h3>
+        <p className="somo-card-intro">
+          What merchants choose from when they say what they are sending. The choice is recorded on
+          the delivery and included in the rider&rsquo;s alert.
+        </p>
+
+        {itemCategories.length === 0 ? (
+          <div className="somo-note" style={{ marginTop: 0 }}>
+            No item categories — the field disappears from the New delivery form until you add
+            one.
+          </div>
+        ) : (
+          itemCategories.map((label, i) => (
+            <div className="somo-listrow" key={i}>
+              <input
+                className="somo-input"
+                placeholder="e.g. Food, Medication, Documents"
+                value={label}
+                onChange={(e) => updateItemCategory(i, e.target.value)}
+              />
+              <button
+                type="button"
+                className="somo-mini-btn"
+                aria-label={`Remove ${label || 'item category'}`}
+                onClick={() => setItemCategories((rows) => rows.filter((_, j) => j !== i))}
+              >
+                ✕
+              </button>
+            </div>
+          ))
+        )}
+
+        <button
+          type="button"
+          className="somo-btn ghost small"
+          style={{ marginBottom: 14 }}
+          onClick={() => setItemCategories((rows) => [...rows, ''])}
+        >
+          + Add an item category
+        </button>
+
+        <button className="somo-btn" type="submit" disabled={busy === 'categories'}>
+          {busy === 'categories' ? 'Saving…' : 'Save item categories'}
+        </button>
+
+        <div className="somo-note">
+          Deliveries already filed keep the category they were logged with, so renaming or removing
+          one never rewrites history. Renaming does not update past records either — they keep the
+          wording that was chosen at the time.
+        </div>
+      </form>
+
+      <form className="somo-card" onSubmit={saveApiKeys}>
         <h3>
           <span className="n">—</span> API keys
           <span className="tag-note">stored server-side</span>
@@ -222,6 +313,6 @@ export function SettingsPane({ settings }: { settings: AppSettings }) {
           wire that up when you&rsquo;re ready to automate it.
         </div>
       </form>
-    </>
+    </div>
   );
 }

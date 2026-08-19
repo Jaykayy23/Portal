@@ -67,6 +67,9 @@ export interface Delivery {
   /** Estimated driving time in minutes, captured with the distance at quote time. */
   durationMin: number;
   type: DeliveryType;
+  /** What was being sent, e.g. 'Food'. Snapshotted, so a renamed category never
+   *  rewrites an old record. Empty for rows filed before categories existed. */
+  itemCategory: string;
   surcharges: string[];
   declaredValue: number;
   recommended: number;
@@ -106,6 +109,15 @@ export interface PricingParams {
   opsPhone: string;
   /** Surge charges offered on the New delivery form, in display order. */
   surcharges: SurchargeOption[];
+}
+
+/**
+ * Options the admin configures for the New delivery form. Kept separate from
+ * PricingParams because none of it touches the quote.
+ */
+export interface DeliveryOptions {
+  /** Item categories in display order. Empty hides the field from the form. */
+  itemCategories: string[];
 }
 
 export interface OtherKey {

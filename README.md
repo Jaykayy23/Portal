@@ -145,6 +145,7 @@ Who can reach what:
 | --- | --- | --- | --- | --- |
 | `branding` (logo) | read | read | read | read + write |
 | `pricing_params` | — | read | read | read + write |
+| `delivery_options` | — | read | read | read + write |
 | `profiles` | — | own row | own row + merchant rows | all + write |
 | `deliveries` | — | own rows, insert | all, update | all, update |
 | `riders` | — | — | read + write | read + write |
@@ -171,6 +172,12 @@ Two deliberate exceptions:
 - **Pricing** is recalculated server-side from the saved parameters. The form
   shows a live preview, but the stored number is the server's, so a client can't
   submit a fabricated price — nor file a request under another merchant's name.
+- **Item categories** (what is being sent — food, medication, documents…) are a
+  list an admin edits under Settings, stored in `delivery_options`. The New
+  delivery form requires a choice whenever the list is non-empty, and the Route
+  Handler re-checks the submitted label against the configured list. The chosen
+  label is copied onto the delivery row, the same way rider details are, so
+  renaming or removing a category never rewrites past records.
 - **Google Maps** (autocomplete + driving-distance lookup) works once an admin
   saves a Maps API key with Places API and Distance Matrix API enabled and billing
   on.

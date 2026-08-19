@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getSessionUser, roleAllows } from '@/lib/session';
-import { getAppSettingsAsAdmin } from '@/lib/settings';
+import { getAppSettingsAsAdmin, getDeliveryOptions } from '@/lib/settings';
 import { SettingsPane } from '@/components/settings/SettingsPane';
 
 export default async function SettingsPage() {
@@ -11,5 +11,6 @@ export default async function SettingsPage() {
   // an ops or merchant browser.
   if (!roleAllows(user, 'admin')) redirect('/portal/new');
 
-  return <SettingsPane settings={await getAppSettingsAsAdmin()} />;
+  const [settings, options] = await Promise.all([getAppSettingsAsAdmin(), getDeliveryOptions()]);
+  return <SettingsPane settings={settings} options={options} />;
 }

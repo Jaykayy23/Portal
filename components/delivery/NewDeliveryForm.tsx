@@ -10,6 +10,7 @@ import { useMaps } from '@/components/MapsProvider';
 import { NotifyModal } from '@/components/delivery/NotifyModal';
 import {
   DELIVERY_TYPES,
+  type DeliveryOptions,
   type DeliveryType,
   type DeliveryWithMerchant,
   type PricingParams,
@@ -22,9 +23,11 @@ const ROUTE_BAR_MAX_KM = 20;
 export function NewDeliveryForm({
   user,
   params,
+  options,
 }: {
   user: SessionUser;
   params: PricingParams;
+  options: DeliveryOptions;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -38,6 +41,7 @@ export function NewDeliveryForm({
   const [distance, setDistance] = useState('');
   const [durationMin, setDurationMin] = useState('');
   const [type, setType] = useState<DeliveryType>('Standard');
+  const [itemCategory, setItemCategory] = useState('');
   const [surcharges, setSurcharges] = useState<string[]>([]);
   const [declaredValue, setDeclaredValue] = useState('');
   const [customer, setCustomer] = useState(user.role === 'merchant' ? user.companyName : '');
@@ -53,6 +57,9 @@ export function NewDeliveryForm({
   // Set by admin under Settings, so an install with none configured simply shows
   // no surge charge field.
   const surchargeOptions = params.surcharges ?? [];
+  // Same deal: no categories configured, no category field — and the server skips
+  // the requirement in exactly that case.
+  const itemCategories = options.itemCategories ?? [];
 
   // Preview only. The Route Handler recalculates from the same parameters and
   // stores its own result, so this can never inflate or discount a real quote.
@@ -131,6 +138,10 @@ export function NewDeliveryForm({
       toast('Add pickup, drop-off and distance first');
       return;
     }
+    if (itemCategories.length > 0 && !itemCategory) {
+      toast('Choose what kind of item is being sent');
+      return;
+    }
     if (!declaredValue || Number(declaredValue) <= 0) {
       toast('Declared value of the item is required');
       return;
@@ -146,6 +157,7 @@ export function NewDeliveryForm({
           distance: km,
           durationMin: mins,
           type,
+          itemCategory,
           surcharges,
           declaredValue: Number(declaredValue),
           agreed: agreedNumber,
@@ -164,6 +176,7 @@ export function NewDeliveryForm({
       setDistance('');
       setDurationMin('');
       setDeclaredValue('');
+      setItemCategory('');
       setSurcharges([]);
       setAgreed('');
       setAgreedEdited(false);
@@ -291,6 +304,24 @@ export function NewDeliveryForm({
                 ))}
               </select>
             </label>
+
+            {itemCategories.length > 0 && (
+              <label className="somo-field">
+                <span>What is being sent</span>
+                <select
+                  className="somo-select"
+                  value={itemCategory}
+                  onChange={(e) => setItemCategory(e.target.value)}
+                >
+                  <option value="">Select item category…</option>
+                  {itemCategories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
 
             {surchargeOptions.length > 0 && (
               <label className="somo-field">

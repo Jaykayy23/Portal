@@ -25,6 +25,7 @@ export function fromRow(r: DeliveryRow): Delivery {
     distance: Number(r.distance),
     durationMin: Number(r.duration_min) || 0,
     type: r.type,
+    itemCategory: r.item_category ?? '',
     surcharges: r.surcharges ?? [],
     declaredValue: Number(r.declared_value),
     recommended: Number(r.recommended),
@@ -78,6 +79,7 @@ export interface CreateDeliveryInput {
   distance: number;
   durationMin: number;
   type: Delivery['type'];
+  itemCategory: string;
   surcharges: string[];
   declaredValue: number;
   recommended: number;
@@ -99,6 +101,7 @@ export async function createDelivery(input: CreateDeliveryInput): Promise<Delive
       distance: input.distance,
       duration_min: input.durationMin,
       type: input.type,
+      item_category: input.itemCategory,
       surcharges: input.surcharges,
       declared_value: input.declaredValue,
       recommended: input.recommended,

@@ -87,6 +87,7 @@ export function DeliveryLog({
               <th>Distance</th>
               <th>Time</th>
               <th>Type</th>
+              <th>Item</th>
               <th>Value</th>
               <th>Recommended</th>
               <th>Agreed</th>
@@ -110,6 +111,8 @@ export function DeliveryLog({
                   {r.durationMin > 0 ? `${r.durationMin.toFixed(0)} min` : '—'}
                 </td>
                 <td>{r.type}</td>
+                {/* Blank for rows filed before item categories existed. */}
+                <td>{r.itemCategory || '—'}</td>
                 <td className="somo-price-cell">GHS {(r.declaredValue || 0).toFixed(0)}</td>
                 <td className="somo-price-cell">{fmtMoney(r.recommended)}</td>
                 <td className="somo-agreed-cell">{fmtMoney(r.agreed)}</td>

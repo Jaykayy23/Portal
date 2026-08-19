@@ -2,18 +2,21 @@
 //
 // Three different audiences, so three different access paths:
 //
-//   pricing_params  every signed-in role reads it (the quote preview and the
-//                   surge charge options need it), admin writes it — both via the
-//                   user's session, under RLS.
-//   branding        world-readable, because the login screen renders the logo
-//                   before anyone signs in.
-//   app_settings    granted to no public role at all. Only the service-role
-//                   client touches it, after the caller has been checked as admin.
+//   pricing_params    every signed-in role reads it (the quote preview and the
+//                     surge charge options need it), admin writes it — both via
+//                     the user's session, under RLS.
+//   delivery_options  same shape: everyone reads the item category list to pick
+//                     from it, admin writes it.
+//   branding          world-readable, because the login screen renders the logo
+//                     before anyone signs in.
+//   app_settings      granted to no public role at all. Only the service-role
+//                     client touches it, after the caller has been checked as
+//                     admin.
 
 import { createSupabaseServerClient } from './supabase/server';
 import { createAdminClient } from './supabase/admin';
 import { DEFAULT_SURCHARGES } from './pricing';
-import type { AppSettings, OtherKey, PricingParams } from './types';
+import type { AppSettings, DeliveryOptions, OtherKey, PricingParams } from './types';
 import type { Database } from './database.types';
 
 export class SettingsError extends Error {}
@@ -79,6 +82,52 @@ export async function savePricingParams(patch: Partial<PricingParams>): Promise<
   if (!data) throw new SettingsError('You do not have access to change pricing.');
 
   return toPricingParams(data);
+}
+
+// --- delivery options --------------------------------------------------------
+
+/** Blank labels are dropped here as well as on save, so one bad row can't leave
+ *  an empty option sitting in the form's dropdown. */
+function toDeliveryOptions(
+  row: Database['public']['Tables']['delivery_options']['Row']
+): DeliveryOptions {
+  return {
+    itemCategories: Array.isArray(row.item_categories)
+      ? row.item_categories.map((c) => String(c).trim()).filter(Boolean)
+      : [],
+  };
+}
+
+export async function getDeliveryOptions(): Promise<DeliveryOptions> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from('delivery_options').select('*').eq('id', 1).single();
+
+  if (error) throw new SettingsError(error.message);
+  return toDeliveryOptions(data);
+}
+
+/**
+ * Admin-only, enforced by RLS rather than here: the session client is used
+ * deliberately so a non-admin write updates zero rows.
+ */
+export async function saveDeliveryOptions(
+  patch: Partial<DeliveryOptions>
+): Promise<DeliveryOptions> {
+  if (patch.itemCategories === undefined) return getDeliveryOptions();
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('delivery_options')
+    .update({ item_categories: patch.itemCategories })
+    .eq('id', 1)
+    .select('*')
+    .maybeSingle();
+
+  if (error) throw new SettingsError(error.message);
+  // RLS blocks the write for non-admins, which shows up as zero rows updated.
+  if (!data) throw new SettingsError('You do not have access to change delivery options.');
+
+  return toDeliveryOptions(data);
 }
 
 // --- branding ----------------------------------------------------------------
