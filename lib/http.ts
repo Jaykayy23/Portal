@@ -67,6 +67,28 @@ export async function readJson<T = Record<string, unknown>>(req: Request): Promi
   }
 }
 
+/**
+ * The public origin of this deployment, for links that will be opened on someone
+ * else's phone rather than followed in the current tab.
+ *
+ * Behind the Docker reverse proxy the request URL carries the internal host, so
+ * the forwarded headers win over it. NEXT_PUBLIC_APP_URL overrides both, which is
+ * the only thing that works when the proxy rewrites the host it forwards.
+ */
+export function absoluteOrigin(req: Request): string {
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (configured) return configured.replace(/\/+$/, '');
+
+  const url = new URL(req.url);
+  // Both headers are comma-joined lists when more than one proxy is in front.
+  const forwardedHost = req.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
+  const forwardedProto = req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
+
+  const host = forwardedHost || req.headers.get('host') || url.host;
+  const proto = forwardedProto || url.protocol.replace(':', '');
+  return `${proto}://${host}`;
+}
+
 export function badRequest(message: string): never {
   throw new HttpError(400, message);
 }

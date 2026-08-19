@@ -5,10 +5,15 @@ import type { Database } from '@/lib/database.types';
 /**
  * Routes reachable without a session.
  *
+ * '/d' is the rider's delivery-confirmation page. Riders have no portal account,
+ * so the token in the URL is the entire credential — gating it behind a login
+ * would redirect them to a screen they can never get past. What the token is
+ * worth is decided in lib/deliveryConfirmation.ts, not here.
+ *
  * '/theme-preview' is a development-only static page for reviewing the theme; it
  * returns 404 in production. Remove both it and app/theme-preview/ when done.
  */
-const PUBLIC_PATHS = ['/login', '/setup', '/auth', '/theme-preview'];
+const PUBLIC_PATHS = ['/login', '/setup', '/auth', '/d', '/theme-preview'];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));

@@ -104,6 +104,7 @@ export interface Database {
           rider_phone: string;
           rider_reg: string;
           rider_model: string;
+          delivered_at: string | null;
         };
         Insert: {
           id?: string;
@@ -135,6 +136,7 @@ export interface Database {
           rider_phone?: string;
           rider_reg?: string;
           rider_model?: string;
+          delivered_at?: string | null;
         };
         Relationships: [];
       };
@@ -169,6 +171,33 @@ export interface Database {
           ops_phone?: string;
           surcharges?: SurchargeRow[];
         };
+        Relationships: [];
+      };
+      delivery_confirmations: {
+        Row: {
+          id: string;
+          delivery_id: string;
+          token_hash: string;
+          rider_id: string | null;
+          rider_name: string;
+          rider_phone: string;
+          issued_by: string;
+          created_at: string;
+          expires_at: string;
+          confirmed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          delivery_id: string;
+          token_hash: string;
+          rider_id?: string | null;
+          rider_name?: string;
+          rider_phone?: string;
+          issued_by: string;
+          expires_at: string;
+          confirmed_at?: string | null;
+        };
+        Update: { confirmed_at?: string | null };
         Relationships: [];
       };
       delivery_options: {

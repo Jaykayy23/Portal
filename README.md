@@ -150,6 +150,7 @@ Who can reach what:
 | `deliveries` | — | own rows, insert | all, update | all, update |
 | `riders` | — | — | read + write | read + write |
 | `app_settings` (API keys) | — | — | — | via server only |
+| `delivery_confirmations` | — | — | — | via server only |
 
 `app_settings` is granted to **no** public role: the WhatsApp/SMS provider keys
 are only ever read by the server's service-role client, after the caller has been
@@ -164,6 +165,11 @@ Two deliberate exceptions:
 - **The Google Maps key reaches signed-in browsers.** The Maps JavaScript SDK
   runs client-side, so there's no alternative. Restrict the key by HTTP referrer
   in Google Cloud Console.
+- **`/d/<token>` needs no session.** Riders have no portal account, so the
+  completion link is a capability URL: 256 random bits, one delivery, one action,
+  expires in 72 hours. Only the sha256 of the token is stored, so a database dump
+  yields nothing clickable, and the page shows no price, no declared value and no
+  other order. The link stops working the moment the delivery is reassigned.
 
 ---
 
@@ -186,6 +192,17 @@ Two deliberate exceptions:
 - **Google Maps** (autocomplete + driving-distance lookup) works once an admin
   saves a Maps API key with Places API and Distance Matrix API enabled and billing
   on.
+- **Rider completion confirmation is real end-to-end.** Opening the Notify modal
+  for an assigned delivery mints a single-purpose link, which rides along in the
+  rider's pre-filled WhatsApp/SMS message. When the rider taps it and confirms,
+  the portal sets the row to **Delivered** and stamps `delivered_at` — so
+  "delivered" now means the person who carried the parcel said so, not that ops
+  assumed it. The log shows *rider confirmed <time>* under the status, and the
+  Excel export carries it as its own column so a hand-ticked Delivered can be
+  told apart from a confirmed one. Links live 72 hours; re-opening the modal
+  mints a fresh one and leaves the old one working, since only the hash was kept.
+  Set `NEXT_PUBLIC_APP_URL` if a reverse proxy rewrites the forwarded host,
+  otherwise the link points at whatever host the request arrived on.
 - **WhatsApp/SMS alerts** are one-tap `wa.me` / `sms:` links that pre-fill the
   message — whoever's at the keyboard taps send. The WhatsApp and SMS **API key
   fields** are stored ready for a provider integration (Twilio, Africa's Talking,

@@ -37,6 +37,7 @@ export function fromRow(r: DeliveryRow): Delivery {
     riderPhone: r.rider_phone,
     riderReg: r.rider_reg,
     riderModel: r.rider_model,
+    deliveredAt: r.delivered_at ?? '',
   };
 }
 

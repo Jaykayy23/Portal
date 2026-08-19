@@ -81,6 +81,45 @@ export interface Delivery {
   riderPhone: string;
   riderReg: string;
   riderModel: string;
+  /** When the rider confirmed completion via their link. '' if they never did. */
+  deliveredAt: string;
+}
+
+/**
+ * What a rider sees after opening their completion link.
+ *
+ * Deliberately narrow: no price, no declared value, nothing about any other
+ * order. Whoever holds the link holds the whole credential, so it shows only
+ * what someone needs to recognise the job they just finished.
+ */
+export interface CompletionSummary {
+  /** The short human-facing order number, not the uuid. */
+  orderNo: string;
+  customer: string;
+  pickup: string;
+  dropoff: string;
+  itemCategory: string;
+  riderName: string;
+}
+
+export type CompletionState =
+  /** Live link, waiting on the rider's tap. */
+  | 'pending'
+  /** Already confirmed — by this link or an earlier one for the same delivery. */
+  | 'confirmed'
+  /** Past its expiry. Ops can issue a fresh one from the Notify modal. */
+  | 'expired'
+  /** The delivery has since been given to a different rider (or unassigned). */
+  | 'reassigned'
+  /** No such link. Also what a mistyped or truncated URL looks like. */
+  | 'invalid';
+
+export interface CompletionView {
+  state: CompletionState;
+  /** Null for 'invalid' — an unknown token is told nothing at all. */
+  summary: CompletionSummary | null;
+  /** ISO timestamp when state is 'confirmed', otherwise ''. */
+  confirmedAt: string;
 }
 
 /** A delivery as sent to ops/admin — enriched with the merchant's phone number. */

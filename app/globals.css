@@ -870,6 +870,161 @@ table.somo-table tr:hover td {
   border-color: var(--amber-dim);
 }
 
+/* The rider's completion link, shown inside their block in the Notify modal so
+   ops can see what they are about to send (and copy it elsewhere if the rider
+   is on a channel the portal doesn't deep-link to). */
+.somo-notify-link {
+  background: var(--panel);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+.somo-notify-link .label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--somo-muted);
+  margin-bottom: 4px;
+}
+.somo-notify-link .label button {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.somo-notify-link .label button:hover {
+  border-color: var(--amber-dim);
+  color: var(--amber);
+}
+/* The token makes this far wider than the modal; wrapping anywhere is right for
+   a value nobody reads, only copies. */
+.somo-notify-link .url {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--somo-muted);
+  word-break: break-all;
+  line-height: 1.4;
+}
+.somo-notify-confirmed {
+  background: var(--brand-teal-soft);
+  border: 1px solid var(--brand-teal-line);
+  color: var(--teal);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  margin-bottom: 10px;
+}
+.somo-notify-pending {
+  font-size: 11.5px;
+  color: var(--somo-muted);
+  font-style: italic;
+  padding: 6px 0 2px;
+}
+.somo-notify-link-error {
+  background: var(--destructive-soft);
+  border: 1px solid var(--destructive-line);
+  color: var(--destructive-text);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  margin-bottom: 10px;
+}
+/* In the log's status cell: present only when the rider confirmed it themselves,
+   which is why it says who, not just when. */
+.somo-confirmed-note {
+  font-size: 10.5px;
+  color: var(--teal);
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+/* --- the rider's confirmation page (/d/[token]) -------------------------- */
+/* Sized for a phone held at the roadside: one column, large tap target, and no
+   controls other than the one that matters. */
+.somo-confirm-summary {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 4px 14px;
+  margin-bottom: 18px;
+}
+.somo-confirm-row {
+  display: flex;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.somo-confirm-row:last-child {
+  border-bottom: none;
+}
+.somo-confirm-row .k {
+  color: var(--somo-muted);
+  font-size: 12px;
+  flex: 0 0 74px;
+}
+.somo-confirm-row .v {
+  flex: 1;
+  font-weight: 500;
+  word-break: break-word;
+}
+.somo-confirm-hint {
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--somo-muted);
+  margin-top: 12px;
+  line-height: 1.5;
+}
+.somo-confirm-error {
+  background: var(--destructive-soft);
+  border: 1px solid var(--destructive-line);
+  color: var(--destructive-text);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  margin-bottom: 12px;
+}
+.somo-confirm-done {
+  background: var(--brand-teal-soft);
+  border: 1px solid var(--brand-teal-line);
+  border-radius: 10px;
+  padding: 20px 16px;
+  text-align: center;
+  color: var(--teal);
+}
+.somo-confirm-done .tick {
+  font-size: 30px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+.somo-confirm-done .big {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.somo-confirm-done .when {
+  font-size: 12px;
+  color: var(--teal);
+  margin-bottom: 10px;
+}
+.somo-confirm-done .after {
+  font-size: 11.5px;
+  color: var(--somo-muted);
+  line-height: 1.5;
+}
+
 .somo-logo-preview {
   width: 56px;
   height: 56px;

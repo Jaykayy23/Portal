@@ -164,6 +164,14 @@ export function DeliveryLog({
                       {r.status}
                     </span>
                   )}
+                  {/* Only set when the rider tapped their own completion link, so
+                      it distinguishes a confirmed delivery from one ops ticked
+                      off by hand. */}
+                  {r.deliveredAt ? (
+                    <div className="somo-confirmed-note">
+                      ✓ rider confirmed {fmtDateTime(r.deliveredAt)}
+                    </div>
+                  ) : null}
                 </td>
 
                 <td>

@@ -107,6 +107,20 @@ function columnsFor(opts: DeliveryExportOptions): Column<DeliveryWithMerchant>[]
       cell: (r) => ({ type: Number, value: r.agreed, format: MONEY }),
     },
     { header: header('Status'), width: 18, cell: (r) => r.status },
+    {
+      header: header('Confirmed by rider'),
+      width: 20,
+      // Blank means no rider confirmation — either still out, or marked Delivered
+      // by hand in the log. The two are worth telling apart in a report, which is
+      // why this is its own column rather than folded into Status.
+      cell: (r) => {
+        if (!r.deliveredAt) return null;
+        const d = new Date(r.deliveredAt);
+        return Number.isNaN(d.getTime())
+          ? null
+          : { type: Date, value: d, format: 'dd mmm yyyy hh:mm' };
+      },
+    },
     { header: header('Rider'), width: 18, cell: (r) => r.riderName || null },
     { header: header('Rider phone'), width: 16, cell: (r) => r.riderPhone || null },
     {
