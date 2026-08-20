@@ -32,7 +32,6 @@ interface CreateBody {
   itemCategory?: string;
   surcharges?: string[];
   declaredValue: number | string;
-  agreed?: number | string;
   customer?: string;
   recipientName?: string;
   recipientPhone?: string;
@@ -48,10 +47,11 @@ const MAX_DURATION_MIN = 24 * 60;
 const PER_USER = { limit: 30, windowSeconds: 300 };
 
 /**
- * Price is recalculated here from the saved pricing parameters, so whatever
- * recommended/minimum the browser displayed is irrelevant — a merchant cannot
- * submit a fabricated price. The RLS INSERT policy independently guarantees the
- * row can only be filed under the submitter's own merchant id.
+ * The price is computed here from the saved pricing parameters and nowhere else.
+ * The browser's preview is decoration, and a price sent in the body is ignored
+ * outright — there is no negotiation, so there is nothing for a caller to
+ * propose. The RLS INSERT policy independently guarantees the row can only be
+ * filed under the submitter's own merchant id.
  *
  * Distance and estimated time are still taken from the request, because both are
  * editable by hand in the form (the Maps lookup only prefills them). They are the
@@ -78,7 +78,6 @@ export async function POST(req: Request) {
       itemCategory,
       surcharges,
       declaredValue,
-      agreed,
       customer,
       recipientName,
       recipientPhone,
@@ -148,7 +147,7 @@ export async function POST(req: Request) {
       badRequest('No item categories are configured for this portal.');
     }
 
-    const { recommended, minimum } = calcPrice(
+    const { price } = calcPrice(
       params,
       distance,
       minutes,
@@ -178,9 +177,6 @@ export async function POST(req: Request) {
       finalCustomer = merchant.company_name;
     }
 
-    const hasAgreed = agreed !== undefined && agreed !== null && agreed !== '';
-    const finalAgreed = hasAgreed ? Number(agreed) : recommended;
-
     // Only the write is wrapped: a request rejected by the validation above never
     // claims the key, so fixing the input and resubmitting works normally.
     const created = await withIdempotency('delivery-create', user.id, key, async () => {
@@ -201,10 +197,8 @@ export async function POST(req: Request) {
           declaredValue: Number(declaredValue),
           itemPayment,
           deliveryPaidBy,
-          recommended,
-          minimum,
-          agreed: finalAgreed,
-          status: finalAgreed < minimum ? 'Requires approval' : 'Requested',
+          price,
+          status: 'Requested',
         });
         return { delivery };
       } catch (e) {

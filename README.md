@@ -241,9 +241,20 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
 
 ## 4. What's real vs. what's a manual trigger
 
-- **Pricing** is recalculated server-side from the saved parameters. The form
-  shows a live preview, but the stored number is the server's, so a client can't
-  submit a fabricated price — nor file a request under another merchant's name.
+- **Pricing is one fixed figure.** `max(minimum fare, base + rate × km + per-min
+  × minutes) + surge charges`, computed server-side from the saved parameters. The
+  form shows a live preview, but the stored number is the server's — and a price
+  sent in the request body is ignored outright rather than validated, because
+  there is nothing for a caller to propose.
+
+  Negotiation was removed: there is no minimum-negotiable percentage, no editable
+  agreed price, and no `Requires approval` status. What the rules produce is what
+  the delivery is logged and charged at. Two columns survive on `deliveries` for
+  the handful of rows that predate the change — `recommended` holds what was
+  quoted and `minimum` the floor that applied — and the app reads neither: `agreed`
+  is the single price column, surfaced as `price`. See
+  `20260820100000_remove_price_negotiation.sql` for why they were kept rather than
+  dropped.
 - **Excel export** on the deliveries tab is a real `.xlsx`, built server-side by
   [lib/deliveryExport.ts](lib/deliveryExport.ts) from whatever
   `listDeliveriesFor` returns — so RLS decides the contents and a merchant's file
@@ -286,8 +297,8 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
   page is the thing open in their hand at the door. It is absent entirely when the
   item is prepaid and the merchant pays, since "GHS 0.00 to pay" invites a second
   look at a page whose whole job is one tap. Note what is *not* there: the
-  recommended and minimum prices never reach a link holder, only what changes
-  hands.
+  price a link holder sees is only what changes hands at the door, never the
+  delivery's own figure.
 
   One thing to know: a cash-on-delivery message quotes the **declared value** as
   the amount, because that is the only figure the portal holds for the goods. If

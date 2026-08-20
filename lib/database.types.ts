@@ -102,7 +102,7 @@ export interface Database {
           recommended: number;
           minimum: number;
           agreed: number;
-          status: 'Requested' | 'Requires approval' | 'Approved' | 'Pending' | 'Declined' | 'Assigned' | 'Picked up' | 'Recipient confirmed' | 'Delivered';
+          status: 'Requested' | 'Approved' | 'Pending' | 'Declined' | 'Assigned' | 'Picked up' | 'Recipient confirmed' | 'Delivered';
           rider_id: string | null;
           rider_name: string;
           rider_phone: string;
@@ -132,9 +132,9 @@ export interface Database {
           item_payment?: '' | 'Prepaid' | 'Cash on delivery';
           delivery_paid_by?: '' | 'Merchant' | 'Customer';
           recommended: number;
-          minimum: number;
+          minimum?: number;
           agreed: number;
-          status?: 'Requested' | 'Requires approval' | 'Approved' | 'Pending' | 'Declined' | 'Assigned' | 'Picked up' | 'Recipient confirmed' | 'Delivered';
+          status?: 'Requested' | 'Approved' | 'Pending' | 'Declined' | 'Assigned' | 'Picked up' | 'Recipient confirmed' | 'Delivered';
           rider_id?: string | null;
           rider_name?: string;
           rider_phone?: string;
@@ -142,7 +142,7 @@ export interface Database {
           rider_model?: string;
         };
         Update: {
-          status?: 'Requested' | 'Requires approval' | 'Approved' | 'Pending' | 'Declined' | 'Assigned' | 'Picked up' | 'Recipient confirmed' | 'Delivered';
+          status?: 'Requested' | 'Approved' | 'Pending' | 'Declined' | 'Assigned' | 'Picked up' | 'Recipient confirmed' | 'Delivered';
           rider_id?: string | null;
           rider_name?: string;
           rider_phone?: string;
@@ -163,7 +163,6 @@ export interface Database {
           rate: number;
           per_min: number;
           min_fare: number;
-          min_pct: number;
           ops_phone: string;
           surcharges: SurchargeRow[];
           updated_at: string;
@@ -174,7 +173,6 @@ export interface Database {
           rate?: number;
           per_min?: number;
           min_fare?: number;
-          min_pct?: number;
           ops_phone?: string;
           surcharges?: SurchargeRow[];
         };
@@ -183,7 +181,6 @@ export interface Database {
           rate?: number;
           per_min?: number;
           min_fare?: number;
-          min_pct?: number;
           ops_phone?: string;
           surcharges?: SurchargeRow[];
         };

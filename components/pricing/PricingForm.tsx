@@ -14,7 +14,6 @@ export function PricingForm({ params }: { params: PricingParams }) {
     rate: String(params.rate),
     perMin: String(params.perMin),
     minFare: String(params.minFare),
-    minPct: String(params.minPct),
     opsPhone: params.opsPhone || '',
   });
   // Surge charges are stored in pricing_params alongside the fares, and they are
@@ -42,7 +41,6 @@ export function PricingForm({ params }: { params: PricingParams }) {
           rate: parseFloat(form.rate) || 0,
           perMin: parseFloat(form.perMin) || 0,
           minFare: parseFloat(form.minFare) || 0,
-          minPct: parseFloat(form.minPct) || 0,
           opsPhone: form.opsPhone.trim(),
         },
       });
@@ -110,19 +108,6 @@ export function PricingForm({ params }: { params: PricingParams }) {
             <input className="somo-input" type="number" min="0" step="0.01" {...field('minFare')} />
           </label>
         </div>
-        <div className="somo-row2">
-          <label className="somo-field">
-            <span>Min. negotiable (% of recommended)</span>
-            <input
-              className="somo-input"
-              type="number"
-              min="0"
-              max="100"
-              step="1"
-              {...field('minPct')}
-            />
-          </label>
-        </div>
         <label className="somo-field">
           <span>Ops team alert phone number (WhatsApp/SMS)</span>
           <input
@@ -143,7 +128,7 @@ export function PricingForm({ params }: { params: PricingParams }) {
         </button>
 
         <div className="somo-note">
-          Recommended price = max(minimum fare, base fare + rate × distance + rate per minute ×
+          Delivery price = max(minimum fare, base fare + rate × distance + rate per minute ×
           estimated driving time) + surge charges. The surge charge list and its amounts are set
           below.
           <br />
@@ -151,7 +136,8 @@ export function PricingForm({ params }: { params: PricingParams }) {
           distance price differently when one of them sits in traffic. Set the per-minute rate to 0
           to quote on distance alone.
           <br />
-          Minimum negotiable = recommended price × min. negotiable %.
+          This is the price, not a starting point: the figure these rules produce is what the
+          delivery is logged and charged at. Nobody can type a different one.
           <br />
           The ops phone number is used to generate one-tap WhatsApp/SMS alerts — see the
           &ldquo;Notify&rdquo; button on each row in the delivery log.

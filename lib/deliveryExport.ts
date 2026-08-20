@@ -108,20 +108,13 @@ function columnsFor(opts: DeliveryExportOptions): Column<DeliveryWithMerchant>[]
     // default that would read as fact in a report.
     { header: header('Item payment'), width: 18, cell: (r) => r.itemPayment || null },
     { header: header('Fee paid by'), width: 14, cell: (r) => r.deliveryPaidBy || null },
+    // One figure now. The old `recommended` and `minimum` columns are still on
+    // the row for the handful of deliveries that were negotiated before the
+    // feature was removed, but they are not worth a column in every report.
     {
-      header: header('Recommended'),
+      header: header('Price'),
       width: 16,
-      cell: (r) => ({ type: Number, value: r.recommended, format: MONEY }),
-    },
-    {
-      header: header('Minimum'),
-      width: 16,
-      cell: (r) => ({ type: Number, value: r.minimum, format: MONEY }),
-    },
-    {
-      header: header('Agreed'),
-      width: 16,
-      cell: (r) => ({ type: Number, value: r.agreed, format: MONEY }),
+      cell: (r) => ({ type: Number, value: r.price, format: MONEY }),
     },
     { header: header('Status'), width: 18, cell: (r) => r.status },
     // The milestone trail. Each is blank unless that step actually happened here,

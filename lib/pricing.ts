@@ -16,8 +16,8 @@ export const DEFAULT_SURCHARGES: SurchargeOption[] = [
 ];
 
 export interface PriceQuote {
-  recommended: number;
-  minimum: number;
+  /** What the delivery costs. There is no floor and nothing to negotiate. */
+  price: number;
 }
 
 function round2(n: number): number {
@@ -38,9 +38,11 @@ export function surchargeId(label: string): string {
 }
 
 /**
- * Recommended price = max(minimum fare, base fare + rate x distance + per-min x time)
- *                     + surge charges.
- * Minimum negotiable = recommended price x min. negotiable %.
+ * Price = max(minimum fare, base fare + rate x distance + per-min x time)
+ *         + surge charges.
+ *
+ * One figure, and it is the price. There is no floor and no negotiable band: what
+ * this returns is what the delivery is logged and charged at.
  *
  * Time is the estimated driving minutes for the route, which is what makes two
  * runs of equal distance price differently when one of them crawls through
@@ -70,5 +72,5 @@ export function calcPrice(
     return sum + (opt ? opt.amount : 0);
   }, 0);
   const recommended = Math.max(params.minFare, base) + surchargeTotal;
-  return { recommended: round2(recommended), minimum: round2(recommended * (params.minPct / 100)) };
+  return { price: round2(recommended) };
 }

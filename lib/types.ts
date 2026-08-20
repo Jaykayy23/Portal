@@ -41,14 +41,13 @@ export interface Rider {
  * is not the same as being on it, so a rider who has not answered leaves the
  * delivery 'Pending', and only their acceptance makes it 'Assigned'.
  *
- * Two are side-steps rather than steps forward: 'Requires approval' is where a
- * below-minimum quote waits for ops, and 'Declined' is where a delivery lands
- * when the offered rider refuses it — offering it to someone else puts it back
- * on 'Pending'.
+ * 'Declined' is the one side-step rather than a step forward: it is where a
+ * delivery lands when the offered rider refuses it, and offering it to someone
+ * else puts it back on 'Pending'. 'Approved' is ops' own marker for a request
+ * they have looked at and cleared to go out; nothing sets it automatically.
  */
 export type DeliveryStatus =
   | 'Requested'
-  | 'Requires approval'
   | 'Approved'
   | 'Pending'
   | 'Declined'
@@ -59,7 +58,6 @@ export type DeliveryStatus =
 
 export const DELIVERY_STATUSES: DeliveryStatus[] = [
   'Requested',
-  'Requires approval',
   'Approved',
   'Pending',
   'Declined',
@@ -123,9 +121,14 @@ export interface Delivery {
   /** '' on rows filed before payment terms were captured. */
   itemPayment: ItemPayment | '';
   deliveryPaidBy: DeliveryPayer | '';
-  recommended: number;
-  minimum: number;
-  agreed: number;
+  /**
+   * What the delivery costs, read from the `agreed` column.
+   *
+   * `recommended` and `minimum` are still on the row but the app no longer reads
+   * them: they hold what was quoted and what the floor was, back when a price
+   * could be negotiated down. See the remove-negotiation migration.
+   */
+  price: number;
   status: DeliveryStatus;
   riderId: string;
   riderName: string;
@@ -257,7 +260,6 @@ export interface PricingParams {
   /** GHS per minute of estimated driving time. 0 disables time-based pricing. */
   perMin: number;
   minFare: number;
-  minPct: number;
   opsPhone: string;
   /** Surge charges offered on the New delivery form, in display order. */
   surcharges: SurchargeOption[];

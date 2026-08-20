@@ -95,7 +95,7 @@ function paymentClause(record: Delivery): string {
   }
 
   if (record.deliveryPaidBy === 'Customer') {
-    parts.push(`collect the delivery fee of GHS ${record.agreed.toFixed(2)} from the customer`);
+    parts.push(`collect the delivery fee of GHS ${record.price.toFixed(2)} from the customer`);
   } else if (record.deliveryPaidBy === 'Merchant') {
     parts.push('delivery fee is on the merchant account, do not collect it');
   }
@@ -110,7 +110,7 @@ function recipientPaymentClause(record: Delivery): string {
   const owed: string[] = [];
   if (record.itemPayment === 'Cash on delivery') owed.push('cash for the item');
   if (record.deliveryPaidBy === 'Customer') {
-    owed.push(`the delivery fee of GHS ${record.agreed.toFixed(2)}`);
+    owed.push(`the delivery fee of GHS ${record.price.toFixed(2)}`);
   }
   return owed.length ? ` Please have ${owed.join(' and ')} ready for the rider.` : '';
 }
@@ -143,7 +143,7 @@ export function outboundFor(
           id: 'ops-created',
           who: 'Ops team',
           phone: ctx.opsPhone,
-          text: `New SomoExpress delivery request ${no}: ${record.customer} — ${route} (${record.distance.toFixed(1)}km${record.durationMin > 0 ? `, ~${record.durationMin.toFixed(0)}min` : ''}).${itemClause(record)}${recipientClause(record)} Declared value GHS ${record.declaredValue}. Recommended GHS ${record.recommended.toFixed(2)}, agreed GHS ${record.agreed.toFixed(2)}. Please assign a rider.`,
+          text: `New SomoExpress delivery request ${no}: ${record.customer} — ${route} (${record.distance.toFixed(1)}km${record.durationMin > 0 ? `, ~${record.durationMin.toFixed(0)}min` : ''}).${itemClause(record)}${recipientClause(record)} Declared value GHS ${record.declaredValue}. Price GHS ${record.price.toFixed(2)}. Please assign a rider.`,
         },
       ];
 

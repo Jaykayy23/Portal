@@ -49,7 +49,6 @@ const COMPACT_KEY = 'somo.log.compact';
 
 const STATUS_CLASS: Record<DeliveryStatus, string> = {
   Requested: 'b-requested',
-  'Requires approval': 'b-approval',
   Approved: 'b-assigned',
   Pending: 'b-requested',
   Declined: 'b-approval',
@@ -92,8 +91,6 @@ function actionNeeded(r: DeliveryWithMerchant, canManage: boolean): string | nul
       case 'Requested':
       case 'Approved':
         return 'Assign a rider';
-      case 'Requires approval':
-        return 'Below the minimum — approve or renegotiate';
       case 'Pending':
         return `Waiting on ${r.riderName || 'the rider'} to accept or decline`;
       case 'Declined':
@@ -356,10 +353,9 @@ export function DeliveryLog({
                   <th>Type</th>
                   <th>Item</th>
                   <th>Value</th>
-                  <th>Recommended</th>
                 </>
               )}
-              <th>Agreed</th>
+              <th>Price</th>
               {/* Never hidden by Compact: whether a rider is carrying cash home is
                   not a detail. */}
               <th>Payment</th>
@@ -401,10 +397,9 @@ export function DeliveryLog({
                       {/* Blank for rows filed before item categories existed. */}
                       <td>{r.itemCategory || '—'}</td>
                       <td className="somo-price-cell">GHS {(r.declaredValue || 0).toFixed(0)}</td>
-                      <td className="somo-price-cell">{fmtMoney(r.recommended)}</td>
                     </>
                   )}
-                  <td className="somo-agreed-cell">{fmtMoney(r.agreed)}</td>
+                  <td className="somo-agreed-cell">{fmtMoney(r.price)}</td>
 
                   <td style={{ whiteSpace: 'nowrap' }}>
                     {r.itemPayment ? (

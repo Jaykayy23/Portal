@@ -37,7 +37,6 @@ function toPricingParams(row: Database['public']['Tables']['pricing_params']['Ro
     // deployed before the per_min migration lands, rather than NaN-ing every price.
     perMin: Number(row.per_min) || 0,
     minFare: Number(row.min_fare),
-    minPct: Number(row.min_pct),
     opsPhone: row.ops_phone,
     // Same reasoning as per_min: an app deployed ahead of the surcharges
     // migration falls back to the built-in list rather than losing the field.
@@ -70,7 +69,6 @@ export async function savePricingParams(patch: Partial<PricingParams>): Promise<
   if (patch.rate !== undefined) update.rate = patch.rate;
   if (patch.perMin !== undefined) update.per_min = patch.perMin;
   if (patch.minFare !== undefined) update.min_fare = patch.minFare;
-  if (patch.minPct !== undefined) update.min_pct = patch.minPct;
   if (patch.opsPhone !== undefined) update.ops_phone = patch.opsPhone;
   if (patch.surcharges !== undefined) update.surcharges = patch.surcharges;
 

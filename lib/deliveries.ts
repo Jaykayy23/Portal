@@ -34,9 +34,9 @@ export function fromRow(r: DeliveryRow): Delivery {
     declaredValue: Number(r.declared_value),
     itemPayment: r.item_payment ?? '',
     deliveryPaidBy: r.delivery_paid_by ?? '',
-    recommended: Number(r.recommended),
-    minimum: Number(r.minimum),
-    agreed: Number(r.agreed),
+    // `agreed` is the one price column the app reads. See the
+    // remove-negotiation migration for why the other two are still there.
+    price: Number(r.agreed),
     status: r.status,
     riderId: r.rider_id ?? '',
     riderName: r.rider_name,
@@ -97,9 +97,8 @@ export interface CreateDeliveryInput {
   declaredValue: number;
   itemPayment: Delivery['itemPayment'];
   deliveryPaidBy: Delivery['deliveryPaidBy'];
-  recommended: number;
-  minimum: number;
-  agreed: number;
+  /** Written to both `recommended` and `agreed`; there is only one figure now. */
+  price: number;
   status: Delivery['status'];
 }
 
@@ -123,9 +122,10 @@ export async function createDelivery(input: CreateDeliveryInput): Promise<Delive
       declared_value: input.declaredValue,
       item_payment: input.itemPayment,
       delivery_paid_by: input.deliveryPaidBy,
-      recommended: input.recommended,
-      minimum: input.minimum,
-      agreed: input.agreed,
+      // Both columns get the computed price. `minimum` is left to its database
+      // default of 0, meaning no floor was applied.
+      recommended: input.price,
+      agreed: input.price,
       status: input.status,
     })
     .select('*')

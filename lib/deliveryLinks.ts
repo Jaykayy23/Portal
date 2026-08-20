@@ -118,6 +118,7 @@ function summarise(
   // both audiences — only the wording on the page differs.
   const due: AmountsDue = {
     itemCash: delivery.item_payment === 'Cash on delivery' ? Number(delivery.declared_value) : 0,
+    // `agreed` is the delivery's price column; see fromRow in lib/deliveries.ts.
     deliveryFee: delivery.delivery_paid_by === 'Customer' ? Number(delivery.agreed) : 0,
   };
 

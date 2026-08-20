@@ -64,9 +64,7 @@ export default function ThemePreview() {
             <div className="somo-price-box">
               <div className="somo-price-row main"><span className="l">Recommended</span><span className="v">GHS 67.00</span></div>
               <div className="somo-divider" />
-              <div className="somo-price-row"><span className="l">Minimum negotiable</span><span className="v">GHS 56.95</span></div>
             </div>
-            <div className="somo-flag show">⚠ Agreed price is below the minimum negotiable price.</div>
             <button className="somo-btn">Log delivery request</button>
           </div>
         </div>
@@ -83,7 +81,7 @@ export default function ThemePreview() {
                   <td><button className="somo-notify-btn">🔔 Notify</button></td></tr>
                 <tr><td>Aug 18 11:31</td><td>Mr Wu</td><td>Accra Mall → Tema</td>
                   <td className="somo-price-cell">GHS 112.00</td>
-                  <td><span className="somo-badge b-approval">Requires approval</span></td>
+                  <td><span className="somo-badge b-approval">Declined</span></td>
                   <td><button className="somo-notify-btn">🔔 Notify</button></td></tr>
                 <tr><td>Aug 18 10:02</td><td>Jumia</td><td>Osu → Airport</td>
                   <td className="somo-price-cell">GHS 77.00</td>

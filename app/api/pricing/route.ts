@@ -63,7 +63,6 @@ export async function POST(req: Request) {
     if (body.rate !== undefined) patch.rate = Number(body.rate) || 0;
     if (body.perMin !== undefined) patch.perMin = Number(body.perMin) || 0;
     if (body.minFare !== undefined) patch.minFare = Number(body.minFare) || 0;
-    if (body.minPct !== undefined) patch.minPct = Number(body.minPct) || 0;
     if (body.opsPhone !== undefined) patch.opsPhone = body.opsPhone || '';
     if (body.surcharges !== undefined) patch.surcharges = normaliseSurcharges(body.surcharges);
 

@@ -66,8 +66,6 @@ export function NewDeliveryForm({
   // The individual at the drop-off, not the merchant filing the request.
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
-  const [agreed, setAgreed] = useState('');
-  const [agreedEdited, setAgreedEdited] = useState(false);
   const [busy, setBusy] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [notify, setNotify] = useState<DeliveryWithMerchant | null>(null);
@@ -89,11 +87,6 @@ export function NewDeliveryForm({
     [params, km, mins, surcharges]
   );
 
-  // Mirror the recommended price into the agreed field until someone types over
-  // it, matching the original portal's behaviour.
-  const agreedValue = agreedEdited ? agreed : quote.recommended.toFixed(2);
-  const agreedNumber = parseFloat(agreedValue) || 0;
-  const belowMinimum = agreedNumber > 0 && agreedNumber < quote.minimum;
 
   // Places autocomplete on both address fields, once the SDK is up.
   useEffect(() => {
@@ -204,18 +197,13 @@ export function NewDeliveryForm({
           declaredValue: Number(declaredValue),
           itemPayment,
           deliveryPaidBy,
-          agreed: agreedNumber,
           customer: customer.trim() || user.companyName,
           recipientName: recipientName.trim(),
           recipientPhone: recipientPhone.trim(),
         },
       });
 
-      toast(
-        data.delivery.status === 'Requires approval'
-          ? 'Logged — flagged for approval'
-          : 'Delivery request logged'
-      );
+      toast('Delivery request logged');
 
       // Consumed: the next submission is a different delivery.
       submitKey.current = '';
@@ -231,8 +219,6 @@ export function NewDeliveryForm({
       setRecipientPhone('');
       setItemCategory('');
       setSurcharges([]);
-      setAgreed('');
-      setAgreedEdited(false);
       // So the delivery log tab reflects the new row without a manual reload.
       router.refresh();
       setNotify(data.delivery);
@@ -490,19 +476,16 @@ export function NewDeliveryForm({
 
           <div className="somo-card">
             <h3>
-              <span className="n">03</span> Recommended price
+              <span className="n">03</span> Price
+              <span className="tag-note">set by the pricing rules</span>
             </h3>
 
             <div className="somo-price-box">
               <div className="somo-price-row main">
-                <span className="l">Recommended</span>
-                <span className="v">{fmtMoney(quote.recommended)}</span>
+                <span className="l">Delivery price</span>
+                <span className="v">{fmtMoney(quote.price)}</span>
               </div>
               <div className="somo-divider" />
-              <div className="somo-price-row">
-                <span className="l">Minimum negotiable</span>
-                <span className="v">{fmtMoney(quote.minimum)}</span>
-              </div>
               <div className="somo-price-row">
                 <span className="l">Base fare + distance</span>
                 <span className="v">
@@ -532,25 +515,10 @@ export function NewDeliveryForm({
               />
             </label>
 
-            <label className="somo-field">
-              <span>Agreed price (GHS)</span>
-              <input
-                className="somo-input"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={agreedValue}
-                onChange={(e) => {
-                  setAgreedEdited(true);
-                  setAgreed(e.target.value);
-                }}
-              />
-            </label>
-
-            <div className={`somo-flag${belowMinimum ? ' show' : ''}`}>
-              ⚠ Agreed price is below the minimum negotiable price. This quote will be logged as{' '}
-              <strong>requires approval</strong>.
+            <div className="somo-note borderless">
+              The price comes from the pricing rules and is recalculated on the server
+              when the request is filed, so this preview and the logged figure cannot
+              disagree.
             </div>
 
             <button className="somo-btn" type="submit" disabled={busy}>
