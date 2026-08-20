@@ -555,7 +555,27 @@ label.somo-field span {
 }
 
 .somo-table-wrap {
-  overflow-x: auto;
+  overflow: auto;
+  /* Bounded on purpose. With overflow-x alone the horizontal scrollbar sits at the
+     bottom of the whole table, so a forty-row log meant scrolling to the very
+     bottom to reach it, dragging sideways, then scrolling back up to read what you
+     had uncovered. Capping the box puts the scrollbar on screen at all times. */
+  /* 60, not 75: the attention queue and the toolbar sit above this box, and a
+     taller cap pushes the box's own horizontal scrollbar back below the fold —
+     which is the entire problem this is here to solve. */
+  max-height: 60vh;
+  /* Momentum scrolling on the trackpad/touch, and a visible bar on macOS where
+     overlay scrollbars otherwise hide until you touch them. */
+  overscroll-behavior-x: contain;
+}
+/* The header has to stay put once the rows scroll under it, or a wide table gives
+   you columns of numbers with nothing to say what they are. */
+table.somo-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  /* Opaque: rows pass underneath. */
+  background: var(--panel);
 }
 table.somo-table {
   width: 100%;
@@ -1059,16 +1079,20 @@ body:has(.somo-link-page) {
   border-radius: 16px;
   padding: clamp(20px, 5vw, 34px);
 }
-/* The card fills the screen; the writing inside it does not. A line of prose past
-   roughly 70 characters is hard for the eye to track back from, and a primary
-   button 1300px wide stops reading as a button — so the contents sit in a
-   centred column and the panel is what expands around them. */
+/* The contents fill the card. The headings and the one-sentence explanations are
+   short enough that they do not wrap even at full width, and the summary rows read
+   better with room — label left, value stretching out beside it. */
 .somo-link-head,
 .somo-link-body,
 .somo-link-actions {
   width: 100%;
-  max-width: 760px;
+}
+/* The button is the exception: at 1300px it stops reading as a button and starts
+   reading as a coloured bar, so it keeps a sane width and centres in the card. */
+.somo-link-actions .somo-btn {
+  max-width: 460px;
   margin-inline: auto;
+  display: block;
 }
 .somo-link-head {
   display: flex;

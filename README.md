@@ -310,6 +310,13 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
   ops would sit looking at whatever was true when the page loaded. There is a
   manual **↻ Refresh** next to the export button for the impatient.
 
+  The table itself is a bounded scroll box (60vh) with a sticky header row, so the
+  horizontal scrollbar stays on screen instead of sitting at the bottom of a
+  forty-row page, and column headings stay put while rows scroll under them. The
+  **⤡ Compact** toggle drops the six detail columns — distance, time, type, item,
+  declared value, recommended — leaving what dispatch actually works from; the
+  choice is remembered per browser.
+
   Every message is still a human tapping a pre-filled WhatsApp/SMS link, but the
   wording and the recipient list for each step now live in one provider-agnostic
   module, [lib/deliveryMessages.ts](lib/deliveryMessages.ts). Wiring up a

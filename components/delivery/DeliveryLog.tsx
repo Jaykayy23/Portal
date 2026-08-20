@@ -38,6 +38,15 @@ const QUEUE_LIMIT = 6;
  */
 const REFRESH_MS = 25_000;
 
+/**
+ * Remembers the compact choice across visits.
+ *
+ * Worth persisting rather than defaulting: whether the detail columns are in the
+ * way depends on the screen someone works on, and that does not change from one
+ * day to the next.
+ */
+const COMPACT_KEY = 'somo.log.compact';
+
 const STATUS_CLASS: Record<DeliveryStatus, string> = {
   Requested: 'b-requested',
   'Requires approval': 'b-approval',
@@ -119,6 +128,35 @@ export function DeliveryLog({
   const [exporting, setExporting] = useState(false);
   const [confirming, setConfirming] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  /**
+   * Compact drops the six detail columns — distance, time, type, item, declared
+   * value, recommended price — leaving what ops actually works from: who, where,
+   * what was agreed, where it has got to, and who is carrying it. On a laptop that
+   * is the difference between a table that fits and one you drag sideways.
+   *
+   * Starts full, because a first visit that silently hides columns looks like
+   * missing data rather than a setting.
+   */
+  const [compact, setCompact] = useState(false);
+
+  // Read after mount, never during render: the server has no localStorage, and
+  // reading it in useState would make the first client render disagree with the
+  // server's and throw a hydration error.
+  useEffect(() => {
+    setCompact(window.localStorage.getItem(COMPACT_KEY) === '1');
+  }, []);
+
+  function toggleCompact() {
+    setCompact((wasCompact) => {
+      const next = !wasCompact;
+      try {
+        window.localStorage.setItem(COMPACT_KEY, next ? '1' : '0');
+      } catch {
+        // Private browsing, or storage full. The toggle still works for this visit.
+      }
+      return next;
+    });
+  }
 
   useEffect(() => {
     // Held while the alerts modal is open: re-rendering underneath someone who is
@@ -271,6 +309,18 @@ export function DeliveryLog({
         <button
           type="button"
           className="somo-btn ghost small"
+          onClick={toggleCompact}
+          title={
+            compact
+              ? 'Show distance, time, type, item, value and recommended price'
+              : 'Hide the detail columns so the table fits without scrolling sideways'
+          }
+        >
+          {compact ? '⤢ All columns' : '⤡ Compact'}
+        </button>
+        <button
+          type="button"
+          className="somo-btn ghost small"
           onClick={refreshNow}
           disabled={refreshing}
           title="Riders and customers update these from their phones — this checks for changes now"
@@ -299,12 +349,16 @@ export function DeliveryLog({
               <th>Date</th>
               {canManage && <th>Customer</th>}
               <th>Route</th>
-              <th>Distance</th>
-              <th>Time</th>
-              <th>Type</th>
-              <th>Item</th>
-              <th>Value</th>
-              <th>Recommended</th>
+              {!compact && (
+                <>
+                  <th>Distance</th>
+                  <th>Time</th>
+                  <th>Type</th>
+                  <th>Item</th>
+                  <th>Value</th>
+                  <th>Recommended</th>
+                </>
+              )}
               <th>Agreed</th>
               <th>Status</th>
               <th>Rider</th>
@@ -334,15 +388,19 @@ export function DeliveryLog({
                       </>
                     ) : null}
                   </td>
-                  <td className="somo-price-cell">{r.distance.toFixed(1)} km</td>
-                  <td className="somo-price-cell">
-                    {r.durationMin > 0 ? `${r.durationMin.toFixed(0)} min` : '—'}
-                  </td>
-                  <td>{r.type}</td>
-                  {/* Blank for rows filed before item categories existed. */}
-                  <td>{r.itemCategory || '—'}</td>
-                  <td className="somo-price-cell">GHS {(r.declaredValue || 0).toFixed(0)}</td>
-                  <td className="somo-price-cell">{fmtMoney(r.recommended)}</td>
+                  {!compact && (
+                    <>
+                      <td className="somo-price-cell">{r.distance.toFixed(1)} km</td>
+                      <td className="somo-price-cell">
+                        {r.durationMin > 0 ? `${r.durationMin.toFixed(0)} min` : '—'}
+                      </td>
+                      <td>{r.type}</td>
+                      {/* Blank for rows filed before item categories existed. */}
+                      <td>{r.itemCategory || '—'}</td>
+                      <td className="somo-price-cell">GHS {(r.declaredValue || 0).toFixed(0)}</td>
+                      <td className="somo-price-cell">{fmtMoney(r.recommended)}</td>
+                    </>
+                  )}
                   <td className="somo-agreed-cell">{fmtMoney(r.agreed)}</td>
 
                   <td>
