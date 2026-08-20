@@ -6,6 +6,7 @@
 // with the merchant's phone number, not to decide who sees what.
 
 import { createSupabaseServerClient } from './supabase/server';
+import { syncRiderAvailability } from './riderAvailability';
 import { isOpsOrAdmin, type Delivery, type DeliveryWithMerchant, type SessionUser } from './types';
 import type { Database } from './database.types';
 
@@ -148,6 +149,19 @@ export async function patchDelivery(
   const update: Database['public']['Tables']['deliveries']['Update'] = {};
   if (patch.status) update.status = patch.status;
 
+  // Read before writing: once the rider column is overwritten there is no way to
+  // ask who used to be carrying this, and that rider's availability has to be
+  // recomputed or they stay 'On delivery' for a job that is no longer theirs.
+  let previousRiderId: string | null = null;
+  if (patch.riderId !== undefined) {
+    const { data: before } = await supabase
+      .from('deliveries')
+      .select('rider_id')
+      .eq('id', id)
+      .maybeSingle();
+    previousRiderId = before?.rider_id ?? null;
+  }
+
   if (patch.riderId !== undefined) {
     if (!patch.riderId) {
       Object.assign(update, {
@@ -230,6 +244,15 @@ export async function patchDelivery(
   if (!data) throw new DeliveryError('Delivery not found.');
 
   const delivery = fromRow(data);
+
+  // The rider taken off the job may now be free; the one put on it is only
+  // 'Pending' until they accept, so nothing changes for them here. Recomputed from
+  // what they are actually carrying rather than assumed, which is what makes
+  // swapping a rider mid-delivery come out right.
+  if (patch.riderId !== undefined && previousRiderId && previousRiderId !== delivery.riderId) {
+    await syncRiderAvailability(supabase, previousRiderId, id);
+  }
+
   const { data: merchant } = await supabase
     .from('profiles')
     .select('phone')

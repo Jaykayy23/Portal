@@ -295,6 +295,15 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
   stored, so items cannot go stale and there is nothing to mark as read — the
   state *is* the alert.
 
+  **Rider availability follows from this** rather than being remembered. Accepting
+  a job sets the rider to `On delivery`; closing one out sets them back to
+  `Available`, but only if they have no other delivery still in flight, and never
+  if they are `Offline` — finishing the last job of the day must not quietly put
+  someone back in the pool. Taking a rider off a delivery frees them the same way.
+  It is recomputed from what they are actually carrying, so it comes out right
+  after a reassignment or two jobs finishing seconds apart. See
+  [lib/riderAvailability.ts](lib/riderAvailability.ts).
+
   Because riders and customers move deliveries along from their own phones, the
   log soft-refreshes itself every 25 seconds (paused in background tabs and while
   the alerts modal is open, and triggered immediately on tab focus). Without that,

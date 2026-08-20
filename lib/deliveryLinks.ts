@@ -20,6 +20,7 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 import { createAdminClient } from './supabase/admin';
+import { syncRiderAvailability } from './riderAvailability';
 import { shortId } from './format';
 import type { Database } from './database.types';
 import {
@@ -286,7 +287,7 @@ export async function redeemLink(token: string, action: LinkAction): Promise<Lin
     .update({ confirmed_at: usedAt, outcome })
     .eq('token_hash', hashToken(token))
     .is('confirmed_at', null)
-    .select('delivery_id')
+    .select('delivery_id, rider_id')
     .maybeSingle();
 
   if (error) throw new LinkError(error.message);
@@ -305,6 +306,13 @@ export async function redeemLink(token: string, action: LinkAction): Promise<Lin
   // showing the old status with no way to retry. Surfacing it tells the holder to
   // call ops, which is the only useful thing they can do.
   if (deliveryError) throw new LinkError(deliveryError.message);
+
+  // Accepting a job is exactly when a rider stops being free, and closing one out
+  // is when they are again — so the Riders tab follows from here rather than being
+  // remembered by ops. A decline changes nothing: they never had the parcel.
+  if (key === 'rider-response:accepted' || key === 'rider-complete:confirmed') {
+    await syncRiderAvailability(admin, claimed.rider_id);
+  }
 
   return { ...current, state: 'used', outcome, usedAt };
 }
