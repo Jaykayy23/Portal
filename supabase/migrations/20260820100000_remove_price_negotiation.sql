@@ -24,8 +24,10 @@
 -- Dropped rather than left dormant: this one is pure configuration, so there is
 -- no history in it, and a column the UI stopped showing is exactly the sort of
 -- thing that gets rediscovered years later and mistaken for something live.
-alter table public.pricing_params drop column min_pct;
-alter table public.pricing_params drop constraint pricing_params_min_pct_range;
+-- Dropping the column takes its CHECK constraint with it: Postgres removes any
+-- constraint that depends on a dropped column, so naming
+-- pricing_params_min_pct_range separately would fail with "does not exist".
+alter table public.pricing_params drop column if exists min_pct;
 
 -- ---------------------------------------------------------------------------
 -- deliveries.minimum — kept, but no longer supplied
@@ -52,7 +54,7 @@ comment on column public.deliveries.agreed is
 --
 -- 'Approved' stays. Two rows have it, and it never belonged to negotiation: it is
 -- ops' own marker for a request they have looked at and cleared to go out.
-alter table public.deliveries drop constraint deliveries_status_check;
+alter table public.deliveries drop constraint if exists deliveries_status_check;
 
 alter table public.deliveries
   add constraint deliveries_status_check check (
