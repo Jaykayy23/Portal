@@ -104,6 +104,10 @@ function columnsFor(opts: DeliveryExportOptions): Column<DeliveryWithMerchant>[]
       width: 16,
       cell: (r) => ({ type: Number, value: r.declaredValue, format: MONEY }),
     },
+    // Blank on rows filed before payment terms existed, rather than guessing a
+    // default that would read as fact in a report.
+    { header: header('Item payment'), width: 18, cell: (r) => r.itemPayment || null },
+    { header: header('Fee paid by'), width: 14, cell: (r) => r.deliveryPaidBy || null },
     {
       header: header('Recommended'),
       width: 16,

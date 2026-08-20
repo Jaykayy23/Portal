@@ -10,9 +10,13 @@ import { useToast } from '@/components/Toast';
 import { useMaps } from '@/components/MapsProvider';
 import { NotifyModal } from '@/components/delivery/NotifyModal';
 import {
+  DELIVERY_PAYERS,
   DELIVERY_TYPES,
+  ITEM_PAYMENTS,
   type DeliveryOptions,
+  type DeliveryPayer,
   type DeliveryType,
+  type ItemPayment,
   type DeliveryWithMerchant,
   type PricingParams,
   type SessionUser,
@@ -54,6 +58,10 @@ export function NewDeliveryForm({
   const [itemCategory, setItemCategory] = useState('');
   const [surcharges, setSurcharges] = useState<string[]>([]);
   const [declaredValue, setDeclaredValue] = useState('');
+  // No sensible default for either: guessing "prepaid" would quietly tell a rider
+  // not to collect money, so both start unset and the form insists on an answer.
+  const [itemPayment, setItemPayment] = useState<ItemPayment | ''>('');
+  const [deliveryPaidBy, setDeliveryPaidBy] = useState<DeliveryPayer | ''>('');
   const [customer, setCustomer] = useState(user.role === 'merchant' ? user.companyName : '');
   // The individual at the drop-off, not the merchant filing the request.
   const [recipientName, setRecipientName] = useState('');
@@ -159,6 +167,14 @@ export function NewDeliveryForm({
       toast('Declared value of the item is required');
       return;
     }
+    if (!itemPayment) {
+      toast('Say whether the item is prepaid or cash on delivery');
+      return;
+    }
+    if (!deliveryPaidBy) {
+      toast('Say who is paying for the delivery');
+      return;
+    }
     if (!recipientName.trim()) {
       toast("Enter the recipient's name");
       return;
@@ -186,6 +202,8 @@ export function NewDeliveryForm({
           itemCategory,
           surcharges,
           declaredValue: Number(declaredValue),
+          itemPayment,
+          deliveryPaidBy,
           agreed: agreedNumber,
           customer: customer.trim() || user.companyName,
           recipientName: recipientName.trim(),
@@ -207,6 +225,8 @@ export function NewDeliveryForm({
       setDistance('');
       setDurationMin('');
       setDeclaredValue('');
+      setItemPayment('');
+      setDeliveryPaidBy('');
       setRecipientName('');
       setRecipientPhone('');
       setItemCategory('');
@@ -389,8 +409,42 @@ export function NewDeliveryForm({
                 onChange={(e) => setDeclaredValue(e.target.value)}
               />
             </label>
+            <label className="somo-field">
+              <span>Item payment (required)</span>
+              <select
+                className="somo-select"
+                value={itemPayment}
+                onChange={(e) => setItemPayment(e.target.value as ItemPayment)}
+              >
+                <option value="">Select…</option>
+                {ITEM_PAYMENTS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="somo-field">
+              <span>Delivery fee paid by (required)</span>
+              <select
+                className="somo-select"
+                value={deliveryPaidBy}
+                onChange={(e) => setDeliveryPaidBy(e.target.value as DeliveryPayer)}
+              >
+                <option value="">Select…</option>
+                {DELIVERY_PAYERS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <div className="somo-note borderless">
-              Used for handling care and liability — required before a request can be logged.
+              Declared value covers handling care and liability. The two payment
+              answers go into the rider&rsquo;s alert, so they know exactly what to
+              collect at the door — and what not to.
             </div>
           </div>
         </div>

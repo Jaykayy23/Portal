@@ -77,6 +77,28 @@ export const DELIVERY_TYPES: { value: DeliveryType; label: string }[] = [
   { value: 'Fragile', label: 'Fragile / handle with care' },
 ];
 
+/**
+ * Whether the goods themselves are already paid for.
+ *
+ * The distinction the rider cares about: 'Cash on delivery' means they are
+ * carrying someone's money home, 'Prepaid' means they hand the parcel over and
+ * leave.
+ */
+export type ItemPayment = 'Prepaid' | 'Cash on delivery';
+
+export const ITEM_PAYMENTS: { value: ItemPayment; label: string }[] = [
+  { value: 'Prepaid', label: 'Prepaid — customer has already paid' },
+  { value: 'Cash on delivery', label: 'Cash on delivery — rider collects' },
+];
+
+/** Who settles the delivery fee. Independent of how the goods were paid for. */
+export type DeliveryPayer = 'Merchant' | 'Customer';
+
+export const DELIVERY_PAYERS: { value: DeliveryPayer; label: string }[] = [
+  { value: 'Merchant', label: 'Merchant pays — bill my account' },
+  { value: 'Customer', label: 'Customer pays the rider on delivery' },
+];
+
 export interface Delivery {
   id: string;
   date: string;
@@ -98,6 +120,9 @@ export interface Delivery {
   itemCategory: string;
   surcharges: string[];
   declaredValue: number;
+  /** '' on rows filed before payment terms were captured. */
+  itemPayment: ItemPayment | '';
+  deliveryPaidBy: DeliveryPayer | '';
   recommended: number;
   minimum: number;
   agreed: number;

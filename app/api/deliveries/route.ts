@@ -7,7 +7,14 @@ import { isValidPhone } from '@/lib/phone';
 import { getDeliveryOptions, getPricingParams } from '@/lib/settings';
 import { DeliveryError, createDelivery, listDeliveriesFor } from '@/lib/deliveries';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { DELIVERY_TYPES, type DeliveryType } from '@/lib/types';
+import {
+  DELIVERY_PAYERS,
+  DELIVERY_TYPES,
+  ITEM_PAYMENTS,
+  type DeliveryPayer,
+  type DeliveryType,
+  type ItemPayment,
+} from '@/lib/types';
 
 export async function GET() {
   return handle(async () => {
@@ -29,6 +36,8 @@ interface CreateBody {
   customer?: string;
   recipientName?: string;
   recipientPhone?: string;
+  itemPayment?: ItemPayment;
+  deliveryPaidBy?: DeliveryPayer;
 }
 
 /** A day. Anything beyond this is a typo or a probe, not a delivery. */
@@ -73,6 +82,8 @@ export async function POST(req: Request) {
       customer,
       recipientName,
       recipientPhone,
+      itemPayment,
+      deliveryPaidBy,
     } = body;
 
     if (!pickup || !dropoff || !distance) {
@@ -95,6 +106,17 @@ export async function POST(req: Request) {
     }
     if (type !== undefined && !DELIVERY_TYPES.some((t) => t.value === type)) {
       badRequest('Invalid delivery type.');
+    }
+
+    // Money the rider may have to collect, so neither is optional and neither is
+    // taken on trust: whatever the form sent has to be one of the configured
+    // values, or a crafted request could store "free" and a rider would arrive
+    // expecting to collect nothing.
+    if (!itemPayment || !ITEM_PAYMENTS.some((o) => o.value === itemPayment)) {
+      badRequest('Say whether the item is prepaid or cash on delivery.');
+    }
+    if (!deliveryPaidBy || !DELIVERY_PAYERS.some((o) => o.value === deliveryPaidBy)) {
+      badRequest('Say who is paying for the delivery.');
     }
 
     // The recipient is who the rider is actually delivering to, so both fields
@@ -177,6 +199,8 @@ export async function POST(req: Request) {
           itemCategory: finalCategory,
           surcharges: Array.isArray(surcharges) ? surcharges : [],
           declaredValue: Number(declaredValue),
+          itemPayment,
+          deliveryPaidBy,
           recommended,
           minimum,
           agreed: finalAgreed,

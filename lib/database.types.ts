@@ -97,6 +97,8 @@ export interface Database {
           item_category: string;
           surcharges: string[];
           declared_value: number;
+          item_payment: '' | 'Prepaid' | 'Cash on delivery';
+          delivery_paid_by: '' | 'Merchant' | 'Customer';
           recommended: number;
           minimum: number;
           agreed: number;
@@ -127,6 +129,8 @@ export interface Database {
           item_category?: string;
           surcharges?: string[];
           declared_value: number;
+          item_payment?: '' | 'Prepaid' | 'Cash on delivery';
+          delivery_paid_by?: '' | 'Merchant' | 'Customer';
           recommended: number;
           minimum: number;
           agreed: number;

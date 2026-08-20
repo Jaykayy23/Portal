@@ -74,6 +74,47 @@ function recipientClause(record: Delivery): string {
     : '';
 }
 
+/**
+ * What the rider must collect, and what they must not.
+ *
+ * Spelled out in both directions on purpose. "Prepaid" said explicitly is what
+ * stops a rider asking a customer for money they have already paid, which is the
+ * mistake that costs the merchant a customer rather than costing anyone cash.
+ *
+ * The declared value is quoted as the reference for a cash-on-delivery item
+ * because it is the only figure the portal holds for the goods — see the README
+ * note on adding a separate COD amount if the two ever need to differ.
+ */
+function paymentClause(record: Delivery): string {
+  const parts: string[] = [];
+
+  if (record.itemPayment === 'Cash on delivery') {
+    parts.push(`COLLECT CASH for the item (declared value GHS ${record.declaredValue})`);
+  } else if (record.itemPayment === 'Prepaid') {
+    parts.push('item is PREPAID, collect nothing for the goods');
+  }
+
+  if (record.deliveryPaidBy === 'Customer') {
+    parts.push(`collect the delivery fee of GHS ${record.agreed.toFixed(2)} from the customer`);
+  } else if (record.deliveryPaidBy === 'Merchant') {
+    parts.push('delivery fee is on the merchant account, do not collect it');
+  }
+
+  // Rows filed before payment terms were captured say nothing rather than
+  // guessing, which would be the one kind of wrong that costs somebody money.
+  return parts.length ? ` PAYMENT: ${parts.join('; ')}.` : '';
+}
+
+/** What the recipient should have ready, if anything. */
+function recipientPaymentClause(record: Delivery): string {
+  const owed: string[] = [];
+  if (record.itemPayment === 'Cash on delivery') owed.push('cash for the item');
+  if (record.deliveryPaidBy === 'Customer') {
+    owed.push(`the delivery fee of GHS ${record.agreed.toFixed(2)}`);
+  }
+  return owed.length ? ` Please have ${owed.join(' and ')} ready for the rider.` : '';
+}
+
 function riderClause(record: Delivery): string {
   const bike = [record.riderModel, record.riderReg].filter(Boolean).join(' ');
   return `${record.riderName} (${record.riderPhone})${bike ? `, riding a ${bike}` : ''}`;
@@ -113,7 +154,7 @@ export function outboundFor(
           who: `Rider — ${record.riderName}`,
           phone: record.riderPhone,
           needsLink: 'rider-response',
-          text: `SomoExpress job offer ${no}. Pickup: ${record.pickup}. Drop-off: ${record.dropoff}.${recipientClause(record)} Merchant: ${record.customer}.${itemClause(record)} Type: ${record.type}. Tap here to accept or decline: ${ctx.links['rider-response'] ?? ''}`,
+          text: `SomoExpress job offer ${no}. Pickup: ${record.pickup}. Drop-off: ${record.dropoff}.${recipientClause(record)} Merchant: ${record.customer}.${itemClause(record)} Type: ${record.type}.${paymentClause(record)} Tap here to accept or decline: ${ctx.links['rider-response'] ?? ''}`,
         },
         {
           id: 'ops-offered',
@@ -156,7 +197,7 @@ export function outboundFor(
           who: `Recipient — ${record.recipientName || 'customer'}`,
           phone: record.recipientPhone,
           needsLink: 'recipient-confirm',
-          text: `Hello${record.recipientName ? ` ${record.recipientName}` : ''}, your SomoExpress delivery ${no} from ${record.customer} is on the way. Rider: ${riderClause(record)}. When it reaches you, tap here to confirm you have received it: ${ctx.links['recipient-confirm'] ?? ''}`,
+          text: `Hello${record.recipientName ? ` ${record.recipientName}` : ''}, your SomoExpress delivery ${no} from ${record.customer} is on the way. Rider: ${riderClause(record)}.${recipientPaymentClause(record)} When it reaches you, tap here to confirm you have received it: ${ctx.links['recipient-confirm'] ?? ''}`,
         },
         {
           id: 'ops-picked-up',
@@ -173,7 +214,7 @@ export function outboundFor(
           who: `Rider — ${record.riderName}`,
           phone: record.riderPhone,
           needsLink: 'rider-complete',
-          text: `SomoExpress ${no}: ${record.recipientName || 'the recipient'} has confirmed receipt. Tap here to close the job off: ${ctx.links['rider-complete'] ?? ''}`,
+          text: `SomoExpress ${no}: ${record.recipientName || 'the recipient'} has confirmed receipt.${paymentClause(record)} Tap here to close the job off: ${ctx.links['rider-complete'] ?? ''}`,
         },
         {
           id: 'ops-recipient-confirmed',

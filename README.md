@@ -263,6 +263,26 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
   rider's WhatsApp alert carries it so they can call ahead, the log shows it
   under the route, and the export has it as two columns. Rows filed before this
   existed show a dash rather than blocking.
+- **Payment terms** are two required answers on the New delivery form, sitting
+  under the declared value: is the item **Prepaid** or **Cash on delivery**, and is
+  the delivery fee paid by the **Merchant** or the **Customer**. They are
+  independent — a prepaid order where the customer still pays for delivery is
+  ordinary — so all four combinations are valid. Both are re-checked server-side
+  against the configured values, because a crafted request that stored "free"
+  would send a rider to a door expecting to collect nothing.
+
+  They exist for the rider's alert, which now spells out what to collect *and what
+  not to*: "PAYMENT: item is PREPAID, collect nothing for the goods; collect the
+  delivery fee of GHS 32.00 from the customer." Saying "prepaid" explicitly is what
+  stops a rider asking for money already paid — the mistake that costs a merchant a
+  customer rather than costing anyone cash. The recipient's message gets the
+  matching half ("please have … ready for the rider"), and the log shows a
+  COD/Prepaid badge that **Compact does not hide**.
+
+  One thing to know: a cash-on-delivery message quotes the **declared value** as
+  the amount, because that is the only figure the portal holds for the goods. If
+  the COD amount ever needs to differ from the declared value, that wants its own
+  column rather than being inferred.
 - **Google Maps** (autocomplete + driving-distance lookup) works once an admin
   saves a Maps API key with Places API and Distance Matrix API enabled and billing
   on.

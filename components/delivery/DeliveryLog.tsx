@@ -360,6 +360,9 @@ export function DeliveryLog({
                 </>
               )}
               <th>Agreed</th>
+              {/* Never hidden by Compact: whether a rider is carrying cash home is
+                  not a detail. */}
+              <th>Payment</th>
               <th>Status</th>
               <th>Rider</th>
               <th>{canManage ? 'Alerts' : 'Action'}</th>
@@ -402,6 +405,24 @@ export function DeliveryLog({
                     </>
                   )}
                   <td className="somo-agreed-cell">{fmtMoney(r.agreed)}</td>
+
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {r.itemPayment ? (
+                      <>
+                        {r.itemPayment === 'Cash on delivery' ? (
+                          <span className="somo-badge b-approval">COD</span>
+                        ) : (
+                          <span className="somo-badge b-delivered">Prepaid</span>
+                        )}
+                        <br />
+                        <span className="somo-rider-sub">
+                          {r.deliveryPaidBy ? `${r.deliveryPaidBy.toLowerCase()} pays fee` : '—'}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="somo-unassigned">—</span>
+                    )}
+                  </td>
 
                   <td>
                     {canManage ? (

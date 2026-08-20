@@ -32,6 +32,8 @@ export function fromRow(r: DeliveryRow): Delivery {
     itemCategory: r.item_category ?? '',
     surcharges: r.surcharges ?? [],
     declaredValue: Number(r.declared_value),
+    itemPayment: r.item_payment ?? '',
+    deliveryPaidBy: r.delivery_paid_by ?? '',
     recommended: Number(r.recommended),
     minimum: Number(r.minimum),
     agreed: Number(r.agreed),
@@ -93,6 +95,8 @@ export interface CreateDeliveryInput {
   itemCategory: string;
   surcharges: string[];
   declaredValue: number;
+  itemPayment: Delivery['itemPayment'];
+  deliveryPaidBy: Delivery['deliveryPaidBy'];
   recommended: number;
   minimum: number;
   agreed: number;
@@ -117,6 +121,8 @@ export async function createDelivery(input: CreateDeliveryInput): Promise<Delive
       item_category: input.itemCategory,
       surcharges: input.surcharges,
       declared_value: input.declaredValue,
+      item_payment: input.itemPayment,
+      delivery_paid_by: input.deliveryPaidBy,
       recommended: input.recommended,
       minimum: input.minimum,
       agreed: input.agreed,
