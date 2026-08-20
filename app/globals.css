@@ -1044,22 +1044,31 @@ body:has(.somo-link-page) {
      bar, so a 100vh layout is taller than what you can actually see and the
      button at the bottom lands under the fold. */
   min-height: 100dvh;
-  padding: clamp(14px, 4vw, 40px);
+  /* This padding is the margin around the card, so it stays small: the card is
+     meant to fill the screen, not float in the middle of it. */
+  padding: clamp(12px, 2vw, 24px);
   background: radial-gradient(circle at 30% 20%, var(--card) 0%, var(--muted) 75%);
 }
 .somo-link-card {
   flex: 1;
   width: 100%;
-  /* Wide enough to read as a page on a laptop, capped because a sentence past
-     roughly 70 characters is hard for the eye to track back from. */
-  max-width: 680px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: clamp(20px, 5vw, 34px);
+}
+/* The card fills the screen; the writing inside it does not. A line of prose past
+   roughly 70 characters is hard for the eye to track back from, and a primary
+   button 1300px wide stops reading as a button — so the contents sit in a
+   centred column and the panel is what expands around them. */
+.somo-link-head,
+.somo-link-body,
+.somo-link-actions {
+  width: 100%;
+  max-width: 760px;
+  margin-inline: auto;
 }
 .somo-link-head {
   display: flex;
@@ -1097,6 +1106,8 @@ body:has(.somo-link-page) {
 
 /* A phone has no room for a frame within a frame: below this width the card *is*
    the page, edge to edge. */
+/* A phone has no width to spare, so the margin goes and the card becomes the
+   screen. Rounded corners against the viewport edge would only crop content. */
 @media (max-width: 640px) {
   .somo-link-page {
     padding: 0;
