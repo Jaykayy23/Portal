@@ -40,6 +40,10 @@ export function fromRow(r: DeliveryRow): Delivery {
     riderPhone: r.rider_phone,
     riderReg: r.rider_reg,
     riderModel: r.rider_model,
+    acceptedAt: r.accepted_at ?? '',
+    declinedAt: r.declined_at ?? '',
+    pickedUpAt: r.picked_up_at ?? '',
+    recipientConfirmedAt: r.recipient_confirmed_at ?? '',
     deliveredAt: r.delivered_at ?? '',
   };
 }
@@ -152,7 +156,28 @@ export async function patchDelivery(
         rider_phone: '',
         rider_reg: '',
         rider_model: '',
+        accepted_at: null,
+        declined_at: null,
       });
+
+      // A status that only makes sense with a rider attached goes back to the
+      // queue. Anything from 'Picked up' on is left alone: the parcel really was
+      // collected, and erasing that because ops corrected the rider field would
+      // lose the more important fact.
+      if (!patch.status) {
+        const { data: current } = await supabase
+          .from('deliveries')
+          .select('status')
+          .eq('id', id)
+          .maybeSingle();
+        if (
+          current?.status === 'Assigned' ||
+          current?.status === 'Declined' ||
+          current?.status === 'Accepted'
+        ) {
+          update.status = 'Requested';
+        }
+      }
     } else {
       const { data: rider, error: riderError } = await supabase
         .from('riders')
@@ -172,15 +197,23 @@ export async function patchDelivery(
         rider_model: rider.model,
       });
 
+      // The previous rider's answer belongs to the previous rider. Clearing both
+      // stamps is what makes a reassignment a clean start rather than a job that
+      // looks accepted and declined at once.
+      Object.assign(update, { accepted_at: null, declined_at: null });
+
       if (!patch.status) {
         const { data: current } = await supabase
           .from('deliveries')
           .select('status')
           .eq('id', id)
           .maybeSingle();
-        // Assigning a rider advances a fresh request, but never overrides an
-        // explicit status sent in the same patch.
-        if (current?.status === 'Requested') update.status = 'Assigned';
+        // Assigning a rider advances a fresh request, and un-parks one the last
+        // rider declined — but never overrides an explicit status sent in the
+        // same patch.
+        if (current?.status === 'Requested' || current?.status === 'Declined') {
+          update.status = 'Assigned';
+        }
       }
     }
   }
@@ -192,6 +225,84 @@ export async function patchDelivery(
     .select('*')
     .maybeSingle();
 
+  if (error) throw new DeliveryError(error.message);
+  if (!data) throw new DeliveryError('Delivery not found.');
+
+  const delivery = fromRow(data);
+  const { data: merchant } = await supabase
+    .from('profiles')
+    .select('phone')
+    .eq('id', delivery.merchantId)
+    .maybeSingle();
+
+  return { ...delivery, merchantPhone: merchant?.phone ?? '' };
+}
+
+/**
+ * The merchant confirming the rider has collected the item.
+ *
+ * Runs through the caller's own session, like every other query in this file, so
+ * the RLS policies are what authorise it — `deliveries_update_merchant_pickup`
+ * for a merchant on their own accepted row, and the existing ops/admin policy for
+ * everyone else. A merchant reaching for someone else's delivery updates zero
+ * rows; there is no check in this function that could be forgotten, because there
+ * is no check in this function.
+ *
+ * The status filter is not the authorisation — the policy already carries it —
+ * but it does make the transition atomic: two taps a second apart cannot both
+ * stamp a time.
+ */
+export async function confirmPickup(deliveryId: string): Promise<DeliveryWithMerchant> {
+  const supabase = await createSupabaseServerClient();
+
+  const pickedUpAt = new Date().toISOString();
+  const { data: updated, error } = await supabase
+    .from('deliveries')
+    .update({ status: 'Picked up', picked_up_at: pickedUpAt })
+    .eq('id', deliveryId)
+    .eq('status', 'Accepted')
+    .select('*')
+    .maybeSingle();
+
+  if (error) throw new DeliveryError(error.message);
+
+  if (!updated) {
+    // Nothing was updated, and the interesting part is why. A row the caller can
+    // read is a status problem; a row they cannot is either someone else's or
+    // nonexistent, and those two are deliberately indistinguishable.
+    const { data: current } = await supabase
+      .from('deliveries')
+      .select('status')
+      .eq('id', deliveryId)
+      .maybeSingle();
+
+    if (!current) throw new DeliveryError('Delivery not found.');
+    if (current.status === 'Picked up') {
+      // Already done — almost certainly this caller's own double tap, so treat it
+      // as success and hand back the row rather than inventing a failure.
+      return readDelivery(supabase, deliveryId);
+    }
+    throw new DeliveryError(
+      `Pickup can only be confirmed once the rider has accepted — this delivery is "${current.status}".`
+    );
+  }
+
+  const delivery = fromRow(updated);
+  const { data: merchant } = await supabase
+    .from('profiles')
+    .select('phone')
+    .eq('id', delivery.merchantId)
+    .maybeSingle();
+
+  return { ...delivery, merchantPhone: merchant?.phone ?? '' };
+}
+
+/** One delivery plus the merchant phone, as the patch and pickup paths return it. */
+async function readDelivery(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  id: string
+): Promise<DeliveryWithMerchant> {
+  const { data, error } = await supabase.from('deliveries').select('*').eq('id', id).maybeSingle();
   if (error) throw new DeliveryError(error.message);
   if (!data) throw new DeliveryError('Delivery not found.');
 

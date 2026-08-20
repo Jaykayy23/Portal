@@ -5,25 +5,24 @@ import { clientIpFrom, hitRateLimit } from '@/lib/rateLimit';
 import { ConfigError } from '@/components/ConfigError';
 import { BrandMark } from '@/components/BrandMark';
 import { getLogoDataUrl } from '@/lib/settings';
-import { loadConfirmation } from '@/lib/deliveryConfirmation';
-import { ConfirmDelivery, ConfirmedNote } from '@/components/delivery/ConfirmDelivery';
-import type { CompletionSummary, CompletionView } from '@/lib/types';
+import { loadLink } from '@/lib/deliveryLinks';
+import { LinkActions, OutcomeNote } from '@/components/delivery/LinkActions';
+import type { LinkSummary, LinkView } from '@/lib/types';
 
 // The token is the credential, so nothing about this page may be cached at the
 // edge or indexed. `noindex` matters most for the WhatsApp/SMS case: link
 // previewers and crawlers do follow URLs people paste into chats.
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
-  title: 'Confirm delivery — SomoExpress',
+  title: 'SomoExpress delivery',
   robots: { index: false, follow: false },
 };
 
-// The page is a public URL doing two database reads, so it gets the same
-// treatment as the endpoint behind it — generous, because a rider reloading a
-// page on bad signal is normal and being locked out mid-delivery is not.
+// A public URL doing two database reads, so it gets the same treatment as the
+// endpoint behind it — generous, because someone reloading on bad signal is
+// normal and being locked out mid-delivery is not.
 const PER_IP = { limit: 60, windowSeconds: 300 };
 
-/** Short path label, kept apart from the summary so it reads well on a phone. */
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="somo-confirm-row">
@@ -33,38 +32,79 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Summary({ summary }: { summary: CompletionSummary }) {
+/**
+ * The delivery, as much of it as the holder needs.
+ *
+ * A rider needs the pickup address; a recipient does not, and showing it would
+ * hand out the merchant's collection point to whoever holds the link. So the
+ * pickup line is rider-only.
+ */
+function Summary({ summary, showPickup }: { summary: LinkSummary; showPickup: boolean }) {
   return (
     <div className="somo-confirm-summary">
       <Row label="Order" value={`#${summary.orderNo}`} />
-      <Row label="Pickup" value={summary.pickup} />
+      {showPickup ? <Row label="Pickup" value={summary.pickup} /> : null}
       <Row label="Drop-off" value={summary.dropoff} />
-      <Row label="Customer" value={summary.customer} />
+      {showPickup ? (
+        <Row label="Merchant" value={summary.customer} />
+      ) : (
+        <Row label="From" value={summary.customer} />
+      )}
+      {summary.recipientName ? <Row label="Recipient" value={summary.recipientName} /> : null}
+      {!showPickup && summary.riderName ? <Row label="Rider" value={summary.riderName} /> : null}
       {summary.itemCategory ? <Row label="Item" value={summary.itemCategory} /> : null}
     </div>
   );
 }
 
-/** Heading and explanation for each state a link can be in. */
-function copyFor(view: CompletionView): { heading: string; sub: string } {
+/** Heading and explanation for every combination of purpose and state. */
+function copyFor(view: LinkView): { heading: string; sub: string } {
+  const who = view.summary?.riderName || 'rider';
+
   switch (view.state) {
     case 'pending':
+      switch (view.purpose) {
+        case 'rider-response':
+          return {
+            heading: `Hello ${who}`,
+            sub: 'A delivery has been offered to you. Check the details, then accept or decline.',
+          };
+        case 'recipient-confirm':
+          return {
+            heading: `Hello ${view.summary?.recipientName || 'there'}`,
+            sub: 'Your delivery is on the way. Once the parcel is in your hands, confirm below.',
+          };
+        default:
+          return {
+            heading: `Hello ${who}`,
+            sub: 'The recipient has confirmed receipt. Close the job off below.',
+          };
+      }
+
+    case 'used':
       return {
-        heading: `Hello ${view.summary?.riderName || 'rider'}`,
-        sub: 'Check this is the delivery you have just completed, then confirm below.',
+        heading: 'Already answered',
+        sub: 'This link has been used. Nothing further is needed here.',
       };
-    case 'confirmed':
-      return { heading: 'Already confirmed', sub: 'This delivery is recorded as complete.' };
+
     case 'expired':
       return {
         heading: 'This link has expired',
         sub: 'Call the ops team and they will send you a new one.',
       };
+
     case 'reassigned':
       return {
         heading: 'No longer your delivery',
-        sub: 'This order has been given to another rider, so it cannot be confirmed here.',
+        sub: 'This order has been given to another rider, so it cannot be answered here.',
       };
+
+    case 'superseded':
+      return {
+        heading: 'Nothing to do',
+        sub: 'This delivery has already moved past the step this link was for.',
+      };
+
     default:
       return {
         heading: 'Link not recognised',
@@ -73,7 +113,7 @@ function copyFor(view: CompletionView): { heading: string; sub: string } {
   }
 }
 
-/** The card body, shared by the normal page and the rate-limited one. */
+/** The card body, shared by every state including the rate-limited one. */
 function Card({
   logoDataUrl,
   heading,
@@ -92,7 +132,7 @@ function Card({
           <BrandMark logoDataUrl={logoDataUrl} />
           <div>
             <div className="somo-title">SomoExpress</div>
-            <div className="somo-sub">Delivery confirmation</div>
+            <div className="somo-sub">Delivery update</div>
           </div>
         </div>
 
@@ -105,13 +145,14 @@ function Card({
 }
 
 /**
- * The rider's completion page — the only page in the portal with no session.
+ * The one page in the portal with no session: whoever holds the link sees it.
  *
- * Whoever holds the link sees this, so it shows just enough to recognise the job
- * (route, customer, order number) and never the price, the declared value, or
- * anything about any other delivery.
+ * What it asks depends on the link's purpose — accept/decline for a rider being
+ * offered a job, "I have received this" for the person at the drop-off, "I've
+ * delivered this" for the rider closing it out. Three questions, one URL shape,
+ * so there is only ever one kind of address to paste into a message.
  */
-export default async function ConfirmDeliveryPage({
+export default async function DeliveryLinkPage({
   params,
 }: {
   params: Promise<{ token: string }>;
@@ -127,7 +168,7 @@ export default async function ConfirmDeliveryPage({
   // is spelled out in the copy instead.
   const ip = clientIpFrom(await headers());
   if (ip) {
-    const { allowed, retryAfterSeconds } = await hitRateLimit('confirm-page', ip, PER_IP);
+    const { allowed, retryAfterSeconds } = await hitRateLimit('link-page', ip, PER_IP);
     if (!allowed) {
       return (
         <Card
@@ -139,14 +180,17 @@ export default async function ConfirmDeliveryPage({
     }
   }
 
-  const view = await loadConfirmation(token);
+  const view = await loadLink(token);
   const { heading, sub } = copyFor(view);
+  const riderFacing = view.purpose !== 'recipient-confirm';
 
   return (
     <Card logoDataUrl={logoDataUrl} heading={heading} sub={sub}>
-      {view.summary ? <Summary summary={view.summary} /> : null}
-      {view.state === 'pending' ? <ConfirmDelivery token={token} /> : null}
-      {view.state === 'confirmed' ? <ConfirmedNote confirmedAt={view.confirmedAt} /> : null}
+      {view.summary ? <Summary summary={view.summary} showPickup={riderFacing} /> : null}
+      {view.state === 'pending' ? <LinkActions token={token} purpose={view.purpose} /> : null}
+      {view.state === 'used' ? (
+        <OutcomeNote purpose={view.purpose} outcome={view.outcome} usedAt={view.usedAt} />
+      ) : null}
     </Card>
   );
 }

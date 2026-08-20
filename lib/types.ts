@@ -31,11 +31,24 @@ export interface Rider {
   status: RiderStatus;
 }
 
+/**
+ * Where a delivery is in its life.
+ *
+ * The order here is the order it advances in, which is also the order the log's
+ * dropdown shows. Two of them are side-steps rather than steps forward:
+ * 'Requires approval' is where a below-minimum quote waits for ops, and
+ * 'Declined' is where a delivery lands when the assigned rider refuses it —
+ * assigning someone else puts it back on 'Assigned'.
+ */
 export type DeliveryStatus =
   | 'Requested'
   | 'Requires approval'
   | 'Approved'
   | 'Assigned'
+  | 'Declined'
+  | 'Accepted'
+  | 'Picked up'
+  | 'Recipient confirmed'
   | 'Delivered';
 
 export const DELIVERY_STATUSES: DeliveryStatus[] = [
@@ -43,6 +56,10 @@ export const DELIVERY_STATUSES: DeliveryStatus[] = [
   'Requires approval',
   'Approved',
   'Assigned',
+  'Declined',
+  'Accepted',
+  'Picked up',
+  'Recipient confirmed',
   'Delivered',
 ];
 
@@ -84,18 +101,24 @@ export interface Delivery {
   riderPhone: string;
   riderReg: string;
   riderModel: string;
+  /** Milestone timestamps. '' means that step never happened on this row. */
+  acceptedAt: string;
+  declinedAt: string;
+  pickedUpAt: string;
+  recipientConfirmedAt: string;
   /** When the rider confirmed completion via their link. '' if they never did. */
   deliveredAt: string;
 }
 
 /**
- * What a rider sees after opening their completion link.
+ * What the holder of a link sees about the delivery.
  *
  * Deliberately narrow: no price, no declared value, nothing about any other
  * order. Whoever holds the link holds the whole credential, so it shows only
- * what someone needs to recognise the job they just finished.
+ * what someone needs to recognise the job in front of them — the recipient's
+ * phone number, for instance, is never on the page, only their name.
  */
-export interface CompletionSummary {
+export interface LinkSummary {
   /** The short human-facing order number, not the uuid. */
   orderNo: string;
   customer: string;
@@ -103,27 +126,63 @@ export interface CompletionSummary {
   dropoff: string;
   itemCategory: string;
   riderName: string;
+  recipientName: string;
 }
 
-export type CompletionState =
-  /** Live link, waiting on the rider's tap. */
+/**
+ * What a link asks its holder.
+ *
+ *   rider-response     accept or decline the job — minted when ops assigns
+ *   recipient-confirm  "I have received this" — minted when the merchant
+ *                      confirms pickup, and sent to the person at the drop-off
+ *   rider-complete     "I have delivered this" — minted once the recipient has
+ *                      confirmed, closing the delivery
+ */
+export type LinkPurpose = 'rider-response' | 'recipient-confirm' | 'rider-complete';
+
+export const LINK_PURPOSES: LinkPurpose[] = [
+  'rider-response',
+  'recipient-confirm',
+  'rider-complete',
+];
+
+/** What the holder chose. 'declined' is the only one that does not advance. */
+export type LinkOutcome = 'accepted' | 'declined' | 'confirmed';
+
+/** The action a holder can take, as sent from the public page. */
+export type LinkAction = 'accept' | 'decline' | 'confirm';
+
+export type LinkState =
+  /** Live link, waiting on a tap. */
   | 'pending'
-  /** Already confirmed — by this link or an earlier one for the same delivery. */
-  | 'confirmed'
-  /** Past its expiry. Ops can issue a fresh one from the Notify modal. */
+  /** Already used — the outcome says what was chosen. */
+  | 'used'
+  /** Past its expiry. Whoever issued it can send a fresh one. */
   | 'expired'
+  /** The delivery has moved past the question this link asks. */
+  | 'superseded'
   /** The delivery has since been given to a different rider (or unassigned). */
   | 'reassigned'
   /** No such link. Also what a mistyped or truncated URL looks like. */
   | 'invalid';
 
-export interface CompletionView {
-  state: CompletionState;
+export interface LinkView {
+  state: LinkState;
+  purpose: LinkPurpose;
   /** Null for 'invalid' — an unknown token is told nothing at all. */
-  summary: CompletionSummary | null;
-  /** ISO timestamp when state is 'confirmed', otherwise ''. */
-  confirmedAt: string;
+  summary: LinkSummary | null;
+  /** Set when state is 'used'. */
+  outcome: LinkOutcome | null;
+  /** ISO timestamp when state is 'used', otherwise ''. */
+  usedAt: string;
 }
+
+/** Statuses at which each kind of link is the question worth asking. */
+export const PURPOSE_REQUIRES_STATUS: Record<LinkPurpose, DeliveryStatus> = {
+  'rider-response': 'Assigned',
+  'recipient-confirm': 'Picked up',
+  'rider-complete': 'Recipient confirmed',
+};
 
 /** A delivery as sent to ops/admin — enriched with the merchant's phone number. */
 export interface DeliveryWithMerchant extends Delivery {

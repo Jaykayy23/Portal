@@ -15,6 +15,15 @@ import type { DeliveryWithMerchant, SurchargeOption } from './types';
 
 const MONEY = '"GHS" #,##0.00';
 
+/** In flow order, so the sheet reads left to right as the delivery progressed. */
+const MILESTONES: { label: string; get: (r: DeliveryWithMerchant) => string }[] = [
+  { label: 'Rider accepted', get: (r) => r.acceptedAt },
+  { label: 'Rider declined', get: (r) => r.declinedAt },
+  { label: 'Picked up', get: (r) => r.pickedUpAt },
+  { label: 'Recipient confirmed', get: (r) => r.recipientConfirmedAt },
+  { label: 'Confirmed by rider', get: (r) => r.deliveredAt },
+];
+
 const HEADER = {
   fontWeight: 'bold',
   backgroundColor: '#f2f2f2',
@@ -111,20 +120,22 @@ function columnsFor(opts: DeliveryExportOptions): Column<DeliveryWithMerchant>[]
       cell: (r) => ({ type: Number, value: r.agreed, format: MONEY }),
     },
     { header: header('Status'), width: 18, cell: (r) => r.status },
-    {
-      header: header('Confirmed by rider'),
+    // The milestone trail. Each is blank unless that step actually happened here,
+    // which is what separates a delivery the people involved confirmed from one
+    // ops moved along by hand in the log — worth telling apart in a report, and
+    // impossible to see from Status alone.
+    ...MILESTONES.map(({ label, get }) => ({
+      header: header(label),
       width: 20,
-      // Blank means no rider confirmation — either still out, or marked Delivered
-      // by hand in the log. The two are worth telling apart in a report, which is
-      // why this is its own column rather than folded into Status.
-      cell: (r) => {
-        if (!r.deliveredAt) return null;
-        const d = new Date(r.deliveredAt);
+      cell: (r: DeliveryWithMerchant) => {
+        const iso = get(r);
+        if (!iso) return null;
+        const d = new Date(iso);
         return Number.isNaN(d.getTime())
           ? null
-          : { type: Date, value: d, format: 'dd mmm yyyy hh:mm' };
+          : ({ type: Date, value: d, format: 'dd mmm yyyy hh:mm' } as const);
       },
-    },
+    })),
     { header: header('Rider'), width: 18, cell: (r) => r.riderName || null },
     { header: header('Rider phone'), width: 16, cell: (r) => r.riderPhone || null },
     {

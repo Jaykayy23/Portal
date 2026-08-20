@@ -150,7 +150,7 @@ Who can reach what:
 | `deliveries` | — | own rows, insert | all, update | all, update |
 | `riders` | — | — | read + write | read + write |
 | `app_settings` (API keys) | — | — | — | via server only |
-| `delivery_confirmations` | — | — | — | via server only |
+| `delivery_links` | — | — | — | via server only |
 | `rate_limits` | — | — | — | via server only |
 | `idempotency_keys` | — | — | — | via server only |
 
@@ -167,11 +167,26 @@ Two deliberate exceptions:
 - **The Google Maps key reaches signed-in browsers.** The Maps JavaScript SDK
   runs client-side, so there's no alternative. Restrict the key by HTTP referrer
   in Google Cloud Console.
-- **`/d/<token>` needs no session.** Riders have no portal account, so the
-  completion link is a capability URL: 256 random bits, one delivery, one action,
-  expires in 72 hours. Only the sha256 of the token is stored, so a database dump
-  yields nothing clickable, and the page shows no price, no declared value and no
-  other order. The link stops working the moment the delivery is reassigned.
+- **`/d/<token>` needs no session.** Riders and customers have no portal
+  account, so each step they own is a capability URL: 256 random bits, one
+  delivery, one question, expires in 72 hours. Only the sha256 of the token is
+  stored, so a database dump yields nothing clickable, and the page shows no
+  price, no declared value and no other order — a recipient's link does not even
+  show the merchant's pickup address. A link stops working once used, once the
+  delivery moves past the step it asks about, or (for rider links) the moment the
+  delivery is reassigned.
+- **A merchant may make exactly one edit to their own delivery.** Confirming
+  pickup belongs to the merchant — they are the one handing the parcel over — but
+  they must not be able to edit anything else on a request they filed. That is two
+  policies working together, both in Postgres:
+  `deliveries_update_merchant_pickup` decides *which rows and which transition*
+  (their own, only while `Accepted`, only ending at `Picked up`), and the
+  `deliveries_guard_merchant_update` trigger decides *which columns may differ*.
+  The trigger is necessary because WITH CHECK only validates the resulting row —
+  without it, an UPDATE that set `status` to `Picked up` **and** `agreed` to 1
+  would satisfy the policy. It compares whole jsonb documents rather than a list of
+  column names, so a column added by a future migration is protected the day it is
+  added.
 
 ### Rate limiting
 
@@ -182,13 +197,14 @@ would reset on every cold start and count separately in each instance. See
 
 | Endpoint | Bucket | Limit |
 | --- | --- | --- |
-| `POST /api/delivery-confirm/[token]` | IP / token | 20 / 10 per 5 min |
-| `GET /d/[token]` (rider page) | IP | 60 per 5 min |
+| `POST /api/delivery-link/[token]` | IP / token | 20 / 10 per 5 min |
+| `GET /d/[token]` (public link page) | IP | 60 per 5 min |
 | `POST /api/auth/setup` | IP | 5 per 15 min |
 | `GET /api/auth/bootstrap-status` | IP | 60 per 5 min |
 | `POST /api/deliveries` | user | 30 per 5 min |
 | `GET /api/deliveries/export` | user | 5 per 5 min |
-| `POST /api/deliveries/[id]/completion-link` | user / delivery | 40 / 10 per 5 min |
+| `POST /api/deliveries/[id]/links` | user / delivery | 40 / 10 per 5 min |
+| `POST /api/deliveries/[id]/pickup` | user | 30 per 5 min |
 | `POST /api/accounts` | user | 20 per 5 min |
 
 Two deliberate choices:
@@ -216,9 +232,10 @@ rather than a duplicate. Successful responses are cached for 24 hours in
 and a second request arriving while the first is still running gets a `409`.
 
 The other write endpoints are already idempotent by construction and take no key:
-`PATCH /api/deliveries/[id]` sets the same row to the same values, the rider
-confirmation claims its link with `confirmed_at is null`, and account creation
-collides on the username unique index. See [lib/idempotency.ts](lib/idempotency.ts).
+`PATCH /api/deliveries/[id]` sets the same row to the same values, link redemption
+claims its row with `confirmed_at is null`, pickup confirmation filters on the
+delivery still being `Accepted`, and account creation collides on the username
+unique index. See [lib/idempotency.ts](lib/idempotency.ts).
 
 ---
 
@@ -249,17 +266,38 @@ collides on the username unique index. See [lib/idempotency.ts](lib/idempotency.
 - **Google Maps** (autocomplete + driving-distance lookup) works once an admin
   saves a Maps API key with Places API and Distance Matrix API enabled and billing
   on.
-- **Rider completion confirmation is real end-to-end.** Opening the Notify modal
-  for an assigned delivery mints a single-purpose link, which rides along in the
-  rider's pre-filled WhatsApp/SMS message. When the rider taps it and confirms,
-  the portal sets the row to **Delivered** and stamps `delivered_at` — so
-  "delivered" now means the person who carried the parcel said so, not that ops
-  assumed it. The log shows *rider confirmed <time>* under the status, and the
-  Excel export carries it as its own column so a hand-ticked Delivered can be
-  told apart from a confirmed one. Links live 72 hours; re-opening the modal
-  mints a fresh one and leaves the old one working, since only the hash was kept.
+- **The delivery lifecycle is confirmed by the people involved, not assumed.**
+  Nine statuses, and every one past `Assigned` is set by someone acting, never by
+  ops guessing:
+
+  | Step | Who moves it | How |
+  | --- | --- | --- |
+  | `Assigned` | ops | assigns a rider in the log |
+  | `Accepted` / `Declined` | rider | taps accept or decline on their link |
+  | `Picked up` | merchant | **Confirm pickup** button on their own row |
+  | `Recipient confirmed` | customer | taps "I have received this" on their link |
+  | `Delivered` | rider | taps "I've delivered this" on their link |
+
+  A decline parks the delivery with the rider still named, so the log says who
+  refused it; assigning someone else puts it back to `Assigned` and clears the
+  previous rider's answer. Each milestone stamps its own timestamp — the log shows
+  the newest under the status, the Excel export carries all five as columns, so a
+  status ops set by hand is distinguishable from one the people involved
+  confirmed.
+
+  Both the log and the merchant's view grow a **Needs attention** panel listing
+  the deliveries waiting on whoever is reading. It is derived from status, not
+  stored, so items cannot go stale and there is nothing to mark as read — the
+  state *is* the alert.
+
+  Every message is still a human tapping a pre-filled WhatsApp/SMS link, but the
+  wording and the recipient list for each step now live in one provider-agnostic
+  module, [lib/deliveryMessages.ts](lib/deliveryMessages.ts). Wiring up a
+  WhatsApp Business API later means writing a sender that consumes the same
+  `OutboundMessage[]` — not rewriting the flow.
+
   Set `NEXT_PUBLIC_APP_URL` if a reverse proxy rewrites the forwarded host,
-  otherwise the link points at whatever host the request arrived on.
+  otherwise links point at whatever host the request arrived on.
 - **WhatsApp/SMS alerts** are one-tap `wa.me` / `sms:` links that pre-fill the
   message — whoever's at the keyboard taps send. The WhatsApp and SMS **API key
   fields** are stored ready for a provider integration (Twilio, Africa's Talking,

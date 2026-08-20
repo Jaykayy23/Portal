@@ -100,12 +100,16 @@ export interface Database {
           recommended: number;
           minimum: number;
           agreed: number;
-          status: 'Requested' | 'Requires approval' | 'Approved' | 'Assigned' | 'Delivered';
+          status: 'Requested' | 'Requires approval' | 'Approved' | 'Assigned' | 'Declined' | 'Accepted' | 'Picked up' | 'Recipient confirmed' | 'Delivered';
           rider_id: string | null;
           rider_name: string;
           rider_phone: string;
           rider_reg: string;
           rider_model: string;
+          accepted_at: string | null;
+          declined_at: string | null;
+          picked_up_at: string | null;
+          recipient_confirmed_at: string | null;
           delivered_at: string | null;
         };
         Insert: {
@@ -126,7 +130,7 @@ export interface Database {
           recommended: number;
           minimum: number;
           agreed: number;
-          status?: 'Requested' | 'Requires approval' | 'Approved' | 'Assigned' | 'Delivered';
+          status?: 'Requested' | 'Requires approval' | 'Approved' | 'Assigned' | 'Declined' | 'Accepted' | 'Picked up' | 'Recipient confirmed' | 'Delivered';
           rider_id?: string | null;
           rider_name?: string;
           rider_phone?: string;
@@ -134,12 +138,16 @@ export interface Database {
           rider_model?: string;
         };
         Update: {
-          status?: 'Requested' | 'Requires approval' | 'Approved' | 'Assigned' | 'Delivered';
+          status?: 'Requested' | 'Requires approval' | 'Approved' | 'Assigned' | 'Declined' | 'Accepted' | 'Picked up' | 'Recipient confirmed' | 'Delivered';
           rider_id?: string | null;
           rider_name?: string;
           rider_phone?: string;
           rider_reg?: string;
           rider_model?: string;
+          accepted_at?: string | null;
+          declined_at?: string | null;
+          picked_up_at?: string | null;
+          recipient_confirmed_at?: string | null;
           delivered_at?: string | null;
         };
         Relationships: [];
@@ -194,11 +202,13 @@ export interface Database {
         Update: { response?: Json | null };
         Relationships: [];
       };
-      delivery_confirmations: {
+      delivery_links: {
         Row: {
           id: string;
           delivery_id: string;
           token_hash: string;
+          purpose: 'rider-response' | 'recipient-confirm' | 'rider-complete';
+          outcome: 'accepted' | 'declined' | 'confirmed' | null;
           rider_id: string | null;
           rider_name: string;
           rider_phone: string;
@@ -211,6 +221,8 @@ export interface Database {
           id?: string;
           delivery_id: string;
           token_hash: string;
+          purpose: 'rider-response' | 'recipient-confirm' | 'rider-complete';
+          outcome?: 'accepted' | 'declined' | 'confirmed' | null;
           rider_id?: string | null;
           rider_name?: string;
           rider_phone?: string;
@@ -218,7 +230,10 @@ export interface Database {
           expires_at: string;
           confirmed_at?: string | null;
         };
-        Update: { confirmed_at?: string | null };
+        Update: {
+          outcome?: 'accepted' | 'declined' | 'confirmed' | null;
+          confirmed_at?: string | null;
+        };
         Relationships: [];
       };
       delivery_options: {

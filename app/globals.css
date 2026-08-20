@@ -516,6 +516,14 @@ label.somo-field span {
   color: var(--text);
   font-weight: 500;
 }
+/* Second, quieter action on the rider's job offer: refusing is a normal answer,
+   not a destructive one, so it is outlined rather than red-filled. */
+.somo-btn.decline {
+  background: transparent;
+  border: 1px solid var(--destructive-line);
+  color: var(--destructive-text);
+  margin-top: 10px;
+}
 .somo-btn.small {
   width: auto;
   padding: 9px 16px;
@@ -912,6 +920,66 @@ table.somo-table tr:hover td {
   word-break: break-all;
   line-height: 1.4;
 }
+/* The attention queue above the delivery table. Derived from status, so a row
+   leaves it as soon as whoever it was waiting on acts. */
+.somo-queue {
+  border: 1px solid var(--brand-amber-line, var(--line));
+  background: var(--brand-amber-soft);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.somo-queue-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--amber);
+  margin-bottom: 8px;
+}
+.somo-queue-head .count {
+  background: var(--amber-fill);
+  color: var(--brand-amber-ink);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  padding: 1px 7px;
+}
+.somo-queue-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.somo-queue-row .what {
+  flex: 1;
+  min-width: 0;
+}
+.somo-queue-row .act {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+/* Route lines are long and this panel is full-width, so it truncates rather than
+   wrapping every row to three lines. */
+.somo-queue-row .sub {
+  display: block;
+  font-size: 11px;
+  color: var(--somo-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.somo-queue-more {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--somo-muted);
+}
 .somo-notify-confirmed {
   background: var(--brand-teal-soft);
   border: 1px solid var(--brand-teal-line);
@@ -1002,6 +1070,14 @@ table.somo-table tr:hover td {
   padding: 20px 16px;
   text-align: center;
   color: var(--teal);
+}
+.somo-confirm-done.declined {
+  background: var(--destructive-soft);
+  border-color: var(--destructive-line);
+  color: var(--destructive-text);
+}
+.somo-confirm-done.declined .when {
+  color: var(--destructive-text);
 }
 .somo-confirm-done .tick {
   font-size: 30px;
