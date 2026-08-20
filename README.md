@@ -290,6 +290,12 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
   stored, so items cannot go stale and there is nothing to mark as read — the
   state *is* the alert.
 
+  Because riders and customers move deliveries along from their own phones, the
+  log soft-refreshes itself every 25 seconds (paused in background tabs and while
+  the alerts modal is open, and triggered immediately on tab focus). Without that,
+  ops would sit looking at whatever was true when the page loaded. There is a
+  manual **↻ Refresh** next to the export button for the impatient.
+
   Every message is still a human tapping a pre-filled WhatsApp/SMS link, but the
   wording and the recipient list for each step now live in one provider-agnostic
   module, [lib/deliveryMessages.ts](lib/deliveryMessages.ts). Wiring up a

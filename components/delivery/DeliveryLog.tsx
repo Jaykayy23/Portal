@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, apiDownload, errMessage } from '@/lib/api';
 import { fmtDateTime, fmtMoney } from '@/lib/format';
@@ -22,6 +22,22 @@ import {
  */
 const QUEUE_LIMIT = 6;
 
+/**
+ * How often the log re-reads itself.
+ *
+ * Riders and customers move deliveries along from their own phones, so the most
+ * important changes on this screen originate somewhere else entirely — a decline,
+ * a pickup, a recipient confirming receipt. Without this, ops and merchants sit
+ * looking at whatever was true when the page loaded and only find out by
+ * reloading, which nobody thinks to do.
+ *
+ * A soft refresh, so it re-renders from the server without losing scroll
+ * position, open dropdowns or the modal. Twenty-five seconds is short enough that
+ * "confirmed" appears while you are still looking at the screen, and long enough
+ * that a room of open tabs is not hammering the database.
+ */
+const REFRESH_MS = 25_000;
+
 const STATUS_CLASS: Record<DeliveryStatus, string> = {
   Requested: 'b-requested',
   'Requires approval': 'b-approval',
@@ -41,9 +57,13 @@ const STATUS_CLASS: Record<DeliveryStatus, string> = {
  * carrying five timestamps would be unreadable — the full trail is in the export.
  */
 function milestone(r: DeliveryWithMerchant): { label: string; at: string } | null {
-  if (r.deliveredAt) return { label: '✓ rider confirmed', at: r.deliveredAt };
-  if (r.recipientConfirmedAt) return { label: '✓ recipient confirmed', at: r.recipientConfirmedAt };
-  if (r.pickedUpAt) return { label: 'picked up', at: r.pickedUpAt };
+  if (r.deliveredAt) return { label: '✓ delivered — rider signed off', at: r.deliveredAt };
+  // Said plainly rather than as "recipient confirmed": from a merchant's side this
+  // is the moment the parcel arrived, and that is what they are looking for.
+  if (r.recipientConfirmedAt) {
+    return { label: '✓ delivered — customer confirmed', at: r.recipientConfirmedAt };
+  }
+  if (r.pickedUpAt) return { label: 'picked up — on the way', at: r.pickedUpAt };
   if (r.acceptedAt) return { label: 'rider accepted', at: r.acceptedAt };
   if (r.declinedAt) return { label: '× rider declined', at: r.declinedAt };
   return null;
@@ -96,6 +116,37 @@ export function DeliveryLog({
   const [notify, setNotify] = useState<DeliveryWithMerchant | null>(null);
   const [exporting, setExporting] = useState(false);
   const [confirming, setConfirming] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    // Held while the alerts modal is open: re-rendering underneath someone who is
+    // mid-way through copying a link is worse than being 25 seconds stale.
+    if (notify) return;
+
+    const refreshIfVisible = () => {
+      // A background tab does not need to be current, and a laptop full of them
+      // should not be polling on the user's behalf.
+      if (document.visibilityState === 'visible') router.refresh();
+    };
+
+    const timer = setInterval(refreshIfVisible, REFRESH_MS);
+    // Coming back to the tab is the moment someone most wants it up to date.
+    document.addEventListener('visibilitychange', refreshIfVisible);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', refreshIfVisible);
+    };
+  }, [router, notify]);
+
+  /** The impatient path — same soft refresh, on demand. */
+  function refreshNow() {
+    setRefreshing(true);
+    router.refresh();
+    // Nothing resolves here to wait on, so this is a deliberate flicker: long
+    // enough to read as "it did something", short enough not to block anything.
+    setTimeout(() => setRefreshing(false), 600);
+  }
 
   async function exportToExcel() {
     setExporting(true);
@@ -215,6 +266,15 @@ export function DeliveryLog({
       )}
 
       <div className="somo-table-actions">
+        <button
+          type="button"
+          className="somo-btn ghost small"
+          onClick={refreshNow}
+          disabled={refreshing}
+          title="Riders and customers update these from their phones — this checks for changes now"
+        >
+          {refreshing ? 'Refreshing…' : '↻ Refresh'}
+        </button>
         <button
           type="button"
           className="somo-btn ghost small"
