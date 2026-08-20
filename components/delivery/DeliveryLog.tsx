@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, apiDownload, errMessage } from '@/lib/api';
-import { fmtDateTime, fmtMoney } from '@/lib/format';
+import { fmtDateTime, fmtMoney, shortId } from '@/lib/format';
 import { useToast } from '@/components/Toast';
 import { NotifyModal } from '@/components/delivery/NotifyModal';
 import {
@@ -46,6 +46,33 @@ const REFRESH_MS = 25_000;
  * day to the next.
  */
 const COMPACT_KEY = 'somo.log.compact';
+
+/**
+ * Does this row match what someone typed?
+ *
+ * The order number is the reason this exists — it is what people read to each
+ * other on the phone — so it is matched with or without the leading '#', and the
+ * full uuid is matched too for anyone pasting one out of a URL or a log line.
+ * Everything else people might reach for is included because it costs nothing:
+ * a customer, an address, a rider, the person receiving it, a phone number.
+ */
+function matchesQuery(r: DeliveryWithMerchant, query: string): boolean {
+  const needle = query.replace(/^#/, '');
+  if (!needle) return true;
+
+  return [
+    shortId(r.id),
+    r.id,
+    r.customer,
+    r.pickup,
+    r.dropoff,
+    r.riderName,
+    r.riderPhone,
+    r.recipientName,
+    r.recipientPhone,
+    r.status,
+  ].some((field) => (field ?? '').toLowerCase().includes(needle));
+}
 
 const STATUS_CLASS: Record<DeliveryStatus, string> = {
   Requested: 'b-requested',
@@ -125,6 +152,7 @@ export function DeliveryLog({
   const [exporting, setExporting] = useState(false);
   const [confirming, setConfirming] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [query, setQuery] = useState('');
   /**
    * Compact drops the six detail columns — distance, time, type, item, declared
    * value, recommended price — leaving what ops actually works from: who, where,
@@ -242,6 +270,18 @@ export function DeliveryLog({
     setConfirming('');
   }
 
+  // Filtered in the browser, not the database: the rows are already here, RLS has
+  // already decided which ones, and a keystroke should not cost a round trip. If a
+  // portal ever holds enough history that this feels slow, that is the point to
+  // move the filter server-side with a paged query.
+  const trimmedQuery = query.trim().toLowerCase();
+  const visible = trimmedQuery ? records.filter((r) => matchesQuery(r, trimmedQuery)) : records;
+
+  // Only used to span the "nothing matches" row across the table. Keep in step
+  // with the <th> list below if a column is ever added or removed — getting it
+  // wrong is cosmetic, not broken.
+  const columnCount = 8 + (canManage ? 1 : 0) + (compact ? 0 : 6);
+
   if (records.length === 0) {
     return (
       <div className="somo-empty">
@@ -303,6 +343,21 @@ export function DeliveryLog({
       )}
 
       <div className="somo-table-actions">
+        <div className="somo-table-search">
+          <input
+            className="somo-input"
+            type="search"
+            placeholder="Search order #, customer, address, rider…"
+            aria-label="Search deliveries"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {trimmedQuery ? (
+            <span className="count">
+              {visible.length} of {records.length}
+            </span>
+          ) : null}
+        </div>
         <button
           type="button"
           className="somo-btn ghost small"
@@ -344,6 +399,9 @@ export function DeliveryLog({
           <thead>
             <tr>
               <th>Date</th>
+              {/* Never hidden by Compact: it is how people refer to a delivery
+                  out loud, so it has to be on every row. */}
+              <th>Order</th>
               {canManage && <th>Customer</th>}
               <th>Route</th>
               {!compact && (
@@ -365,12 +423,19 @@ export function DeliveryLog({
             </tr>
           </thead>
           <tbody>
-            {records.map((r) => {
+            {visible.map((r) => {
               const step = milestone(r);
               return (
                 <tr key={r.id}>
-                  <td style={{ color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                  {/* --somo-muted, not --muted: the latter is shadcn's muted
+                      *background*, which rendered this date as pale grey on white
+                      and all but invisible. */}
+                  <td style={{ color: 'var(--somo-muted)', whiteSpace: 'nowrap' }}>
                     {fmtDateTime(r.date)}
+                  </td>
+                  {/* The full uuid on hover, for anyone who needs to paste one. */}
+                  <td className="somo-order-cell" title={r.id}>
+                    #{shortId(r.id)}
                   </td>
                   {canManage && <td>{r.customer}</td>}
                   <td>
@@ -498,6 +563,17 @@ export function DeliveryLog({
                 </tr>
               );
             })}
+
+            {visible.length === 0 ? (
+              <tr>
+                <td colSpan={columnCount} className="somo-nomatch">
+                  Nothing matches <strong>{query.trim()}</strong>.{' '}
+                  <button type="button" className="somo-inline-link" onClick={() => setQuery('')}>
+                    clear the search
+                  </button>
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>

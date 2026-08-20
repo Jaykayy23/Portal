@@ -1351,6 +1351,39 @@ body:has(.somo-link-page) {
   margin-bottom: 10px;
 }
 /* Row of actions above the delivery table (Export to Excel). */
+/* The search box sits left while the buttons stay right — margin-right:auto on the
+   first child is what splits a flex-end row into two groups. */
+.somo-table-search {
+  margin-right: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 200px;
+  max-width: 340px;
+}
+.somo-table-search .somo-input {
+  padding: 8px 10px;
+  font-size: 12.5px;
+}
+.somo-table-search .count {
+  font-size: 11px;
+  color: var(--somo-muted);
+  white-space: nowrap;
+}
+/* The order number: mono so digits and letters line up down the column, and the
+   one thing on a row people read aloud. */
+.somo-order-cell {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.somo-nomatch {
+  text-align: center;
+  padding: 30px 12px;
+  color: var(--somo-muted);
+  font-size: 13px;
+}
+
 .somo-table-actions {
   display: flex;
   justify-content: flex-end;
