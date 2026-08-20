@@ -279,6 +279,16 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
   matching half ("please have … ready for the rider"), and the log shows a
   COD/Prepaid badge that **Compact does not hide**.
 
+  The amounts also appear **on the link page itself** — an amber block reading
+  "To pay the rider" for the customer, "Collect on delivery" for the rider, with a
+  total when both the item cash and the fee apply. It repeats what the message
+  said, which is the point: the message is the thing that got scrolled past, the
+  page is the thing open in their hand at the door. It is absent entirely when the
+  item is prepaid and the merchant pays, since "GHS 0.00 to pay" invites a second
+  look at a page whose whole job is one tap. Note what is *not* there: the
+  recommended and minimum prices never reach a link holder, only what changes
+  hands.
+
   One thing to know: a cash-on-delivery message quotes the **declared value** as
   the amount, because that is the only figure the portal holds for the goods. If
   the COD amount ever needs to differ from the declared value, that wants its own

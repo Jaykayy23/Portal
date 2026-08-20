@@ -7,6 +7,7 @@ import { BrandMark } from '@/components/BrandMark';
 import { getLogoDataUrl } from '@/lib/settings';
 import { loadLink } from '@/lib/deliveryLinks';
 import { LinkActions, OutcomeNote } from '@/components/delivery/LinkActions';
+import { fmtMoney } from '@/lib/format';
 import type { LinkSummary, LinkView } from '@/lib/types';
 
 // The token is the credential, so nothing about this page may be cached at the
@@ -53,6 +54,49 @@ function Summary({ summary, showPickup }: { summary: LinkSummary; showPickup: bo
       {summary.recipientName ? <Row label="Recipient" value={summary.recipientName} /> : null}
       {!showPickup && summary.riderName ? <Row label="Rider" value={summary.riderName} /> : null}
       {summary.itemCategory ? <Row label="Item" value={summary.itemCategory} /> : null}
+    </div>
+  );
+}
+
+/**
+ * What changes hands at the door.
+ *
+ * Shown to both sides of the same handover, worded from each one's point of view:
+ * the customer is being told what to have ready, the rider what to come away
+ * with. Absent entirely when the item is prepaid and the merchant is paying the
+ * fee, because "GHS 0.00 to pay" invites a second look at a page whose whole job
+ * is one tap.
+ *
+ * It repeats what the WhatsApp message already said. That is the point — the
+ * message is the thing that got scrolled past; this is the thing open in their
+ * hand at the door.
+ */
+function AmountsDue({ summary, riderFacing }: { summary: LinkSummary; riderFacing: boolean }) {
+  const { itemCash, deliveryFee } = summary.due;
+  if (itemCash <= 0 && deliveryFee <= 0) return null;
+
+  return (
+    <div className="somo-confirm-due">
+      <div className="due-head">{riderFacing ? 'Collect on delivery' : 'To pay the rider'}</div>
+      {itemCash > 0 ? (
+        <div className="due-row">
+          <span className="k">For the item</span>
+          <span className="v">{fmtMoney(itemCash)}</span>
+        </div>
+      ) : null}
+      {deliveryFee > 0 ? (
+        <div className="due-row">
+          <span className="k">Delivery fee</span>
+          <span className="v">{fmtMoney(deliveryFee)}</span>
+        </div>
+      ) : null}
+      {/* Only worth a total when there are two numbers to add up. */}
+      {itemCash > 0 && deliveryFee > 0 ? (
+        <div className="due-row total">
+          <span className="k">Total</span>
+          <span className="v">{fmtMoney(itemCash + deliveryFee)}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -210,6 +254,7 @@ export default async function DeliveryLinkPage({
       }
     >
       {view.summary ? <Summary summary={view.summary} showPickup={riderFacing} /> : null}
+      {view.summary ? <AmountsDue summary={view.summary} riderFacing={riderFacing} /> : null}
     </Card>
   );
 }

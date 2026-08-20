@@ -25,6 +25,7 @@ import { shortId } from './format';
 import type { Database } from './database.types';
 import {
   PURPOSE_REQUIRES_STATUS,
+  type AmountsDue,
   type LinkSummary,
   type DeliveryStatus,
   type LinkAction,
@@ -106,9 +107,20 @@ function summarise(
     item_category: string;
     rider_name: string;
     recipient_name: string;
+    item_payment: string;
+    delivery_paid_by: string;
+    declared_value: number | string;
+    agreed: number | string;
   },
   riderName: string
 ): LinkSummary {
+  // The rider collects exactly what the recipient owes, so one calculation serves
+  // both audiences — only the wording on the page differs.
+  const due: AmountsDue = {
+    itemCash: delivery.item_payment === 'Cash on delivery' ? Number(delivery.declared_value) : 0,
+    deliveryFee: delivery.delivery_paid_by === 'Customer' ? Number(delivery.agreed) : 0,
+  };
+
   return {
     orderNo: shortId(delivery.id),
     customer: delivery.customer,
@@ -119,6 +131,7 @@ function summarise(
     // except in the moment between a reassignment and the next issued link.
     riderName: riderName || delivery.rider_name,
     recipientName: delivery.recipient_name ?? '',
+    due,
   };
 }
 
@@ -220,7 +233,7 @@ export async function loadLink(token: string): Promise<LinkView> {
   const { data: delivery, error: deliveryError } = await admin
     .from('deliveries')
     .select(
-      'id, status, customer, pickup, dropoff, item_category, rider_id, rider_name, recipient_name'
+      'id, status, customer, pickup, dropoff, item_category, rider_id, rider_name, recipient_name, item_payment, delivery_paid_by, declared_value, agreed'
     )
     .eq('id', link.delivery_id)
     .maybeSingle();

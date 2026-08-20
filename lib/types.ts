@@ -142,6 +142,21 @@ export interface Delivery {
 }
 
 /**
+ * Money changing hands at the door.
+ *
+ * Only what is actually owed: a zero means nobody pays that part, not "unknown".
+ * The merchant's recommended and minimum prices are never in here — the holder of
+ * a link has no business with how the job was quoted, only with what they hand
+ * over or take.
+ */
+export interface AmountsDue {
+  /** Cash for the goods. 0 when the item is prepaid. */
+  itemCash: number;
+  /** The delivery fee. 0 when the merchant is settling it. */
+  deliveryFee: number;
+}
+
+/**
  * What the holder of a link sees about the delivery.
  *
  * Deliberately narrow: no price, no declared value, nothing about any other
@@ -158,6 +173,11 @@ export interface LinkSummary {
   itemCategory: string;
   riderName: string;
   recipientName: string;
+  /**
+   * What is payable on handover. Both zero for a prepaid, merchant-paid delivery,
+   * and the page shows nothing at all in that case.
+   */
+  due: AmountsDue;
 }
 
 /**
