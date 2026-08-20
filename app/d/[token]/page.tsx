@@ -113,22 +113,30 @@ function copyFor(view: LinkView): { heading: string; sub: string } {
   }
 }
 
-/** The card body, shared by every state including the rate-limited one. */
+/**
+ * The page, shared by every state including the rate-limited one.
+ *
+ * `actions` is a separate slot rather than more children because it is pinned to
+ * the bottom of the viewport: the content grows from the top, the thing to tap
+ * stays under the reader's thumb.
+ */
 function Card({
   logoDataUrl,
   heading,
   sub,
   children,
+  actions,
 }: {
   logoDataUrl: string;
   heading: string;
   sub: string;
   children?: React.ReactNode;
+  actions?: React.ReactNode;
 }) {
   return (
-    <div className="somo-auth-overlay">
-      <div className="somo-auth-card">
-        <div className="somo-auth-logo">
+    <div className="somo-link-page">
+      <div className="somo-link-card">
+        <div className="somo-link-head">
           <BrandMark logoDataUrl={logoDataUrl} />
           <div>
             <div className="somo-title">SomoExpress</div>
@@ -136,9 +144,13 @@ function Card({
           </div>
         </div>
 
-        <h2>{heading}</h2>
-        <p className="sub-text">{sub}</p>
-        {children}
+        <div className="somo-link-body">
+          <h2>{heading}</h2>
+          <p className="sub-text">{sub}</p>
+          {children}
+        </div>
+
+        {actions ? <div className="somo-link-actions">{actions}</div> : null}
       </div>
     </div>
   );
@@ -185,12 +197,19 @@ export default async function DeliveryLinkPage({
   const riderFacing = view.purpose !== 'recipient-confirm';
 
   return (
-    <Card logoDataUrl={logoDataUrl} heading={heading} sub={sub}>
+    <Card
+      logoDataUrl={logoDataUrl}
+      heading={heading}
+      sub={sub}
+      actions={
+        view.state === 'pending' ? (
+          <LinkActions token={token} purpose={view.purpose} />
+        ) : view.state === 'used' ? (
+          <OutcomeNote purpose={view.purpose} outcome={view.outcome} usedAt={view.usedAt} />
+        ) : null
+      }
+    >
       {view.summary ? <Summary summary={view.summary} showPickup={riderFacing} /> : null}
-      {view.state === 'pending' ? <LinkActions token={token} purpose={view.purpose} /> : null}
-      {view.state === 'used' ? (
-        <OutcomeNote purpose={view.purpose} outcome={view.outcome} usedAt={view.usedAt} />
-      ) : null}
     </Card>
   );
 }
