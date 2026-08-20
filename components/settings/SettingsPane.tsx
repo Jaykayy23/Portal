@@ -1,12 +1,89 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, errMessage } from '@/lib/api';
 import { useToast } from '@/components/Toast';
-import type { AppSettings, DeliveryOptions, OtherKey } from '@/lib/types';
+import type { AppSettings, DeliveryOptions, MaskedSecret } from '@/lib/types';
 
 const MAX_LOGO_BYTES = 900 * 1024;
+
+/**
+ * One extra key as the form holds it: the name and mask come from the server, the
+ * value is only ever what the admin has typed in this session.
+ */
+interface KeyRow {
+  name: string;
+  /** Blank means "leave whatever is stored alone". */
+  value: string;
+  masked: string;
+  set: boolean;
+}
+
+function rowsFrom(settings: AppSettings): KeyRow[] {
+  return (settings.otherKeys ?? []).map((k) => ({
+    name: k.name,
+    value: '',
+    masked: k.masked,
+    set: k.set,
+  }));
+}
+
+/** What to show in an empty secret field. */
+function placeholderFor(secret: MaskedSecret, hint: string): string {
+  return secret.set ? `${secret.masked} — leave blank to keep` : hint;
+}
+
+/**
+ * One secret field: an empty box, the mask as its placeholder, and a way to say
+ * "remove this" out loud.
+ *
+ * The input never holds the stored value, so there is nothing to accidentally
+ * submit unchanged and nothing for devtools to read. Blank means keep.
+ */
+function SecretField({
+  label,
+  hint,
+  secret,
+  value,
+  onChange,
+  cleared,
+  onToggleClear,
+}: {
+  label: string;
+  hint: string;
+  secret: MaskedSecret;
+  value: string;
+  onChange: (next: string) => void;
+  cleared: boolean;
+  onToggleClear: () => void;
+}) {
+  return (
+    <label className="somo-field">
+      <span>
+        {label}
+        {secret.set ? (
+          <button type="button" className="somo-inline-link" onClick={onToggleClear}>
+            {cleared ? 'keep it after all' : 'remove'}
+          </button>
+        ) : null}
+      </span>
+      <input
+        className="somo-input"
+        type="password"
+        // Typing overrides a pending removal, so the two cannot contradict.
+        placeholder={cleared ? 'Will be removed when you save' : placeholderFor(secret, hint)}
+        autoComplete="off"
+        value={value}
+        onChange={(e) => {
+          if (cleared && e.target.value) onToggleClear();
+          onChange(e.target.value);
+        }}
+      />
+      {!secret.set && !value ? <span className="somo-field-note">Not configured</span> : null}
+    </label>
+  );
+}
 
 export function SettingsPane({
   settings,
@@ -18,16 +95,43 @@ export function SettingsPane({
   const router = useRouter();
   const toast = useToast();
 
-  const [mapsApiKey, setMapsApiKey] = useState(settings.mapsApiKey);
-  const [whatsappOtpKey, setWhatsappOtpKey] = useState(settings.whatsappOtpKey);
-  const [smsApiKey, setSmsApiKey] = useState(settings.smsApiKey);
-  const [otherKeys, setOtherKeys] = useState<OtherKey[]>(settings.otherKeys ?? []);
+  // All three start empty and stay empty unless the admin types. The stored
+  // values are not here to be edited, because they were never sent.
+  const [mapsApiKey, setMapsApiKey] = useState('');
+  const [whatsappOtpKey, setWhatsappOtpKey] = useState('');
+  const [smsApiKey, setSmsApiKey] = useState('');
+  // Which fields the admin has asked to empty. Blank means "keep", so wanting a
+  // key gone has to be said out loud.
+  const [cleared, setCleared] = useState<Record<string, boolean>>({});
+  const [otherKeys, setOtherKeys] = useState<KeyRow[]>(() => rowsFrom(settings));
   const [logoPreview, setLogoPreview] = useState(settings.logoDataUrl);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   // What merchants pick from on the New delivery form. Stored in
   // delivery_options, not app_settings — every signed-in role has to read it.
   const [itemCategories, setItemCategories] = useState<string[]>(options.itemCategories ?? []);
   const [busy, setBusy] = useState<'keys' | 'logo' | 'categories' | null>(null);
+
+  // After a save the page refreshes and arrives with new masks; the typed values
+  // are spent, so they are dropped rather than left sitting in memory. Safe to key
+  // off the whole prop: this page has no background refresh to interrupt typing.
+  useEffect(() => {
+    setMapsApiKey('');
+    setWhatsappOtpKey('');
+    setSmsApiKey('');
+    setCleared({});
+    setOtherKeys(rowsFrom(settings));
+  }, [settings]);
+
+  /** A field the admin left blank is omitted entirely; cleared sends null. */
+  function secretPatch(typed: string, field: string): string | null | undefined {
+    if (cleared[field]) return null;
+    const trimmed = typed.trim();
+    return trimmed === '' ? undefined : trimmed;
+  }
+
+  function toggleClear(field: string) {
+    setCleared((prev) => ({ ...prev, [field]: !prev[field] }));
+  }
 
   async function saveApiKeys(e: React.FormEvent) {
     e.preventDefault();
@@ -36,10 +140,14 @@ export function SettingsPane({
       await api('/settings', {
         method: 'POST',
         body: {
-          mapsApiKey: mapsApiKey.trim(),
-          whatsappOtpKey: whatsappOtpKey.trim(),
-          smsApiKey: smsApiKey.trim(),
-          otherKeys: otherKeys.filter((k) => k.name.trim() || k.value.trim()),
+          // JSON.stringify drops undefined, which is exactly the wire format for
+          // "not mentioned, do not touch".
+          mapsApiKey: secretPatch(mapsApiKey, 'maps'),
+          whatsappOtpKey: secretPatch(whatsappOtpKey, 'whatsapp'),
+          smsApiKey: secretPatch(smsApiKey, 'sms'),
+          otherKeys: otherKeys
+            .filter((k) => k.name.trim())
+            .map((k) => ({ name: k.name.trim(), value: k.value })),
         },
       });
       toast('API keys saved for the whole portal');
@@ -117,7 +225,7 @@ export function SettingsPane({
     setBusy(null);
   }
 
-  function updateOtherKey(index: number, patch: Partial<OtherKey>) {
+  function updateOtherKey(index: number, patch: Partial<KeyRow>) {
     setOtherKeys((keys) => keys.map((k, i) => (i === index ? { ...k, ...patch } : k)));
   }
 
@@ -228,39 +336,33 @@ export function SettingsPane({
           <span className="tag-note">stored server-side</span>
         </h3>
 
-        <label className="somo-field">
-          <span>Google Maps API key (Places + Distance Matrix)</span>
-          <input
-            className="somo-input"
-            type="password"
-            placeholder="AIza…"
-            autoComplete="off"
-            value={mapsApiKey}
-            onChange={(e) => setMapsApiKey(e.target.value)}
-          />
-        </label>
-        <label className="somo-field">
-          <span>WhatsApp OTP / Business API key</span>
-          <input
-            className="somo-input"
-            type="password"
-            placeholder="e.g. Meta WhatsApp Business API token"
-            autoComplete="off"
-            value={whatsappOtpKey}
-            onChange={(e) => setWhatsappOtpKey(e.target.value)}
-          />
-        </label>
-        <label className="somo-field">
-          <span>SMS API key</span>
-          <input
-            className="somo-input"
-            type="password"
-            placeholder="e.g. Twilio / Africa's Talking API key"
-            autoComplete="off"
-            value={smsApiKey}
-            onChange={(e) => setSmsApiKey(e.target.value)}
-          />
-        </label>
+<SecretField
+          label="Google Maps API key (Places + Distance Matrix)"
+          hint="AIza…"
+          secret={settings.mapsApiKey}
+          value={mapsApiKey}
+          onChange={setMapsApiKey}
+          cleared={!!cleared.maps}
+          onToggleClear={() => toggleClear('maps')}
+        />
+        <SecretField
+          label="WhatsApp OTP / Business API key"
+          hint="e.g. Meta WhatsApp Business API token"
+          secret={settings.whatsappOtpKey}
+          value={whatsappOtpKey}
+          onChange={setWhatsappOtpKey}
+          cleared={!!cleared.whatsapp}
+          onToggleClear={() => toggleClear('whatsapp')}
+        />
+        <SecretField
+          label="SMS API key"
+          hint="e.g. Twilio / Africa's Talking API key"
+          secret={settings.smsApiKey}
+          value={smsApiKey}
+          onChange={setSmsApiKey}
+          cleared={!!cleared.sms}
+          onToggleClear={() => toggleClear('sms')}
+        />
 
         {otherKeys.map((k, i) => (
           <div className="somo-otherkey-row" key={i}>
@@ -274,7 +376,7 @@ export function SettingsPane({
               <input
                 className="somo-input"
                 type="password"
-                placeholder="Key value"
+                placeholder={k.set ? `${k.masked} — leave blank to keep` : 'Key value'}
                 autoComplete="off"
                 value={k.value}
                 onChange={(e) => updateOtherKey(i, { value: e.target.value })}
@@ -295,7 +397,9 @@ export function SettingsPane({
           type="button"
           className="somo-btn ghost small"
           style={{ marginBottom: 14 }}
-          onClick={() => setOtherKeys((keys) => [...keys, { name: '', value: '' }])}
+          onClick={() =>
+            setOtherKeys((keys) => [...keys, { name: '', value: '', masked: '', set: false }])
+          }
         >
           + Add another key
         </button>

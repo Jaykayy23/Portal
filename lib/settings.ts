@@ -16,7 +16,13 @@
 import { createSupabaseServerClient } from './supabase/server';
 import { createAdminClient } from './supabase/admin';
 import { DEFAULT_SURCHARGES } from './pricing';
-import type { AppSettings, DeliveryOptions, OtherKey, PricingParams } from './types';
+import type {
+  AppSettings,
+  DeliveryOptions,
+  MaskedSecret,
+  OtherKey,
+  PricingParams,
+} from './types';
 import type { Database } from './database.types';
 
 export class SettingsError extends Error {}
@@ -165,10 +171,25 @@ export async function saveLogoDataUrl(logoDataUrl: string): Promise<string> {
 // --- API keys ----------------------------------------------------------------
 
 /**
- * Full settings including the WhatsApp/SMS provider keys.
+ * Describes a stored secret without disclosing it.
  *
- * Callers MUST have already confirmed the session is an admin — the service-role
- * client bypasses RLS, so this function is not self-protecting.
+ * The tail is only revealed on a key long enough that four characters leave it
+ * unguessable — which is every real provider key, and not the short strings
+ * people paste in by mistake. A blank value is reported as unset rather than as
+ * an empty mask, so the page can say "not configured" outright.
+ */
+export function maskSecret(value: string | null | undefined): MaskedSecret {
+  const v = (value ?? '').trim();
+  if (!v) return { masked: '', set: false };
+  return { masked: '••••••••' + (v.length >= 12 ? v.slice(-4) : ''), set: true };
+}
+
+/**
+ * Settings for the admin Settings page — masked, never the real keys.
+ *
+ * Callers MUST have already confirmed the session is an admin. Not because the
+ * masks are sensitive, but because knowing which integrations a portal has
+ * configured is still not ops' or a merchant's business.
  */
 export async function getAppSettingsAsAdmin(): Promise<AppSettings> {
   const admin = createAdminClient();
@@ -179,10 +200,13 @@ export async function getAppSettingsAsAdmin(): Promise<AppSettings> {
 
   if (error) throw new SettingsError(error.message);
   return {
-    mapsApiKey: settings.maps_api_key,
-    whatsappOtpKey: settings.whatsapp_otp_key,
-    smsApiKey: settings.sms_api_key,
-    otherKeys: settings.other_keys ?? [],
+    mapsApiKey: maskSecret(settings.maps_api_key),
+    whatsappOtpKey: maskSecret(settings.whatsapp_otp_key),
+    smsApiKey: maskSecret(settings.sms_api_key),
+    otherKeys: (settings.other_keys ?? []).map((k) => ({
+      name: k.name,
+      ...maskSecret(k.value),
+    })),
     logoDataUrl,
   };
 }
@@ -206,21 +230,84 @@ export async function getMapsApiKeyForSignedInUser(): Promise<string> {
   return data?.maps_api_key ?? '';
 }
 
+/**
+ * A write to one secret field.
+ *
+ *   a string   replace the stored value with this
+ *   ''         leave whatever is stored alone — the browser never had it to
+ *              send back, so a blank field means "unchanged", not "erase"
+ *   null       clear it deliberately
+ *   undefined  same as '': not mentioned, not touched
+ */
+export type SecretPatch = string | null | undefined;
+
 export interface SaveApiKeysInput {
-  mapsApiKey?: string;
-  whatsappOtpKey?: string;
-  smsApiKey?: string;
+  mapsApiKey?: SecretPatch;
+  whatsappOtpKey?: SecretPatch;
+  smsApiKey?: SecretPatch;
+  /**
+   * The full list of named keys to keep, in order. A blank value means "keep the
+   * one already stored under this name"; omitting a name deletes it.
+   */
   otherKeys?: OtherKey[];
 }
 
-/** Callers MUST have already confirmed the session is an admin. */
+/** Resolves one field against what is already stored. */
+function resolveSecret(next: SecretPatch): string | undefined {
+  if (next === null) return '';
+  if (next === undefined) return undefined;
+  const trimmed = next.trim();
+  return trimmed === '' ? undefined : trimmed;
+}
+
+/**
+ * Writes only what was actually supplied. Callers MUST have confirmed admin.
+ *
+ * The asymmetry with getAppSettingsAsAdmin() is the whole point: values come in,
+ * masks go out, and nothing round-trips. That is what makes a blank field safe to
+ * mean "unchanged" — the browser was never given the value it would otherwise be
+ * echoing back.
+ */
 export async function saveApiKeysAsAdmin(patch: SaveApiKeysInput): Promise<AppSettings> {
   const admin = createAdminClient();
   const update: Database['public']['Tables']['app_settings']['Update'] = {};
-  if (patch.mapsApiKey !== undefined) update.maps_api_key = patch.mapsApiKey;
-  if (patch.whatsappOtpKey !== undefined) update.whatsapp_otp_key = patch.whatsappOtpKey;
-  if (patch.smsApiKey !== undefined) update.sms_api_key = patch.smsApiKey;
-  if (patch.otherKeys !== undefined) update.other_keys = patch.otherKeys;
+
+  const maps = resolveSecret(patch.mapsApiKey);
+  if (maps !== undefined) update.maps_api_key = maps;
+  const whatsapp = resolveSecret(patch.whatsappOtpKey);
+  if (whatsapp !== undefined) update.whatsapp_otp_key = whatsapp;
+  const sms = resolveSecret(patch.smsApiKey);
+  if (sms !== undefined) update.sms_api_key = sms;
+
+  if (patch.otherKeys !== undefined) {
+    // The stored values are needed to honour "keep this one": the browser sent a
+    // name and a blank, and only this side knows what the blank stands for.
+    const { data: current, error: readError } = await admin
+      .from('app_settings')
+      .select('other_keys')
+      .eq('id', 1)
+      .single();
+    if (readError) throw new SettingsError(readError.message);
+
+    const storedByName = new Map((current.other_keys ?? []).map((k) => [k.name, k.value]));
+
+    update.other_keys = patch.otherKeys.map((k) => {
+      const name = k.name.trim();
+      const typed = k.value.trim();
+      if (typed) return { name, value: typed };
+
+      const stored = storedByName.get(name);
+      // Renaming a key while leaving its value blank would otherwise silently
+      // save an empty secret — the integration would just stop working, with
+      // nothing in the UI to say why. Refusing is the kinder failure.
+      if (stored === undefined) {
+        throw new SettingsError(
+          `Enter a value for "${name}" — a new or renamed key needs its value typed in.`
+        );
+      }
+      return { name, value: stored };
+    });
+  }
 
   if (Object.keys(update).length > 0) {
     const { error } = await admin.from('app_settings').update(update).eq('id', 1);

@@ -272,16 +272,43 @@ export interface DeliveryOptions {
   itemCategories: string[];
 }
 
+/** A provider key with its real value. Only ever travels *into* the server. */
 export interface OtherKey {
   name: string;
   value: string;
 }
 
+/**
+ * A stored secret as described to a browser — the shape, never the substance.
+ *
+ * The Settings page needs to know whether a key is configured and roughly which
+ * one it is, so an admin can tell "the SMS key is set" from "the SMS key is
+ * missing". It does not need the value, and sending it meant every visit to
+ * Settings shipped the portal's provider credentials over the wire and into
+ * React state, where one devtools line reads them straight back out of a
+ * password field.
+ */
+export interface MaskedSecret {
+  /** '••••••••4f2a', or '' when nothing is stored. */
+  masked: string;
+  set: boolean;
+}
+
+export interface MaskedOtherKey {
+  name: string;
+  masked: string;
+  set: boolean;
+}
+
+/**
+ * Settings as sent to an admin's browser. Masked by construction: there is no
+ * variant of this type that carries a real key outward.
+ */
 export interface AppSettings {
-  mapsApiKey: string;
-  whatsappOtpKey: string;
-  smsApiKey: string;
-  otherKeys: OtherKey[];
+  mapsApiKey: MaskedSecret;
+  whatsappOtpKey: MaskedSecret;
+  smsApiKey: MaskedSecret;
+  otherKeys: MaskedOtherKey[];
   logoDataUrl: string;
 }
 

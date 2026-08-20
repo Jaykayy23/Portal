@@ -1321,6 +1321,29 @@ body:has(.somo-link-page) {
   }
 }
 
+/* "remove" beside a field label — a text action, so it cannot be mistaken for the
+   save button sitting below it. */
+.somo-inline-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 8px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--somo-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.somo-inline-link:hover {
+  color: var(--danger);
+}
+.somo-field-note {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--somo-muted);
+}
+
 .somo-otherkey-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
