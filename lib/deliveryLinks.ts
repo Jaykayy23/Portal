@@ -66,7 +66,7 @@ const PURPOSE_ACTIONS: Record<LinkPurpose, LinkAction[]> = {
  * it rather than silently reverting to unassigned.
  */
 const RESULTING_STATUS: Record<string, DeliveryStatus> = {
-  'rider-response:accepted': 'Accepted',
+  'rider-response:accepted': 'Assigned',
   'rider-response:declined': 'Declined',
   'recipient-confirm:confirmed': 'Recipient confirmed',
   'rider-complete:confirmed': 'Delivered',
@@ -132,7 +132,7 @@ export interface IssuedLink {
  * Mints a link, if the delivery is at the stage that link is for.
  *
  * The status check is the important part: a rider-response link is only worth
- * minting while the delivery is Assigned, so ops cannot accidentally send a
+ * minting while the delivery is Pending, so ops cannot accidentally send a
  * rider an accept/decline link for a job they already accepted, and nobody can
  * mint a completion link for a parcel that has not been picked up yet.
  *

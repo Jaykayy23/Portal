@@ -100,7 +100,7 @@ export interface Database {
           recommended: number;
           minimum: number;
           agreed: number;
-          status: 'Requested' | 'Requires approval' | 'Approved' | 'Assigned' | 'Declined' | 'Accepted' | 'Picked up' | 'Recipient confirmed' | 'Delivered';
+          status: 'Requested' | 'Requires approval' | 'Approved' | 'Pending' | 'Declined' | 'Assigned' | 'Picked up' | 'Recipient confirmed' | 'Delivered';
           rider_id: string | null;
           rider_name: string;
           rider_phone: string;
@@ -130,7 +130,7 @@ export interface Database {
           recommended: number;
           minimum: number;
           agreed: number;
-          status?: 'Requested' | 'Requires approval' | 'Approved' | 'Assigned' | 'Declined' | 'Accepted' | 'Picked up' | 'Recipient confirmed' | 'Delivered';
+          status?: 'Requested' | 'Requires approval' | 'Approved' | 'Pending' | 'Declined' | 'Assigned' | 'Picked up' | 'Recipient confirmed' | 'Delivered';
           rider_id?: string | null;
           rider_name?: string;
           rider_phone?: string;
@@ -138,7 +138,7 @@ export interface Database {
           rider_model?: string;
         };
         Update: {
-          status?: 'Requested' | 'Requires approval' | 'Approved' | 'Assigned' | 'Declined' | 'Accepted' | 'Picked up' | 'Recipient confirmed' | 'Delivered';
+          status?: 'Requested' | 'Requires approval' | 'Approved' | 'Pending' | 'Declined' | 'Assigned' | 'Picked up' | 'Recipient confirmed' | 'Delivered';
           rider_id?: string | null;
           rider_name?: string;
           rider_phone?: string;

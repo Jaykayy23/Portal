@@ -25,7 +25,7 @@ interface Body {
  * merchant, not from ops.
  *
  * What may be minted is decided by the delivery's status, in issueLink(), not
- * here: a rider-response link only exists while a delivery is Assigned, and so
+ * here: a rider-response link only exists while a delivery is Pending, and so
  * on. That check is what stops a link asking a question the delivery has already
  * moved past.
  *

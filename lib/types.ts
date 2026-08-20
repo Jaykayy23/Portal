@@ -35,18 +35,24 @@ export interface Rider {
  * Where a delivery is in its life.
  *
  * The order here is the order it advances in, which is also the order the log's
- * dropdown shows. Two of them are side-steps rather than steps forward:
- * 'Requires approval' is where a below-minimum quote waits for ops, and
- * 'Declined' is where a delivery lands when the assigned rider refuses it —
- * assigning someone else puts it back on 'Assigned'.
+ * dropdown shows.
+ *
+ * 'Pending' and 'Assigned' are the pair worth reading twice: being offered a job
+ * is not the same as being on it, so a rider who has not answered leaves the
+ * delivery 'Pending', and only their acceptance makes it 'Assigned'.
+ *
+ * Two are side-steps rather than steps forward: 'Requires approval' is where a
+ * below-minimum quote waits for ops, and 'Declined' is where a delivery lands
+ * when the offered rider refuses it — offering it to someone else puts it back
+ * on 'Pending'.
  */
 export type DeliveryStatus =
   | 'Requested'
   | 'Requires approval'
   | 'Approved'
-  | 'Assigned'
+  | 'Pending'
   | 'Declined'
-  | 'Accepted'
+  | 'Assigned'
   | 'Picked up'
   | 'Recipient confirmed'
   | 'Delivered';
@@ -55,9 +61,9 @@ export const DELIVERY_STATUSES: DeliveryStatus[] = [
   'Requested',
   'Requires approval',
   'Approved',
-  'Assigned',
+  'Pending',
   'Declined',
-  'Accepted',
+  'Assigned',
   'Picked up',
   'Recipient confirmed',
   'Delivered',
@@ -179,7 +185,7 @@ export interface LinkView {
 
 /** Statuses at which each kind of link is the question worth asking. */
 export const PURPOSE_REQUIRES_STATUS: Record<LinkPurpose, DeliveryStatus> = {
-  'rider-response': 'Assigned',
+  'rider-response': 'Pending',
   'recipient-confirm': 'Picked up',
   'rider-complete': 'Recipient confirmed',
 };

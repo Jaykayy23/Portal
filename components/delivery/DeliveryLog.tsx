@@ -42,9 +42,9 @@ const STATUS_CLASS: Record<DeliveryStatus, string> = {
   Requested: 'b-requested',
   'Requires approval': 'b-approval',
   Approved: 'b-assigned',
-  Assigned: 'b-assigned',
+  Pending: 'b-requested',
   Declined: 'b-approval',
-  Accepted: 'b-assigned',
+  Assigned: 'b-assigned',
   'Picked up': 'b-assigned',
   'Recipient confirmed': 'b-delivered',
   Delivered: 'b-delivered',
@@ -64,7 +64,7 @@ function milestone(r: DeliveryWithMerchant): { label: string; at: string } | nul
     return { label: '✓ delivered — customer confirmed', at: r.recipientConfirmedAt };
   }
   if (r.pickedUpAt) return { label: 'picked up — on the way', at: r.pickedUpAt };
-  if (r.acceptedAt) return { label: 'rider accepted', at: r.acceptedAt };
+  if (r.acceptedAt) return { label: '✓ rider accepted', at: r.acceptedAt };
   if (r.declinedAt) return { label: '× rider declined', at: r.declinedAt };
   return null;
 }
@@ -85,9 +85,11 @@ function actionNeeded(r: DeliveryWithMerchant, canManage: boolean): string | nul
         return 'Assign a rider';
       case 'Requires approval':
         return 'Below the minimum — approve or renegotiate';
+      case 'Pending':
+        return `Waiting on ${r.riderName || 'the rider'} to accept or decline`;
       case 'Declined':
-        return `${r.riderName || 'The rider'} declined — assign someone else`;
-      case 'Accepted':
+        return `${r.riderName || 'The rider'} declined — offer it to someone else`;
+      case 'Assigned':
         return 'Send the merchant the rider’s details';
       case 'Recipient confirmed':
         return 'Send the rider their completion link';
@@ -96,7 +98,7 @@ function actionNeeded(r: DeliveryWithMerchant, canManage: boolean): string | nul
     }
   }
   // Merchants have exactly one step of their own: confirming the handover.
-  return r.status === 'Accepted' ? 'Confirm the rider has collected the item' : null;
+  return r.status === 'Assigned' ? 'Confirm the rider has collected the item' : null;
 }
 
 export function DeliveryLog({
@@ -237,7 +239,7 @@ export function DeliveryLog({
                   {record.customer} · {record.pickup} → {record.dropoff}
                 </span>
               </div>
-              {!canManage && record.status === 'Accepted' ? (
+              {!canManage && record.status === 'Assigned' ? (
                 <button
                   type="button"
                   className="somo-notify-btn"
@@ -403,7 +405,7 @@ export function DeliveryLog({
                       <button className="somo-notify-btn" onClick={() => setNotify(r)}>
                         🔔 Notify
                       </button>
-                    ) : r.status === 'Accepted' ? (
+                    ) : r.status === 'Assigned' ? (
                       <button
                         className="somo-notify-btn"
                         disabled={confirming === r.id}

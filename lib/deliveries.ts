@@ -171,9 +171,9 @@ export async function patchDelivery(
           .eq('id', id)
           .maybeSingle();
         if (
-          current?.status === 'Assigned' ||
+          current?.status === 'Pending' ||
           current?.status === 'Declined' ||
-          current?.status === 'Accepted'
+          current?.status === 'Assigned'
         ) {
           update.status = 'Requested';
         }
@@ -208,11 +208,12 @@ export async function patchDelivery(
           .select('status')
           .eq('id', id)
           .maybeSingle();
-        // Assigning a rider advances a fresh request, and un-parks one the last
-        // rider declined — but never overrides an explicit status sent in the
-        // same patch.
+        // Offering the job to a rider advances a fresh request, and un-parks one
+        // the last rider declined — but never overrides an explicit status sent in
+        // the same patch. It stops at 'Pending': only the rider's own acceptance
+        // makes a delivery 'Assigned'.
         if (current?.status === 'Requested' || current?.status === 'Declined') {
-          update.status = 'Assigned';
+          update.status = 'Pending';
         }
       }
     }
@@ -260,7 +261,7 @@ export async function confirmPickup(deliveryId: string): Promise<DeliveryWithMer
     .from('deliveries')
     .update({ status: 'Picked up', picked_up_at: pickedUpAt })
     .eq('id', deliveryId)
-    .eq('status', 'Accepted')
+    .eq('status', 'Assigned')
     .select('*')
     .maybeSingle();
 

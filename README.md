@@ -180,7 +180,7 @@ Two deliberate exceptions:
   they must not be able to edit anything else on a request they filed. That is two
   policies working together, both in Postgres:
   `deliveries_update_merchant_pickup` decides *which rows and which transition*
-  (their own, only while `Accepted`, only ending at `Picked up`), and the
+  (their own, only while `Assigned`, only ending at `Picked up`), and the
   `deliveries_guard_merchant_update` trigger decides *which columns may differ*.
   The trigger is necessary because WITH CHECK only validates the resulting row —
   without it, an UPDATE that set `status` to `Picked up` **and** `agreed` to 1
@@ -272,14 +272,19 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
 
   | Step | Who moves it | How |
   | --- | --- | --- |
-  | `Assigned` | ops | assigns a rider in the log |
-  | `Accepted` / `Declined` | rider | taps accept or decline on their link |
+  | `Pending` | ops | offers the job to a rider in the log |
+  | `Assigned` / `Declined` | rider | taps accept or decline on their link |
   | `Picked up` | merchant | **Confirm pickup** button on their own row |
   | `Recipient confirmed` | customer | taps "I have received this" on their link |
   | `Delivered` | rider | taps "I've delivered this" on their link |
 
+  `Pending` and `Assigned` are the pair worth reading twice. Ops picking a name
+  off a dropdown does not put a rider on the road, so that leaves the delivery
+  **Pending** — only the rider's own acceptance makes it **Assigned**. A merchant
+  seeing "Assigned" can take it that someone is actually coming.
+
   A decline parks the delivery with the rider still named, so the log says who
-  refused it; assigning someone else puts it back to `Assigned` and clears the
+  refused it; offering it to someone else puts it back to `Pending` and clears the
   previous rider's answer. Each milestone stamps its own timestamp — the log shows
   the newest under the status, the Excel export carries all five as columns, so a
   status ops set by hand is distinguishable from one the people involved

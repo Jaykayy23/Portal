@@ -20,7 +20,7 @@ const PER_USER = { limit: 30, windowSeconds: 300 };
  * nothing.
  *
  * Idempotent without a key: the update filters on the delivery still being
- * 'Accepted', so a second tap finds nothing to change and returns the same row.
+ * 'Assigned', so a second tap finds nothing to change and returns the same row.
  */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   return handle(async () => {

@@ -20,8 +20,8 @@ import type { Delivery, DeliveryWithMerchant, LinkPurpose } from './types';
 export type NotifyTrigger =
   /** Request filed. Ops needs to assign someone. */
   | 'created'
-  /** Ops assigned a rider. The rider must accept or decline. */
-  | 'assigned'
+  /** Ops offered the job to a rider. They must accept or decline. */
+  | 'offered'
   /** Rider declined. Ops needs to find someone else. */
   | 'declined'
   /** Rider accepted. Ops passes the rider's details to the merchant. */
@@ -106,17 +106,17 @@ export function outboundFor(
         },
       ];
 
-    case 'assigned':
+    case 'offered':
       return [
         {
-          id: 'rider-assigned',
+          id: 'rider-offered',
           who: `Rider — ${record.riderName}`,
           phone: record.riderPhone,
           needsLink: 'rider-response',
           text: `SomoExpress job offer ${no}. Pickup: ${record.pickup}. Drop-off: ${record.dropoff}.${recipientClause(record)} Merchant: ${record.customer}.${itemClause(record)} Type: ${record.type}. Tap here to accept or decline: ${ctx.links['rider-response'] ?? ''}`,
         },
         {
-          id: 'ops-assigned',
+          id: 'ops-offered',
           who: 'Ops team',
           phone: ctx.opsPhone,
           text: `SomoExpress ${no} offered to ${riderClause(record)}. Route: ${route}. Awaiting their accept or decline.`,
@@ -215,7 +215,7 @@ export function outboundFor(
  */
 export function linkNeededFor(trigger: NotifyTrigger): LinkPurpose | null {
   switch (trigger) {
-    case 'assigned':
+    case 'offered':
       return 'rider-response';
     case 'picked-up':
       return 'recipient-confirm';
@@ -229,7 +229,7 @@ export function linkNeededFor(trigger: NotifyTrigger): LinkPurpose | null {
 /** Modal heading per event — what the person at the keyboard is here to do. */
 export const TRIGGER_TITLE: Record<NotifyTrigger, string> = {
   created: 'Alert ops about this request',
-  assigned: 'Send the job offer',
+  offered: 'Send the job offer',
   declined: 'Rider declined — tell ops',
   accepted: 'Rider accepted — send the merchant the details',
   'picked-up': 'Picked up — tell the customer it is on the way',
@@ -247,11 +247,11 @@ export const TRIGGER_TITLE: Record<NotifyTrigger, string> = {
  */
 export function triggerForStatus(record: Delivery): NotifyTrigger {
   switch (record.status) {
-    case 'Assigned':
-      return 'assigned';
+    case 'Pending':
+      return 'offered';
     case 'Declined':
       return 'declined';
-    case 'Accepted':
+    case 'Assigned':
       return 'accepted';
     case 'Picked up':
       return 'picked-up';
