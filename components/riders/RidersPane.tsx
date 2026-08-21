@@ -5,10 +5,32 @@ import { useRouter } from 'next/navigation';
 import { api, errMessage } from '@/lib/api';
 import { useToast } from '@/components/Toast';
 import { RIDER_STATUSES, type Rider, type RiderStatus } from '@/lib/types';
+import { fmtMoney } from '@/lib/format';
+import { FLOAT_DEADLINE_HOURS, type RiderFloat } from '@/lib/ledger';
 
 const EMPTY = { name: '', phone: '', regNumber: '', model: '' };
 
-export function RidersPane({ riders }: { riders: Rider[] }) {
+/** '3d 4h' — a float's age, in the units somebody chasing it thinks in. */
+function fmtHeld(hours: number): string {
+  if (hours < 1) return 'under an hour';
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d ${hours % 24}h`;
+}
+
+export function RidersPane({
+  riders,
+  floats,
+}: {
+  riders: Rider[];
+  /**
+   * Cash each rider is still holding, and for how long.
+   *
+   * Shown here because 'why can I not assign Kwame?' is a question that gets
+   * asked on this screen, and the answer is money rather than availability.
+   * Settling is done on the ledger; this is only the notice.
+   */
+  floats: RiderFloat[];
+}) {
   const router = useRouter();
   const toast = useToast();
   const [form, setForm] = useState(EMPTY);
@@ -60,12 +82,26 @@ export function RidersPane({ riders }: { riders: Rider[] }) {
     }
   }
 
+  const floatByRider = new Map(floats.filter((f) => f.riderId).map((f) => [f.riderId, f]));
+  const blockedCount = floats.filter((f) => f.overdue).length;
+
   return (
     <div className="somo-card" style={{ marginTop: 0 }}>
       <h3>
         <span className="n">—</span> Rider roster
         <span className="tag-note">shared, managed by admin/ops</span>
       </h3>
+
+      {blockedCount > 0 ? (
+        <div className="somo-flag show">
+          {blockedCount === 1
+            ? 'One rider has been holding cash for more than '
+            : `${blockedCount} riders have been holding cash for more than `}
+          {FLOAT_DEADLINE_HOURS} hours and cannot be assigned new deliveries until they
+          settle. Record what they hand in — or write off what they cannot produce — on the
+          Ledger tab.
+        </div>
+      ) : null}
 
       <form onSubmit={addRider}>
         <div className="somo-row2" style={{ alignItems: 'end' }}>
@@ -101,28 +137,54 @@ export function RidersPane({ riders }: { riders: Rider[] }) {
           </div>
         ) : (
           <div className="somo-riders-grid">
-            {riders.map((r) => (
-              <div className="somo-rider-card" key={r.id}>
-                <div>
-                  <div className="name">{r.name}</div>
-                  <div className="phone">{r.phone}</div>
-                  <div className="phone">
-                    {r.model || '—'} · {r.regNumber || '—'}
-                  </div>
-                </div>
-                <select
-                  className="somo-status-select"
-                  value={r.status}
-                  onChange={(e) => setStatus(r.id, e.target.value as RiderStatus)}
+            {riders.map((r) => {
+              const held = floatByRider.get(r.id);
+              return (
+                <div
+                  className={`somo-rider-card${held?.overdue ? ' somo-overdue-row' : ''}`}
+                  key={r.id}
                 >
-                  {RIDER_STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ))}
+                  <div>
+                    <div className="name">
+                      {r.name}
+                      {held?.overdue ? (
+                        <span className="somo-badge b-approval" style={{ marginLeft: 6 }}>
+                          blocked
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="phone">{r.phone}</div>
+                    <div className="phone">
+                      {r.model || '—'} · {r.regNumber || '—'}
+                    </div>
+                    {held && held.total > 0 ? (
+                      <div className={held.overdue ? 'somo-void-note' : 'phone'}>
+                        holding {fmtMoney(held.total)} · {fmtHeld(held.hoursHeld)}
+                        {held.overdue
+                          ? ` — ${fmtHeld(-held.hoursLeft)} over the limit`
+                          : ` · ${fmtHeld(held.hoursLeft)} left`}
+                      </div>
+                    ) : null}
+                    {held && held.writtenOff > 0 ? (
+                      <div className="phone">
+                        {fmtMoney(held.writtenOff)} written off to their debt
+                      </div>
+                    ) : null}
+                  </div>
+                  <select
+                    className="somo-status-select"
+                    value={r.status}
+                    onChange={(e) => setStatus(r.id, e.target.value as RiderStatus)}
+                  >
+                    {RIDER_STATUSES.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

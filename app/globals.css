@@ -1867,6 +1867,110 @@ tr.somo-voided .somo-agreed-cell {
   line-height: 1.4;
 }
 
+/* --- Partial settlement, write-offs, overdue floats ------------------------
+   A part-settled obligation sits in two places at once, so the money columns
+   stack their slices. Everything below exists for that, for the shortfall
+   choice in the settle dialog, and for making an overdue float impossible to
+   scroll past. */
+
+/* One money column: a slice per place the money is, then the footnotes. */
+.somo-holder-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+.somo-holder-stack .somo-holder-cell {
+  min-width: 0;
+}
+.somo-holder-when {
+  font-size: 10.5px;
+  color: var(--somo-muted);
+  font-family: var(--font-mono);
+}
+.somo-writeoff-note {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--destructive-text);
+}
+
+/* Overdue is the one state on these tables that has to stop somebody, so it
+   gets a filled left edge rather than only a badge. */
+tr.somo-overdue-row td:first-child,
+.somo-rider-card.somo-overdue-row {
+  box-shadow: inset 3px 0 0 var(--destructive-text);
+}
+tr.somo-overdue-row td {
+  background: var(--destructive-soft);
+}
+.somo-rider-card.somo-overdue-row {
+  border-color: var(--destructive-line);
+  background: var(--destructive-soft);
+}
+
+/* The settle row grows a fourth area — the shortfall choice — which only
+   appears once an amount is short, so it spans the full width underneath. */
+.somo-settle-row {
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    'tick what amt'
+    '.    short short';
+  row-gap: 6px;
+}
+.somo-settle-row .tick {
+  grid-area: tick;
+  display: flex;
+  align-items: center;
+}
+.somo-settle-row .what {
+  grid-area: what;
+}
+.somo-settle-row .amt {
+  grid-area: amt;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.somo-settle-row .short {
+  grid-area: short;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: var(--destructive-soft);
+  border: 1px solid var(--destructive-line);
+}
+.somo-settle-row .amt .of {
+  font-size: 10.5px;
+  color: var(--somo-muted);
+  font-family: var(--font-mono);
+}
+
+/* Narrow enough to sit at the end of a row, wide enough for GHS 12,345.67. */
+.somo-input.tiny {
+  width: 104px;
+  padding: 5px 7px;
+  font-size: 12.5px;
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+/* A checkbox with its label on one line, for the write-off choice. */
+.somo-check-inline {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  cursor: pointer;
+  color: var(--destructive-text);
+  font-weight: 600;
+}
+.somo-check-inline input {
+  accent-color: var(--destructive-text);
+}
+
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: var(--font-sans);

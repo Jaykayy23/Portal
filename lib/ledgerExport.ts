@@ -24,6 +24,7 @@ import type { CellObject, Column, Row, SheetData } from 'write-excel-file/node';
 import { shortId } from './format';
 import {
   COMPANY,
+  FLOAT_DEADLINE_HOURS,
   ledgerTotals,
   merchantBalances,
   riderFloat,
@@ -66,6 +67,28 @@ export interface LedgerExportOptions {
   scopeLabel: string;
   /** The remittance book for the third sheet. Empty leaves the sheet out. */
   settlements: SettlementRecord[];
+}
+
+/**
+ * Where the money sits, spelled out.
+ *
+ * A part-settled obligation is in more than one place, so this is a list and
+ * not a single holder: 'GHS 200.00 with Kwame Mensah; GHS 300.00 with
+ * SomoExpress'. Reading a spreadsheet cell is not reading a table, so the
+ * amounts are spelled out rather than left to be inferred from a column.
+ */
+function partsSummary(position: LedgerPosition | null): string | null {
+  if (!position || position.parts.length === 0) return null;
+  return position.parts
+    .map((part) => `GHS ${part.amount.toFixed(2)} ${part.label.toLowerCase()}`)
+    .join('; ');
+}
+
+/** Who the unsettled parts are owed to, deduplicated. Blank when nobody. */
+function owedSummary(position: LedgerPosition | null): string | null {
+  if (!position) return null;
+  const owed = [...new Set(position.parts.map((p) => p.owedTo).filter(Boolean))];
+  return owed.length > 0 ? owed.join(', ') : null;
 }
 
 /** When a position cleared, or null while it is still travelling. */
@@ -148,13 +171,23 @@ function columnsFor(opts: LedgerExportOptions): Column<LedgerEntry>[] {
       cell: ({ delivery }) => delivery.itemPayment || null,
     },
     { header: header('Goods value'), width: 15, cell: ({ delivery }) => money(delivery.declaredValue || 0) },
-    { header: header('Goods held by'), width: 22, cell: ({ item }) => item?.holderLabel ?? null },
+    { header: header('Goods position'), width: 46, cell: ({ item }) => partsSummary(item) },
     {
       header: header('Goods owed to'),
       width: 22,
       // Blank rather than 'Nobody' when the money is already home: an empty cell
       // filters and counts correctly, a word for "nothing" does not.
-      cell: ({ item }) => (item && item.owedTo ? item.owedTo : null),
+      cell: ({ item }) => owedSummary(item),
+    },
+    {
+      header: header('Goods remitted'),
+      width: 15,
+      cell: ({ item }) => (item && item.settledIn > 0 ? money(item.settledIn) : null),
+    },
+    {
+      header: header('Goods written off'),
+      width: 16,
+      cell: ({ item }) => (item && item.writtenOff > 0 ? money(item.writtenOff) : null),
     },
     {
       header: header('Goods settled'),
@@ -172,11 +205,16 @@ function columnsFor(opts: LedgerExportOptions): Column<LedgerEntry>[] {
       cell: ({ delivery }) => delivery.deliveryPaidBy || null,
     },
     { header: header('Delivery fee'), width: 15, cell: ({ delivery }) => money(delivery.price || 0) },
-    { header: header('Fee held by'), width: 22, cell: ({ fee }) => fee?.holderLabel ?? null },
+    { header: header('Fee position'), width: 40, cell: ({ fee }) => partsSummary(fee) },
     {
       header: header('Fee owed to'),
       width: 22,
-      cell: ({ fee }) => (fee && fee.owedTo ? fee.owedTo : null),
+      cell: ({ fee }) => owedSummary(fee),
+    },
+    {
+      header: header('Fee written off'),
+      width: 16,
+      cell: ({ fee }) => (fee && fee.writtenOff > 0 ? money(fee.writtenOff) : null),
     },
     { header: header('Fee settled'), width: 15, cell: ({ fee }) => clearedOn(fee) },
     { header: header('Fee note'), width: 52, cell: ({ fee }) => fee?.detail ?? null },
@@ -228,6 +266,10 @@ function summarySheet(entries: LedgerEntry[], opts: LedgerExportOptions): SheetD
     line('Cash-on-delivery takings paid to merchants', totals.goodsPaidToMerchants),
     line('Rows with nothing left to move', totals.clearedRows, false),
     [],
+    heading('Written off'),
+    line('Rider shortfalls charged to pay', totals.riderDebt),
+    line('Fees waived on merchant accounts', totals.merchantWriteOffs),
+    [],
     heading('For information'),
     line('Prepaid goods, already with merchants', totals.prepaidWithMerchants),
     line('Delivery fees in this period', totals.feeTotal),
@@ -246,14 +288,29 @@ function summarySheet(entries: LedgerEntry[], opts: LedgerExportOptions): SheetD
         header('For merchants'),
         header(`For ${COMPANY}`),
         header('Total'),
+        header('Held since'),
+        header('Hours'),
+        header(`Overdue (${FLOAT_DEADLINE_HOURS}h)`),
+        header('Written off to debt'),
       ],
-      ...floats.map((f): Row => [
-        f.riderName,
-        count(f.deliveries),
-        money(f.forMerchants),
-        money(f.forUs),
-        money(f.total),
-      ]),
+      ...floats.map((f): Row => {
+        const since = f.oldestSince ? new Date(f.oldestSince) : null;
+        return [
+          f.riderName,
+          count(f.deliveries),
+          money(f.forMerchants),
+          money(f.forUs),
+          money(f.total),
+          since && !Number.isNaN(since.getTime())
+            ? { type: Date, value: since, format: 'dd mmm yyyy hh:mm' }
+            : null,
+          f.oldestSince ? count(f.hoursHeld) : null,
+          // The word, not TRUE: a filter on 'OVERDUE' reads as itself in a
+          // column somebody is scanning for trouble.
+          f.overdue ? 'OVERDUE' : null,
+          f.writtenOff > 0 ? money(f.writtenOff) : null,
+        ];
+      }),
       []
     );
   }
@@ -299,6 +356,7 @@ function settlementsSheet(settlements: SettlementRecord[]): SheetData {
       header(`In to ${COMPANY}`),
       header('Out'),
       header('How'),
+      header('Written off'),
       header('Reference'),
       header('Orders'),
       header('Recorded by'),
@@ -318,8 +376,14 @@ function settlementsSheet(settlements: SettlementRecord[]): SheetData {
       s.totalIn > 0 ? money(s.totalIn) : null,
       s.totalOut > 0 ? money(s.totalOut) : null,
       s.method || null,
+      s.totalWrittenOff > 0 ? money(s.totalWrittenOff) : null,
       s.reference || null,
-      s.lines.map((l) => `#${l.orderNo} ${l.stream}/${l.leg}`).join(', ') || null,
+      s.lines
+        .map(
+          (l) =>
+            `#${l.orderNo} ${l.stream}/${l.leg}${l.kind === 'writeoff' ? ' (written off)' : ''} GHS ${l.amount.toFixed(2)}`
+        )
+        .join(', ') || null,
       s.recordedByName || null,
       voided && !Number.isNaN(voided.getTime())
         ? { type: Date, value: voided, format: 'dd mmm yyyy' }
@@ -349,7 +413,10 @@ export async function ledgerToXlsx(
         { width: 18 },
         { width: 18 },
         { width: 18 },
-        { width: 18 },
+        { width: 20 },
+        { width: 22 },
+        { width: 10 },
+        { width: 20 },
       ],
     },
     {
@@ -373,8 +440,9 @@ export async function ledgerToXlsx(
         { width: 16 },
         { width: 16 },
         { width: 15 },
+        { width: 16 },
         { width: 20 },
-        { width: 44 },
+        { width: 54 },
         { width: 18 },
         { width: 14 },
         { width: 30 },

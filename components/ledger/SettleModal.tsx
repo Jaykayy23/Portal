@@ -10,6 +10,7 @@ import {
   SETTLEMENT_METHODS,
   settleableSteps,
   type LedgerEntry,
+  type SettlementKind,
   type SettlementStep,
 } from '@/lib/ledger';
 
@@ -26,6 +27,15 @@ interface Candidate {
   entry: LedgerEntry;
 }
 
+/** One line as it will be sent. */
+interface OutgoingLine {
+  deliveryId: string;
+  stream: SettlementStep['stream'];
+  leg: SettlementStep['leg'];
+  kind: SettlementKind;
+  amount: number;
+}
+
 function keyOf(step: SettlementStep): string {
   return `${step.deliveryId}:${step.stream}:${step.leg}`;
 }
@@ -36,6 +46,21 @@ function todayKey(): string {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${now.getFullYear()}-${month}-${day}`;
+}
+
+/**
+ * What a typed amount means, clamped to what is owed.
+ *
+ * Blank means all of it, which is the ordinary case and so the default. Anything
+ * above the remaining amount is pulled down rather than rejected mid-keystroke —
+ * the database enforces the same bound, so this is only about not letting somebody
+ * stare at a figure that was never going to be accepted.
+ */
+function amountFor(step: SettlementStep, typed: string | undefined): number {
+  if (typed === undefined || typed.trim() === '') return step.amount;
+  const parsed = Number(typed);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return Math.min(Math.round(parsed * 100) / 100, step.amount);
 }
 
 export function SettleModal({
@@ -59,10 +84,13 @@ export function SettleModal({
    * float is the normal case, and holding the inverse means the list never has to
    * be seeded from the candidates — so a re-render that hands back a new
    * candidates array cannot silently reset somebody's choices, or the reference
-   * they were half-way through typing. A row that appears after a refresh is
-   * included by default, which is also the right default for a float.
+   * they were half-way through typing.
    */
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  /** Typed amounts, by line key. Absent means "all of what is owed". */
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+  /** Lines whose shortfall is being charged rather than left on the float. */
+  const [writeOff, setWriteOff] = useState<Set<string>>(new Set());
   const [method, setMethod] = useState('Cash');
   const [reference, setReference] = useState('');
   const [note, setNote] = useState('');
@@ -72,8 +100,8 @@ export function SettleModal({
    * Held across retries, released on success.
    *
    * This is the endpoint where a lost response hurts most: the money really was
-   * recorded, and a blind retry would be refused by the one-leg-one-settlement
-   * index and read as a failure. Same key, same answer.
+   * recorded, and a blind retry would be bounced by the remaining-amount check
+   * and read as a failure. Same key, same answer.
    */
   const submitKey = useRef('');
 
@@ -98,6 +126,8 @@ export function SettleModal({
   useEffect(() => {
     if (!partyKey) return;
     setExcluded(new Set());
+    setAmounts({});
+    setWriteOff(new Set());
     setReference('');
     setNote('');
     setWhen(todayKey());
@@ -106,12 +136,51 @@ export function SettleModal({
   }, [partyKey]);
 
   const chosen = candidates.filter((c) => !excluded.has(keyOf(c.step)));
-  const totalIn = chosen
-    .filter((c) => c.step.leg === 'in')
-    .reduce((sum, c) => sum + c.step.amount, 0);
-  const totalOut = chosen
-    .filter((c) => c.step.leg === 'out')
-    .reduce((sum, c) => sum + c.step.amount, 0);
+
+  /**
+   * The lines that will actually be sent.
+   *
+   * A short payment becomes two lines against the same obligation when the
+   * difference is being written off: the payment, and the write-off for the rest.
+   * Left alone, the remainder simply stays outstanding and comes back next time.
+   */
+  const outgoing = useMemo<OutgoingLine[]>(() => {
+    const lines: OutgoingLine[] = [];
+    for (const c of chosen) {
+      const key = keyOf(c.step);
+      const paid = amountFor(c.step, amounts[key]);
+      if (paid > 0) {
+        lines.push({
+          deliveryId: c.step.deliveryId,
+          stream: c.step.stream,
+          leg: c.step.leg,
+          kind: 'payment',
+          amount: paid,
+        });
+      }
+      const shortfall = Math.round((c.step.amount - paid) * 100) / 100;
+      // Only inbound legs can be written off — you cannot declare money you owe a
+      // merchant to be gone. The database says the same.
+      if (shortfall > 0 && writeOff.has(key) && c.step.leg === 'in') {
+        lines.push({
+          deliveryId: c.step.deliveryId,
+          stream: c.step.stream,
+          leg: c.step.leg,
+          kind: 'writeoff',
+          amount: shortfall,
+        });
+      }
+    }
+    return lines;
+  }, [chosen, amounts, writeOff]);
+
+  const totalIn = outgoing
+    .filter((l) => l.leg === 'in' && l.kind === 'payment')
+    .reduce((sum, l) => sum + l.amount, 0);
+  const totalOut = outgoing.filter((l) => l.leg === 'out').reduce((sum, l) => sum + l.amount, 0);
+  const totalWritten = outgoing
+    .filter((l) => l.kind === 'writeoff')
+    .reduce((sum, l) => sum + l.amount, 0);
   const net = totalIn - totalOut;
 
   function toggle(step: SettlementStep) {
@@ -130,8 +199,17 @@ export function SettleModal({
     );
   }
 
+  function toggleWriteOff(key: string) {
+    setWriteOff((was) => {
+      const next = new Set(was);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
   async function submit() {
-    if (!party || chosen.length === 0) return;
+    if (!party || outgoing.length === 0) return;
     setBusy(true);
     try {
       if (!submitKey.current) submitKey.current = crypto.randomUUID();
@@ -148,21 +226,15 @@ export function SettleModal({
           // stamp `now()`, which is the honest value for a settlement being
           // recorded as it happens.
           settledAt:
-            when && when !== todayKey()
-              ? new Date(`${when}T12:00:00`).toISOString()
-              : undefined,
-          lines: chosen.map((c) => ({
-            deliveryId: c.step.deliveryId,
-            stream: c.step.stream,
-            leg: c.step.leg,
-          })),
+            when && when !== todayKey() ? new Date(`${when}T12:00:00`).toISOString() : undefined,
+          lines: outgoing,
         },
       });
       submitKey.current = '';
       toast(
-        chosen.length === 1
+        outgoing.length === 1
           ? 'Settlement recorded'
-          : `Settlement recorded — ${chosen.length} obligations cleared`
+          : `Settlement recorded — ${outgoing.length} entries`
       );
       onDone();
     } catch (e) {
@@ -176,7 +248,7 @@ export function SettleModal({
   const isRider = party.kind === 'rider';
   const title = isRider ? `Record remittance from ${party.name}` : `Settle with ${party.name}`;
   const description = isRider
-    ? `Cash ${party.name} collected at the door and is handing in. Untick anything they have not brought.`
+    ? `What ${party.name} is handing in. Edit an amount if they have brought only part of it, and say whether the rest stays outstanding or goes on their debt.`
     : `Fees ${party.name} owes ${COMPANY}, and cash-on-delivery takings ${COMPANY} owes them. Both directions can go on one settlement.`;
 
   return (
@@ -201,27 +273,78 @@ export function SettleModal({
             {candidates.map((c) => {
               const key = keyOf(c.step);
               const d = c.entry.delivery;
+              const on = !excluded.has(key);
+              const paid = amountFor(c.step, amounts[key]);
+              const shortfall = Math.round((c.step.amount - paid) * 100) / 100;
+              const canWriteOff = c.step.leg === 'in';
+
               return (
-                <label className={`somo-settle-row${excluded.has(key) ? '' : ' on'}`} key={key}>
-                  <input
-                    type="checkbox"
-                    checked={!excluded.has(key)}
-                    onChange={() => toggle(c.step)}
-                  />
+                <div className={`somo-settle-row${on ? ' on' : ''}`} key={key}>
+                  <label className="tick">
+                    <input type="checkbox" checked={on} onChange={() => toggle(c.step)} />
+                  </label>
+
                   <span className="what">
                     <span className="line1">
                       #{shortId(d.id)} · {c.step.label}
-                      <span className={`somo-leg-tag ${c.step.leg}`}>
-                        {c.step.leg === 'in' ? 'in' : 'out'}
-                      </span>
+                      <span className={`somo-leg-tag ${c.step.leg}`}>{c.step.leg}</span>
                     </span>
                     <span className="line2">
                       {isRider ? `${d.customer} · ` : ''}
                       {d.dropoff} · {fmtDateTime(d.date)}
                     </span>
+                    {/* Only worth saying when part of it has already been settled —
+                        otherwise it is the same number twice. */}
+                    {c.step.amount < c.step.obligation ? (
+                      <span className="line2">
+                        {fmtMoney(c.step.amount)} of {fmtMoney(c.step.obligation)} still owed
+                      </span>
+                    ) : null}
                   </span>
-                  <span className="amt">{fmtMoney(c.step.amount)}</span>
-                </label>
+
+                  <span className="amt">
+                    <input
+                      className="somo-input tiny"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      max={c.step.amount}
+                      disabled={!on}
+                      placeholder={c.step.amount.toFixed(2)}
+                      value={amounts[key] ?? ''}
+                      aria-label={`Amount settled on order ${shortId(d.id)}`}
+                      onChange={(e) => setAmounts((was) => ({ ...was, [key]: e.target.value }))}
+                    />
+                    <span className="of">of {fmtMoney(c.step.amount)}</span>
+                  </span>
+
+                  {on && shortfall > 0 ? (
+                    <div className="short">
+                      {canWriteOff ? (
+                        <label className="somo-check-inline">
+                          <input
+                            type="checkbox"
+                            checked={writeOff.has(key)}
+                            onChange={() => toggleWriteOff(key)}
+                          />
+                          <span>
+                            Write off the {fmtMoney(shortfall)} shortfall
+                            {isRider ? ` to ${party.name}’s debt` : ''}
+                          </span>
+                        </label>
+                      ) : (
+                        <span className="somo-rider-sub">
+                          {fmtMoney(shortfall)} stays owed to them.
+                        </span>
+                      )}
+                      {canWriteOff && !writeOff.has(key) ? (
+                        <span className="somo-rider-sub">
+                          Otherwise it stays outstanding and appears here again.
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
               );
             })}
           </div>
@@ -239,12 +362,20 @@ export function SettleModal({
                 <span className="v">{fmtMoney(totalOut)}</span>
               </div>
             ) : null}
+            {totalWritten > 0 ? (
+              <div className="somo-price-row">
+                <span className="l">
+                  Written off{isRider ? ` to ${party.name}’s debt` : ''} — no cash
+                </span>
+                <span className="v">{fmtMoney(totalWritten)}</span>
+              </div>
+            ) : null}
             <div className="somo-price-row main">
               <span className="l">
                 {net === 0
-                  ? 'Nothing changes hands — it cancels out'
+                  ? 'No cash changes hands'
                   : net > 0
-                    ? `${party.name} pays ${COMPANY}`
+                    ? `${party.name} hands over`
                     : `${COMPANY} pays ${party.name}`}
               </span>
               <span className="v">{fmtMoney(Math.abs(net))}</span>
@@ -302,19 +433,20 @@ export function SettleModal({
           <button
             type="button"
             className="somo-btn small"
-            disabled={busy || chosen.length === 0}
+            disabled={busy || outgoing.length === 0}
             onClick={submit}
           >
             {busy
               ? 'Recording…'
-              : `Record ${chosen.length} ${chosen.length === 1 ? 'obligation' : 'obligations'}`}
+              : `Record ${outgoing.length} ${outgoing.length === 1 ? 'entry' : 'entries'}`}
           </button>
 
           <div className="somo-note">
-            The amounts are the deliveries&rsquo; own figures and are not editable here — a
-            settlement records that an obligation was met, not what it was worth. If a rider
-            brought less than they owe, untick what they have not brought and record the rest when
-            they do. Recorded by mistake? Void it below the ledger; the obligation comes back.
+            Leave an amount blank to settle all of it. A partial amount leaves the rest
+            outstanding, so it appears here again next time — unless you write it off, which closes
+            it and charges it{isRider ? ` to ${party.name}` : ''} instead. Nothing here can exceed
+            what is owed: the database bounds every figure to the obligation it is against. Recorded
+            by mistake? Void it below the ledger and everything reopens.
           </div>
         </>
       )}

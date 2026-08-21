@@ -13,7 +13,13 @@
 // so a header can never end up with no lines. See the settlements migration.
 
 import { createSupabaseServerClient } from './supabase/server';
-import type { SettlementMark, SettlementMarks, SettlementStep } from './ledger';
+import type {
+  SettlementKind,
+  SettlementLeg,
+  SettlementMark,
+  SettlementMarks,
+  SettlementStream,
+} from './ledger';
 import type { Database } from './database.types';
 
 type SettlementRow = Database['public']['Tables']['settlements']['Row'];
@@ -26,8 +32,9 @@ export interface SettlementLine {
   deliveryId: string;
   /** The short order number, so the list reads like the log. */
   orderNo: string;
-  stream: 'goods' | 'fee';
-  leg: 'in' | 'out';
+  stream: SettlementStream;
+  leg: SettlementLeg;
+  kind: SettlementKind;
   amount: number;
 }
 
@@ -49,10 +56,12 @@ export interface SettlementRecord {
   voidedByName: string;
   voidReason: string;
   lines: SettlementLine[];
-  /** Money that came to us on this settlement. */
+  /** Money that actually came to us on this settlement. */
   totalIn: number;
   /** Money that left us on it. */
   totalOut: number;
+  /** Closed without being paid, and charged to somebody. Not cash. */
+  totalWrittenOff: number;
 }
 
 function orderNo(deliveryId: string): string {
@@ -92,6 +101,7 @@ export async function listSettlementMarks(): Promise<SettlementMarks> {
     const mark: SettlementMark = {
       stream: line.stream,
       leg: line.leg,
+      kind: line.kind,
       amount: Number(line.amount),
       settledAt: line.settled_at,
       reference: header?.reference ?? '',
@@ -121,6 +131,7 @@ function toRecord(
     orderNo: orderNo(l.delivery_id),
     stream: l.stream,
     leg: l.leg,
+    kind: l.kind,
     amount: Number(l.amount),
   }));
 
@@ -140,8 +151,15 @@ function toRecord(
     voidedByName: row.voided_by_name,
     voidReason: row.void_reason,
     lines: mapped,
-    totalIn: mapped.filter((l) => l.leg === 'in').reduce((sum, l) => sum + l.amount, 0),
+    // A write-off sits on the inbound leg but is not money received, so it is
+    // counted apart or the remittance book would read as cash that arrived.
+    totalIn: mapped
+      .filter((l) => l.leg === 'in' && l.kind === 'payment')
+      .reduce((sum, l) => sum + l.amount, 0),
     totalOut: mapped.filter((l) => l.leg === 'out').reduce((sum, l) => sum + l.amount, 0),
+    totalWrittenOff: mapped
+      .filter((l) => l.kind === 'writeoff')
+      .reduce((sum, l) => sum + l.amount, 0),
   };
 }
 
@@ -190,8 +208,17 @@ export interface RecordSettlementInput {
   note: string;
   /** ISO. Omit for now. Back-dating is allowed, the future is not. */
   settledAt?: string;
-  /** No amounts — the database reads every figure from the delivery row. */
-  lines: Pick<SettlementStep, 'deliveryId' | 'stream' | 'leg'>[];
+  /**
+   * Amounts are optional: omitting one means all of what is still owed, and
+   * whatever is sent is bounded server-side by the obligation's remaining room.
+   */
+  lines: {
+    deliveryId: string;
+    stream: SettlementStream;
+    leg: SettlementLeg;
+    kind?: SettlementKind;
+    amount?: number;
+  }[];
 }
 
 /**
@@ -215,6 +242,8 @@ export async function recordSettlement(input: RecordSettlementInput): Promise<st
       delivery_id: l.deliveryId,
       stream: l.stream,
       leg: l.leg,
+      kind: l.kind ?? 'payment',
+      amount: l.amount,
     })),
   });
 

@@ -25,6 +25,9 @@ interface LineBody {
   deliveryId?: string;
   stream?: 'goods' | 'fee';
   leg?: 'in' | 'out';
+  kind?: 'payment' | 'writeoff';
+  /** Omitted means all of what is still owed. */
+  amount?: number | string;
 }
 
 interface CreateBody {
@@ -95,7 +98,22 @@ export async function POST(req: Request) {
       if (l.leg !== 'in' && l.leg !== 'out') {
         badRequest('A settlement line is money in or money out.');
       }
-      return { deliveryId, stream: l.stream, leg: l.leg };
+      const kind = l.kind ?? 'payment';
+      if (kind !== 'payment' && kind !== 'writeoff') {
+        badRequest('A settlement line is a payment or a write-off.');
+      }
+      // Only the shape is checked here. Whether the figure is *allowed* — that
+      // it is at most what the obligation still has room for — is decided by
+      // record_settlement and by the trigger on settlement_lines, because that
+      // answer depends on rows this handler would have to go and read.
+      let amount: number | undefined;
+      if (l.amount !== undefined && l.amount !== null && l.amount !== '') {
+        amount = Number(l.amount);
+        if (!Number.isFinite(amount) || amount <= 0) {
+          badRequest('A settlement amount has to be a number greater than zero.');
+        }
+      }
+      return { deliveryId, stream: l.stream, leg: l.leg, kind, amount };
     });
 
     const created = await withIdempotency('settlement-create', user.id, key, async () => {

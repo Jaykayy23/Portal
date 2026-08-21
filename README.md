@@ -3,7 +3,8 @@
 A merchant delivery request & pricing tool: merchants log delivery requests with
 distance-based pricing, ops/admin assign riders, and everyone gets one-tap
 WhatsApp/SMS alerts. A ledger tracks where the money for each delivery physically
-is and records it being settled, and a dashboard counts the traffic behind it.
+is, records it being settled, and stops a rider taking new work while they are
+sitting on cash. A dashboard counts the traffic behind it.
 
 **Next.js** app on **Supabase** (Postgres + Auth).
 
@@ -426,6 +427,13 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
   settlement without passing these rules, and the amount is read from the delivery
   row rather than sent by the caller — the same rule the delivery price follows.
 
+  One further subtlety, since it is the kind that bites silently:
+  `private.settled_amount()` is **VOLATILE, not STABLE**. A STABLE function reads
+  the calling statement's snapshot, so inside the BEFORE INSERT guard it would not
+  see rows added by the statement that fired it — and a multi-row INSERT of two
+  lines against one obligation would then have both guards read the same pre-insert
+  total and let the pair through.
+
   One consequence worth knowing: these are the **only two tables with RLS enabled
   but not forced**. A definer function runs as the table owner, and `FORCE` would
   subject the owner to policies that deliberately do not exist for INSERT — which
@@ -443,10 +451,73 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
   vanished would leave money looking unpaid with nothing to say how it got that
   way, which is the one thing a ledger must never do.
 
-  What is still outside the system: nothing forces a rider to remit, and nothing
-  reconciles a declared bundle against the lines it covers. If a rider brings less
-  than they owe, you untick what they have not brought and record the rest when it
-  arrives.
+  **A leg settles in parts.** `amount` on a line may be less than the obligation,
+  and the obligation is discharged when the non-void lines against it sum to its
+  full value. So a position is a *breakdown*, not a single holder — a rider who
+  owes GHS 500 and hands in GHS 300 leaves that money in two places at once, GHS
+  200 still with them and GHS 300 with us and owed onward, and those are two
+  different people's jobs. The ledger's money columns stack the slices for exactly
+  that reason, and both legs show up as separately settleable.
+
+  The invariant that used to be a unique index is now arithmetic, enforced by a
+  BEFORE INSERT trigger on `settlement_lines` rather than only inside
+  `record_settlement`, so it holds at the same level the index did:
+
+  | Leg | Bound |
+  | --- | --- |
+  | `in` | `sum(lines) <= the delivery's own figure for that stream` |
+  | `out` | `sum(lines) <= sum(lines on the in leg)` |
+
+  The second is the ordering rule generalised: you can only pay onward what has
+  reached you. One deliberate weakening comes with this — the amount now arrives
+  from the caller, because only the person counting the notes knows that GHS 300 of
+  GHS 500 turned up. The guarantee changes from *the caller cannot choose the
+  amount* to *the caller cannot exceed what is owed*, and it is still the database's
+  arithmetic rather than the app's word for it. Omitting the amount still means all
+  of it.
+
+  **A shortfall goes on the rider.** A line's `kind` is `payment` or `writeoff`.
+  A write-off closes an obligation that is not going to be met and charges it
+  onward — for cash-on-delivery money or a fee collected at the door, that means the
+  rider, as a deduction from pay. It counts toward the `in` leg, which has one
+  consequence worth saying out loud: **it makes the merchant's full amount payable.**
+  If a rider loses GHS 240 of a merchant's takings the merchant is still owed their
+  GHS 500; the GHS 240 is the rider's debt to us, not the merchant's problem. That
+  is the whole reason write-offs live on this leg rather than in a table of their
+  own. A fee waived on a *merchant's* account is the other case, and it is counted
+  apart as a concession rather than a rider's debt.
+
+  In the dialog: edit an amount, and if it is short you either leave the rest
+  outstanding — it reappears next time — or tick the write-off, which sends two
+  lines against the same obligation, the payment and the shortfall.
+- **A rider has 48 hours to settle, or takes no new deliveries.** `Held for` on the
+  rider float table runs from the handover of the oldest amount still in their
+  hands, and past `private.float_deadline()` the row turns red, the rider is badged
+  **blocked**, and the option is disabled in the log's rider dropdown with the
+  figure and the overdue hours in its place.
+
+  The block itself is a BEFORE UPDATE trigger on `deliveries`, not a check in the
+  Route Handler, because it is a rule about money and application code is where
+  rules about money go missing — ops assign from the log, and a future script or
+  import would bypass a TypeScript check entirely. It fires only when `rider_id`
+  actually changes to somebody: unassigning is always allowed, and re-offering the
+  same rider the same job is not a new assignment.
+
+  Two ways off the list, and both are recorded: hand the cash in, or write off what
+  cannot be produced. A written-off amount stops ageing because the decision has
+  been made and charged, which makes writing off the honest way to release a rider
+  rather than a loophole.
+
+  `FLOAT_DEADLINE_HOURS` in [lib/ledger.ts](lib/ledger.ts) drives the countdown and
+  the badge; `private.float_deadline()` is what actually refuses the assignment.
+  They are twins — change one, change the other. Same arrangement as `handedOver` /
+  `private.delivery_handed_over`, and now `handoverAt` /
+  `private.delivery_handover_at` as well.
+
+  What is still outside the system: nothing chases a rider on its own — no alert,
+  no message, the block is the whole enforcement. And no reconciliation exists
+  between a declared bundle and the lines it covers: you enter what arrived per
+  order, and the total is whatever those add up to.
 - **The dashboard counts the same rows the log lists.** Volume and completion day
   by day, where deliveries sit in the lifecycle, the payment mix, item categories,
   busiest drop-offs, per-merchant and per-rider tables, and repeat recipients —

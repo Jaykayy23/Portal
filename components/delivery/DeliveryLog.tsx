@@ -12,6 +12,8 @@ import {
   type DeliveryWithMerchant,
   type Rider,
 } from '@/lib/types';
+import { FLOAT_DEADLINE_HOURS, type RiderFloat } from '@/lib/ledger';
+import { fmtMoney as money } from '@/lib/format';
 
 /**
  * Most the queue will show at once.
@@ -126,11 +128,20 @@ function actionNeeded(r: DeliveryWithMerchant, canManage: boolean): string | nul
 export function DeliveryLog({
   records,
   riders,
+  floats,
   opsPhone,
   canManage,
 }: {
   records: DeliveryWithMerchant[];
   riders: Rider[];
+  /**
+   * What each rider is still holding, and for how long.
+   *
+   * Only used to grey out a rider the database will refuse anyway — see
+   * `private.block_overdue_rider_assignment`. Offering an option that can only
+   * fail is worse than not offering it, but the refusal is the database's.
+   */
+  floats: RiderFloat[];
   opsPhone: string;
   /** Ops/admin get inline status + rider controls; merchants get read-only rows. */
   canManage: boolean;
@@ -263,6 +274,11 @@ export function DeliveryLog({
   // already decided which ones, and a keystroke should not cost a round trip. If a
   // portal ever holds enough history that this feels slow, that is the point to
   // move the filter server-side with a paged query.
+  /** Riders past the float deadline, by id, with what is holding them up. */
+  const blocked = new Map(
+    floats.filter((f) => f.overdue && f.riderId).map((f) => [f.riderId, f])
+  );
+
   const trimmedQuery = query.trim().toLowerCase();
   const visible = trimmedQuery ? records.filter((r) => matchesQuery(r, trimmedQuery)) : records;
 
@@ -509,11 +525,25 @@ export function DeliveryLog({
                         onChange={(e) => assignRider(r.id, e.target.value)}
                       >
                         <option value="">Unassigned</option>
-                        {riders.map((rider) => (
-                          <option key={rider.id} value={rider.id}>
-                            {rider.name} — {rider.regNumber || 'no reg'} ({rider.status})
-                          </option>
-                        ))}
+                        {riders.map((rider) => {
+                          const held = blocked.get(rider.id);
+                          return (
+                            <option
+                              key={rider.id}
+                              value={rider.id}
+                              // Left in the list rather than filtered out, so it is
+                              // clear *why* a rider is unavailable instead of them
+                              // silently vanishing from the roster.
+                              disabled={!!held && rider.id !== r.riderId}
+                            >
+                              {rider.name} — {rider.regNumber || 'no reg'} (
+                              {held
+                                ? `owes ${money(held.total)} — ${FLOAT_DEADLINE_HOURS}h overdue`
+                                : rider.status}
+                              )
+                            </option>
+                          );
+                        })}
                       </select>
                     ) : r.riderName ? (
                       <>

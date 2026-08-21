@@ -291,6 +291,8 @@ export interface Database {
           delivery_id: string;
           stream: 'goods' | 'fee';
           leg: 'in' | 'out';
+          kind: 'payment' | 'writeoff';
+          /** Part or all of the obligation. A trigger bounds it to what is owed. */
           amount: number;
           settled_at: string;
           voided: boolean;
@@ -301,6 +303,7 @@ export interface Database {
           delivery_id: string;
           stream: 'goods' | 'fee';
           leg: 'in' | 'out';
+          kind?: 'payment' | 'writeoff';
           amount: number;
           settled_at: string;
           voided?: boolean;
@@ -345,8 +348,9 @@ export interface Database {
         Args: { p_bucket: string; p_limit: number; p_window_seconds: number };
         Returns: { allowed: boolean; retry_after_seconds: number }[];
       };
-      // Note the absent amount: record_settlement reads every figure from the
-      // delivery row itself, so there is nothing for a caller to propose.
+      // An omitted amount means all of what is still owed, and kind defaults to
+      // payment. Whatever is sent is bounded server-side by the room the
+      // obligation has left — see the partial-settlements migration.
       record_settlement: {
         Args: {
           p_rider_id: string | null;
@@ -355,7 +359,13 @@ export interface Database {
           p_reference: string;
           p_note: string;
           p_settled_at: string | null;
-          p_lines: { delivery_id: string; stream: 'goods' | 'fee'; leg: 'in' | 'out' }[];
+          p_lines: {
+            delivery_id: string;
+            stream: 'goods' | 'fee';
+            leg: 'in' | 'out';
+            kind?: 'payment' | 'writeoff';
+            amount?: number;
+          }[];
         };
         /** The new settlement's id. */
         Returns: string;

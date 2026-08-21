@@ -11,6 +11,7 @@ import { SettleModal, type SettleParty } from '@/components/ledger/SettleModal';
 import { RANGES, filterByRange, type RangeKey } from '@/lib/analytics';
 import {
   COMPANY,
+  FLOAT_DEADLINE_HOURS,
   LEDGER_FOCUSES,
   ledgerTotals,
   matchesFocus,
@@ -20,6 +21,7 @@ import {
   type LedgerEntry,
   type LedgerFocus,
   type LedgerPosition,
+  type MoneyPart,
   type SettlementMark,
 } from '@/lib/ledger';
 import type { SettlementRecord } from '@/lib/settlements';
@@ -53,18 +55,17 @@ function matchesQuery(r: DeliveryWithMerchant, query: string): boolean {
 }
 
 /**
- * Which way the money is pointing, as a class name.
+ * Which way one slice of money is pointing, as a class name.
  *
  * Four states worth telling apart at a glance: owed to us, owed out to a
  * merchant, not moved yet, and finished travelling. Colour is not the only cue —
- * every cell also says it in words — but on a table of forty rows it is what lets
- * someone find the amber ones.
+ * every slice also says it in words — but on a table of forty rows it is what
+ * lets someone find the amber ones.
  */
-function tone(p: LedgerPosition | null): string {
-  if (!p) return '';
-  if (p.settled) return 'settled';
-  if (p.inFlight) return 'flight';
-  return p.owedTo === 'Merchant' ? 'owed' : 'due';
+function tone(part: MoneyPart, inFlight: boolean): string {
+  if (!part.owedTo) return 'settled';
+  if (inFlight) return 'flight';
+  return part.owedTo === 'Merchant' ? 'owed' : 'due';
 }
 
 /** 'Mar 4' — a settlement's date is a day, not a minute. */
@@ -74,24 +75,58 @@ function fmtDay(iso: string): string {
   return at.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
+/**
+ * One money column: every place this obligation currently sits.
+ *
+ * Usually one slice. Two once a remittance is partial — GHS 200 still with the
+ * rider, GHS 300 with us and owed onward — and the whole reason this renders a
+ * list rather than a single holder is that those two lines are two different
+ * people's jobs.
+ */
 function HolderCell({ position }: { position: LedgerPosition | null }) {
-  if (!position) {
+  if (!position || position.parts.length === 0) {
     return <span className="somo-unassigned">—</span>;
   }
   // The most recent leg, which for a settled position is the one that cleared it.
   const latest = position.marks[position.marks.length - 1];
+  const split = position.parts.length > 1;
+
   return (
-    <div className={`somo-holder-cell ${tone(position)}`} title={position.detail}>
-      <span className="h">{position.holderLabel}</span>
-      {position.owedLabel ? <span className="o">{position.owedLabel}</span> : null}
+    <div className="somo-holder-stack" title={position.detail}>
+      {position.parts.map((part, i) => (
+        <div
+          className={`somo-holder-cell ${tone(part, position.inFlight)}`}
+          key={`${part.holder}-${i}`}
+        >
+          <span className="h">
+            {/* The amount only when it is a slice: repeating the full figure on a
+                single-part cell would just duplicate the value column. */}
+            {split ? `${fmtMoney(part.amount)} — ` : ''}
+            {part.label}
+          </span>
+          {part.owedLabel ? <span className="o">{part.owedLabel}</span> : null}
+        </div>
+      ))}
+      {position.writtenOff > 0 ? (
+        <span className="somo-writeoff-note">
+          {fmtMoney(position.writtenOff)} written off
+        </span>
+      ) : null}
       {latest ? (
-        <span className="o">
+        <span className="somo-holder-when">
           {fmtDay(latest.settledAt)}
           {latest.reference ? ` · ${latest.reference}` : ''}
         </span>
       ) : null}
     </div>
   );
+}
+
+/** '3d 4h' — a float's age, in the units somebody chasing it thinks in. */
+function fmtHeld(hours: number): string {
+  if (hours < 1) return 'under an hour';
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d ${hours % 24}h`;
 }
 
 export function LedgerPane({
@@ -413,6 +448,12 @@ export function LedgerPane({
             tone="good"
           />
           <StatTile
+            label="Written off to rider debt"
+            value={fmtMoney(totals.riderDebt)}
+            sub="shortfalls to deduct from pay"
+            tone={totals.riderDebt > 0 ? 'bad' : 'info'}
+          />
+          <StatTile
             label="Prepaid, with merchants"
             value={fmtMoney(totals.prepaidWithMerchants)}
             sub="customers already paid the merchant — never ours"
@@ -444,17 +485,48 @@ export function LedgerPane({
                       <th>For merchants</th>
                       <th>For {COMPANY}</th>
                       <th>Total</th>
+                      <th>Held for</th>
                       {canRecord && <th />}
                     </tr>
                   </thead>
                   <tbody>
                     {floats.map((f) => (
-                      <tr key={f.riderId || f.riderName}>
-                        <td>{f.riderName}</td>
+                      <tr
+                        key={f.riderId || f.riderName}
+                        className={f.overdue ? 'somo-overdue-row' : undefined}
+                      >
+                        <td>
+                          {f.riderName}
+                          {f.overdue ? (
+                            <span className="somo-badge b-approval">blocked</span>
+                          ) : null}
+                          {f.writtenOff > 0 ? (
+                            <span className="somo-rider-sub">
+                              {fmtMoney(f.writtenOff)} written off to their debt
+                            </span>
+                          ) : null}
+                        </td>
                         <td className="somo-price-cell">{f.deliveries}</td>
                         <td className="somo-price-cell">{fmtMoney(f.forMerchants)}</td>
                         <td className="somo-price-cell">{fmtMoney(f.forUs)}</td>
                         <td className="somo-agreed-cell">{fmtMoney(f.total)}</td>
+                        <td
+                          className="somo-price-cell"
+                          title={
+                            f.oldestSince
+                              ? `Oldest un-remitted cash reached them ${fmtDateTime(f.oldestSince)}`
+                              : ''
+                          }
+                        >
+                          {f.total > 0 ? fmtHeld(f.hoursHeld) : '—'}
+                          {f.total > 0 ? (
+                            <span className="somo-rider-sub">
+                              {f.overdue
+                                ? `${fmtHeld(-f.hoursLeft)} over`
+                                : `${fmtHeld(f.hoursLeft)} left`}
+                            </span>
+                          ) : null}
+                        </td>
                         {canRecord && (
                           <td>
                             <button
@@ -463,7 +535,7 @@ export function LedgerPane({
                               // A rider removed from the roster leaves rider_id
                               // null on their old deliveries, and a remittance is
                               // keyed on that id. Nothing to record it against.
-                              disabled={!f.riderId}
+                              disabled={!f.riderId || f.total <= 0}
                               title={
                                 f.riderId
                                   ? `Record what ${f.riderName} has handed in`
@@ -484,7 +556,10 @@ export function LedgerPane({
               </div>
               <div className="somo-note">
                 What each rider is carrying: the deliveries they have handed over, less what they
-                have remitted. Recording a remittance takes them off this table.
+                have remitted. <strong>Held for</strong> runs from the handover of the oldest
+                amount still in their hands. Past {FLOAT_DEADLINE_HOURS} hours the database
+                refuses to assign them anything new until they settle — recording a remittance,
+                or writing off what they cannot produce, is what releases them.
               </div>
             </div>
           )}
@@ -783,6 +858,7 @@ export function LedgerPane({
                   <th>With</th>
                   <th>In</th>
                   <th>Out</th>
+                  <th>Written off</th>
                   <th>How</th>
                   <th>Covers</th>
                   {canRecord && <th />}
@@ -808,6 +884,15 @@ export function LedgerPane({
                     </td>
                     <td className="somo-price-cell">
                       {s.totalOut > 0 ? fmtMoney(s.totalOut) : '—'}
+                    </td>
+                    <td className="somo-price-cell">
+                      {s.totalWrittenOff > 0 ? (
+                        <span className="somo-writeoff-note">
+                          {fmtMoney(s.totalWrittenOff)}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                     <td>
                       {s.method || '—'}
