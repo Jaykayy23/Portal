@@ -56,7 +56,7 @@ export function MapsProvider({
       }
     };
     script.onerror = () => {
-      toast('Could not load Google Maps — check the API key in Settings');
+      toast('Could not load Google Maps — check the API key in Settings', 'danger');
       script.remove();
     };
     document.head.appendChild(script);

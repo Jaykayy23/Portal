@@ -115,11 +115,11 @@ export function NewDeliveryForm({
   // lookup fills both inputs to the price in one call.
   function getRouteFromMaps() {
     if (!maps.ready || !window.google?.maps) {
-      toast('Google Maps is not ready yet');
+      toast('Google Maps is not ready yet', 'danger');
       return;
     }
     if (!pickup.trim() || !dropoff.trim()) {
-      toast('Enter both pickup and drop-off first');
+      toast('Enter both pickup and drop-off first', 'danger');
       return;
     }
     setCalculating(true);
@@ -140,7 +140,7 @@ export function NewDeliveryForm({
           if (element.duration) setDurationMin(Math.round(element.duration.value / 60).toFixed(0));
           toast('Distance and time filled from Google Maps');
         } else {
-          toast('Could not calculate that route — enter distance manually');
+          toast('Could not calculate that route — enter distance manually', 'danger');
         }
       }
     );
@@ -149,33 +149,33 @@ export function NewDeliveryForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!pickup.trim() || !dropoff.trim() || !km) {
-      toast('Add pickup, drop-off and distance first');
+      toast('Add pickup, drop-off and distance first', 'danger');
       return;
     }
     if (itemCategories.length > 0 && !itemCategory) {
-      toast('Choose what kind of item is being sent');
+      toast('Choose what kind of item is being sent', 'danger');
       return;
     }
     if (!declaredValue || Number(declaredValue) <= 0) {
-      toast('Declared value of the item is required');
+      toast('Declared value of the item is required', 'danger');
       return;
     }
     if (!itemPayment) {
-      toast('Say whether the item is prepaid or cash on delivery');
+      toast('Say whether the item is prepaid or cash on delivery', 'danger');
       return;
     }
     if (!deliveryPaidBy) {
-      toast('Say who is paying for the delivery');
+      toast('Say who is paying for the delivery', 'danger');
       return;
     }
     if (!recipientName.trim()) {
-      toast("Enter the recipient's name");
+      toast("Enter the recipient's name", 'danger');
       return;
     }
     // Checked here for a fast answer; the server checks the same thing, and the
     // server's answer is the one that decides.
     if (!isValidPhone(recipientPhone)) {
-      toast("Enter a valid phone number for the recipient");
+      toast("Enter a valid phone number for the recipient", 'danger');
       return;
     }
 
@@ -223,7 +223,7 @@ export function NewDeliveryForm({
       router.refresh();
       setNotify(data.delivery);
     } catch (err) {
-      toast(errMessage(err));
+      toast(errMessage(err), 'danger');
     }
     setBusy(false);
   }

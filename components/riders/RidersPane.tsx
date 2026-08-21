@@ -46,10 +46,10 @@ export function RidersPane({
 
   async function addRider(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim()) return toast('Enter a rider name');
-    if (!form.phone.trim()) return toast('Phone number is required for riders');
-    if (!form.regNumber.trim()) return toast('Motorbike registration number is required');
-    if (!form.model.trim()) return toast('Motorbike model is required');
+    if (!form.name.trim()) return toast('Enter a rider name', 'danger');
+    if (!form.phone.trim()) return toast('Phone number is required for riders', 'danger');
+    if (!form.regNumber.trim()) return toast('Motorbike registration number is required', 'danger');
+    if (!form.model.trim()) return toast('Motorbike model is required', 'danger');
 
     setBusy(true);
     try {
@@ -66,7 +66,7 @@ export function RidersPane({
       toast('Rider added');
       router.refresh();
     } catch (err) {
-      toast(errMessage(err));
+      toast(errMessage(err), 'danger');
     }
     setBusy(false);
   }
@@ -77,7 +77,7 @@ export function RidersPane({
       toast('Rider status updated');
       router.refresh();
     } catch (err) {
-      toast(errMessage(err));
+      toast(errMessage(err), 'danger');
       router.refresh();
     }
   }

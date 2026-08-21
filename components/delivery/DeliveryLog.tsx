@@ -220,7 +220,7 @@ export function DeliveryLog({
       // no merchant column, and only ever their own rows.
       await apiDownload('/deliveries/export', 'somoexpress-deliveries.xlsx');
     } catch (e) {
-      toast(errMessage(e));
+      toast(errMessage(e), 'danger');
     }
     setExporting(false);
   }
@@ -231,7 +231,7 @@ export function DeliveryLog({
       toast('Status updated');
       router.refresh();
     } catch (e) {
-      toast(errMessage(e));
+      toast(errMessage(e), 'danger');
       // Re-sync the select with whatever the server actually has.
       router.refresh();
     }
@@ -248,7 +248,7 @@ export function DeliveryLog({
       // Straight into the job offer, which is the only reason to assign someone.
       if (riderId) setNotify(data.delivery);
     } catch (e) {
-      toast(errMessage(e));
+      toast(errMessage(e), 'danger');
       router.refresh();
     }
   }
@@ -264,7 +264,7 @@ export function DeliveryLog({
       router.refresh();
       setNotify(data.delivery);
     } catch (e) {
-      toast(errMessage(e));
+      toast(errMessage(e), 'danger');
       router.refresh();
     }
     setConfirming('');

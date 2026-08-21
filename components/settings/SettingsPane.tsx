@@ -155,7 +155,7 @@ export function SettingsPane({
       // refresh is what picks up a newly added or removed key.
       router.refresh();
     } catch (err) {
-      toast(errMessage(err));
+      toast(errMessage(err), 'danger');
     }
     setBusy(null);
   }
@@ -175,7 +175,7 @@ export function SettingsPane({
       // The New delivery form is server-rendered with these options.
       router.refresh();
     } catch (err) {
-      toast(errMessage(err));
+      toast(errMessage(err), 'danger');
     }
     setBusy(null);
   }
@@ -186,11 +186,11 @@ export function SettingsPane({
 
   async function saveLogo() {
     if (!logoFile) {
-      toast('Choose an image file first');
+      toast('Choose an image file first', 'danger');
       return;
     }
     if (logoFile.size > MAX_LOGO_BYTES) {
-      toast('Please use a smaller image (under ~900KB)');
+      toast('Please use a smaller image (under ~900KB)', 'danger');
       return;
     }
     setBusy('logo');
@@ -206,7 +206,7 @@ export function SettingsPane({
       toast('Logo saved for the whole portal');
       router.refresh();
     } catch (err) {
-      toast(errMessage(err));
+      toast(errMessage(err), 'danger');
     }
     setBusy(null);
   }
@@ -220,7 +220,7 @@ export function SettingsPane({
       toast('Logo removed');
       router.refresh();
     } catch (err) {
-      toast(errMessage(err));
+      toast(errMessage(err), 'danger');
     }
     setBusy(null);
   }

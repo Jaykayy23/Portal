@@ -47,6 +47,10 @@ body {
   --amber-dim: var(--brand-amber-text);
   --teal: var(--brand-teal);
   --danger: var(--destructive);
+  /* The deepened red, not --danger itself: this one fills a surface carrying
+     white text (the error toast), where the brighter --destructive only reaches
+     about 5:1. Verified 6.7:1 against white. */
+  --danger-fill: var(--destructive-text);
   /* Inter is the single typeface for the whole portal. The three tokens stay
      as separate names so the stylesheet keeps expressing intent (display /
      body / numeric), but they all resolve to Inter now. The literal family
@@ -556,6 +560,13 @@ label.somo-field span {
 .somo-toast.show {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* Errors. Red rather than the teal a confirmation gets, so a refused submit is
+   not mistaken for a successful one at a glance — and never colour alone: the
+   copy itself says what is wrong, and this region is the assertive one. */
+.somo-toast.danger {
+  background: var(--danger-fill);
 }
 
 .somo-table-wrap {

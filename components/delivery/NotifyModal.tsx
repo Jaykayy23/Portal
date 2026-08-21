@@ -144,7 +144,7 @@ function NotifyBody({
       await navigator.clipboard.writeText(link.url);
       toast('Link copied');
     } catch {
-      toast('Could not copy — select the link and copy it by hand.');
+      toast('Could not copy — select the link and copy it by hand.', 'danger');
     }
   }
 

@@ -46,9 +46,9 @@ export function AccountsPane({
 
   async function createAccount(e: React.FormEvent) {
     e.preventDefault();
-    if (!username.trim()) return toast('Enter a username');
-    if (!phone.trim()) return toast('Phone number is required');
-    if (role === 'merchant' && !company.trim()) return toast('Enter the merchant/company name');
+    if (!username.trim()) return toast('Enter a username', 'danger');
+    if (!phone.trim()) return toast('Phone number is required', 'danger');
+    if (role === 'merchant' && !company.trim()) return toast('Enter the merchant/company name', 'danger');
 
     setBusy(true);
     try {
@@ -73,7 +73,7 @@ export function AccountsPane({
       });
       router.refresh();
     } catch (err) {
-      toast(errMessage(err));
+      toast(errMessage(err), 'danger');
     }
     setBusy(false);
   }
@@ -89,7 +89,7 @@ export function AccountsPane({
         value: `${data.account.username} / ${data.password}`,
       });
     } catch (err) {
-      toast(errMessage(err));
+      toast(errMessage(err), 'danger');
     }
   }
 
@@ -102,7 +102,7 @@ export function AccountsPane({
       toast(wantActive ? 'Account reactivated' : 'Account deactivated');
       router.refresh();
     } catch (err) {
-      toast(errMessage(err));
+      toast(errMessage(err), 'danger');
     }
   }
 

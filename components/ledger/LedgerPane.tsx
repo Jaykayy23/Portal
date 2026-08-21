@@ -225,7 +225,7 @@ export function LedgerPane({
       if (merchantId) search.set('merchant', merchantId);
       await apiDownload(`/ledger/export?${search}`, 'somoexpress-ledger.xlsx');
     } catch (e) {
-      toast(errMessage(e));
+      toast(errMessage(e), 'danger');
     }
     setExporting(false);
   }
@@ -243,7 +243,7 @@ export function LedgerPane({
       setVoidReason('');
       router.refresh();
     } catch (e) {
-      toast(errMessage(e));
+      toast(errMessage(e), 'danger');
     }
     setVoidBusy(false);
   }

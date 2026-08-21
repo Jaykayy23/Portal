@@ -49,7 +49,7 @@ export function PricingForm({ params }: { params: PricingParams }) {
       // tab picks them up too.
       router.refresh();
     } catch (err) {
-      toast(errMessage(err));
+      toast(errMessage(err), 'danger');
     }
     setBusy(null);
   }
@@ -69,7 +69,7 @@ export function PricingForm({ params }: { params: PricingParams }) {
       // The New delivery form is server-rendered with these options.
       router.refresh();
     } catch (err) {
-      toast(errMessage(err));
+      toast(errMessage(err), 'danger');
     }
     setBusy(null);
   }

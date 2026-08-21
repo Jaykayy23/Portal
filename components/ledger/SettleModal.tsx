@@ -238,7 +238,7 @@ export function SettleModal({
       );
       onDone();
     } catch (e) {
-      toast(errMessage(e));
+      toast(errMessage(e), 'danger');
     }
     setBusy(false);
   }
