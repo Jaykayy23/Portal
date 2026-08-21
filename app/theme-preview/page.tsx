@@ -31,7 +31,7 @@ export default function ThemePreview() {
 
       <nav className="somo-tabs">
         <span className="somo-tab">New delivery</span>
-        <span className="somo-tab active">My deliveries</span>
+        <span className="somo-tab active">Deliveries</span>
         <span className="somo-tab">Riders</span>
         <span className="somo-tab">Pricing settings</span>
       </nav>

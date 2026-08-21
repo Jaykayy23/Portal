@@ -59,25 +59,81 @@ function Summary({ summary, showPickup }: { summary: LinkSummary; showPickup: bo
 }
 
 /**
- * What changes hands at the door.
+ * What the rider collects, and what they must not.
  *
- * Shown to both sides of the same handover, worded from each one's point of view:
- * the customer is being told what to have ready, the rider what to come away
- * with. Absent entirely when the item is prepaid and the merchant is paying the
- * fee, because "GHS 0.00 to pay" invites a second look at a page whose whole job
- * is one tap.
+ * Said in both directions on purpose, and never left to inference: a rider who
+ * cannot see that an item is prepaid asks the customer for money they have
+ * already paid, and that mistake costs the merchant a customer rather than
+ * costing anyone cash. So the block stays on the page when there is nothing to
+ * collect — it just says so, and turns from amber to teal to be read at a glance.
  *
  * It repeats what the WhatsApp message already said. That is the point — the
  * message is the thing that got scrolled past; this is the thing open in their
  * hand at the door.
  */
-function AmountsDue({ summary, riderFacing }: { summary: LinkSummary; riderFacing: boolean }) {
+function RiderCollects({ summary }: { summary: LinkSummary }) {
+  const { itemCash, deliveryFee, itemPrepaid, feeOnMerchant } = summary.due;
+
+  // Rows filed before payment terms were captured have neither an amount nor a
+  // reason, and guessing at either is the one kind of wrong that moves money.
+  const itemKnown = itemCash > 0 || itemPrepaid;
+  const feeKnown = deliveryFee > 0 || feeOnMerchant;
+  if (!itemKnown && !feeKnown) return null;
+
+  const collectsCash = itemCash > 0 || deliveryFee > 0;
+
+  return (
+    <div className={`somo-confirm-due${collectsCash ? '' : ' clear'}`}>
+      <div className="due-head">{collectsCash ? 'Collect on delivery' : 'Nothing to collect'}</div>
+
+      {itemKnown ? (
+        <div className="due-row">
+          <span className="k">For the item</span>
+          {itemCash > 0 ? (
+            <span className="v">{fmtMoney(itemCash)}</span>
+          ) : (
+            <span className="v note">Prepaid — collect nothing</span>
+          )}
+        </div>
+      ) : null}
+
+      {feeKnown ? (
+        <div className="due-row">
+          <span className="k">Delivery fee</span>
+          {deliveryFee > 0 ? (
+            <span className="v">{fmtMoney(deliveryFee)}</span>
+          ) : (
+            <span className="v note">On the merchant — do not collect</span>
+          )}
+        </div>
+      ) : null}
+
+      {/* Only worth a total when there are two numbers to add up. */}
+      {itemCash > 0 && deliveryFee > 0 ? (
+        <div className="due-row total">
+          <span className="k">Total</span>
+          <span className="v">{fmtMoney(itemCash + deliveryFee)}</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * What the recipient should have ready.
+ *
+ * Absent entirely when the item is prepaid and the merchant is paying the fee,
+ * because "GHS 0.00 to pay" invites a second look at a page whose whole job is
+ * one tap. The rider's side of the same handover is the one that needs the terms
+ * spelled out either way — see RiderCollects.
+ */
+function RecipientPays({ summary }: { summary: LinkSummary }) {
   const { itemCash, deliveryFee } = summary.due;
   if (itemCash <= 0 && deliveryFee <= 0) return null;
 
   return (
     <div className="somo-confirm-due">
-      <div className="due-head">{riderFacing ? 'Collect on delivery' : 'To pay the rider'}</div>
+      <div className="due-head">To pay the rider</div>
       {itemCash > 0 ? (
         <div className="due-row">
           <span className="k">For the item</span>
@@ -90,7 +146,6 @@ function AmountsDue({ summary, riderFacing }: { summary: LinkSummary; riderFacin
           <span className="v">{fmtMoney(deliveryFee)}</span>
         </div>
       ) : null}
-      {/* Only worth a total when there are two numbers to add up. */}
       {itemCash > 0 && deliveryFee > 0 ? (
         <div className="due-row total">
           <span className="k">Total</span>
@@ -254,7 +309,13 @@ export default async function DeliveryLinkPage({
       }
     >
       {view.summary ? <Summary summary={view.summary} showPickup={riderFacing} /> : null}
-      {view.summary ? <AmountsDue summary={view.summary} riderFacing={riderFacing} /> : null}
+      {view.summary ? (
+        riderFacing ? (
+          <RiderCollects summary={view.summary} />
+        ) : (
+          <RecipientPays summary={view.summary} />
+        )
+      ) : null}
     </Card>
   );
 }

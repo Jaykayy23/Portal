@@ -14,7 +14,7 @@ interface Tab {
 
 const TABS: Tab[] = [
   { href: '/portal/new', label: 'New delivery', roles: ['admin', 'ops', 'merchant'] },
-  { href: '/portal/log', label: 'My deliveries', roles: ['admin', 'ops', 'merchant'] },
+  { href: '/portal/log', label: 'Deliveries', roles: ['admin', 'ops', 'merchant'] },
   {
     href: '/portal/ledger',
     label: 'Ledger',

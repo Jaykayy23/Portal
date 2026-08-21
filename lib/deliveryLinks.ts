@@ -120,6 +120,11 @@ function summarise(
     itemCash: delivery.item_payment === 'Cash on delivery' ? Number(delivery.declared_value) : 0,
     // `agreed` is the delivery's price column; see fromRow in lib/deliveries.ts.
     deliveryFee: delivery.delivery_paid_by === 'Customer' ? Number(delivery.agreed) : 0,
+    // Carried as the terms rather than as an absence, so the rider's page can say
+    // "prepaid" outright — the same thing paymentClause in lib/deliveryMessages.ts
+    // spells out in the WhatsApp message.
+    itemPrepaid: delivery.item_payment === 'Prepaid',
+    feeOnMerchant: delivery.delivery_paid_by === 'Merchant',
   };
 
   return {

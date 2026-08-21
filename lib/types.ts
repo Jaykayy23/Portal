@@ -157,6 +157,17 @@ export interface AmountsDue {
   itemCash: number;
   /** The delivery fee. 0 when the merchant is settling it. */
   deliveryFee: number;
+  /**
+   * Why each zero is a zero, so a rider is told rather than left to infer.
+   *
+   * A zero on its own is ambiguous on a phone at somebody's gate — it could mean
+   * "prepaid" or it could mean the terms were never filled in. These say it
+   * outright, and are false rather than true for rows filed before payment terms
+   * were captured: silence is the only safe thing to say about money nobody
+   * recorded.
+   */
+  itemPrepaid: boolean;
+  feeOnMerchant: boolean;
 }
 
 /**
@@ -177,8 +188,9 @@ export interface LinkSummary {
   riderName: string;
   recipientName: string;
   /**
-   * What is payable on handover. Both zero for a prepaid, merchant-paid delivery,
-   * and the page shows nothing at all in that case.
+   * What is payable on handover, and what is not. Both amounts are zero for a
+   * prepaid, merchant-paid delivery — the rider is still told so in words, the
+   * recipient is shown nothing.
    */
   due: AmountsDue;
 }
