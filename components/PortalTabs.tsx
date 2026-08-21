@@ -15,6 +15,15 @@ interface Tab {
 const TABS: Tab[] = [
   { href: '/portal/new', label: 'New delivery', roles: ['admin', 'ops', 'merchant'] },
   { href: '/portal/log', label: 'My deliveries', roles: ['admin', 'ops', 'merchant'] },
+  {
+    href: '/portal/ledger',
+    label: 'Ledger',
+    roles: ['admin', 'ops', 'merchant', 'finance'],
+    // A merchant's ledger is their own company's and nobody else's, and saying so
+    // on the tab saves them wondering what they are about to see.
+    labelByRole: { merchant: 'My ledger' },
+  },
+  { href: '/portal/dashboard', label: 'Dashboard', roles: ['admin', 'ops', 'merchant', 'finance'] },
   { href: '/portal/riders', label: 'Riders', roles: ['admin', 'ops'] },
   { href: '/portal/pricing', label: 'Pricing settings', roles: ['admin'] },
   {

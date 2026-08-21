@@ -22,7 +22,9 @@ export default async function LoginPage({
 
   const { next } = await searchParams;
   // Only same-site paths, so ?next= can't bounce someone to another host.
-  const nextPath = next && next.startsWith('/') && !next.startsWith('//') ? next : '/portal/new';
+  // '/portal' rather than a named tab: the index routes by role, and finance has
+  // no business on the New delivery form.
+  const nextPath = next && next.startsWith('/') && !next.startsWith('//') ? next : '/portal';
 
   return (
     <AuthShell logoDataUrl={await getLogoDataUrl()}>

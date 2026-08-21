@@ -4,9 +4,9 @@
 // the per-domain query modules (lib/accounts.ts, lib/riders.ts, lib/deliveries.ts,
 // lib/settings.ts), which keeps SQL column naming out of the React components.
 
-export type Role = 'admin' | 'ops' | 'merchant';
+export type Role = 'admin' | 'ops' | 'merchant' | 'finance';
 
-export const ROLES: Role[] = ['admin', 'ops', 'merchant'];
+export const ROLES: Role[] = ['admin', 'ops', 'merchant', 'finance'];
 
 /** Account shape safe to send to a browser. */
 export interface PublicAccount {
@@ -323,10 +323,42 @@ export interface SessionUser {
   phone: string;
 }
 
+/**
+ * Can this user move a delivery along — status, rider, alerts?
+ *
+ * Deliberately still just ops and admin. Finance reads every row but writes
+ * none, so it is not in here, and no INSERT or UPDATE policy in the schema
+ * names it either.
+ */
 export function isOpsOrAdmin(user: Pick<SessionUser, 'role'> | null): boolean {
   return user?.role === 'admin' || user?.role === 'ops';
 }
 
 export function isAdmin(user: Pick<SessionUser, 'role'> | null): boolean {
   return user?.role === 'admin';
+}
+
+export function isFinance(user: Pick<SessionUser, 'role'> | null): boolean {
+  return user?.role === 'finance';
+}
+
+/**
+ * Does this user see every merchant's rows, or only their own?
+ *
+ * The read scope, which is not the same question as isOpsOrAdmin: finance sees
+ * the whole business and can change none of it. Anywhere a query decides
+ * whether to show or enrich a merchant column, this is the check — the RLS
+ * SELECT policies are what actually enforce it.
+ */
+export function seesAllMerchants(user: Pick<SessionUser, 'role'> | null): boolean {
+  return user?.role === 'admin' || user?.role === 'ops' || user?.role === 'finance';
+}
+
+/**
+ * Finance has one screen pair — the ledger and the dashboard — and no business
+ * on the request or fulfilment tabs. Used to send them somewhere useful rather
+ * than to a page whose every control would be inert.
+ */
+export function landingPathFor(user: Pick<SessionUser, 'role'> | null): string {
+  return user?.role === 'finance' ? '/portal/ledger' : '/portal/new';
 }

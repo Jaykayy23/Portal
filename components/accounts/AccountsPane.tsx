@@ -10,6 +10,7 @@ import type { PublicAccount, Role } from '@/lib/types';
 const ROLE_CHOICES: { value: Role; label: string }[] = [
   { value: 'merchant', label: 'Merchant' },
   { value: 'ops', label: 'Ops team' },
+  { value: 'finance', label: 'Finance' },
   { value: 'admin', label: 'Admin' },
 ];
 
@@ -115,16 +116,20 @@ export function AccountsPane({
         <p className="somo-card-intro">
           {merchantsOnly ? (
             <>
-              A <strong>merchant</strong> account sees and submits only its own delivery requests.
-              Ops accounts create merchants; ops, admin and pricing accounts are issued by an admin.
+              A <strong>merchant</strong> account sees and submits only its own delivery requests,
+              and its own ledger. Ops accounts create merchants; ops, finance and admin accounts are
+              issued by an admin.
             </>
           ) : (
             <>
-              <strong>Merchant</strong> — sees and submits only their own delivery requests.{' '}
+              <strong>Merchant</strong> — sees and submits only their own delivery requests, with a
+              ledger and dashboard covering their own company.{' '}
               <strong>Ops team</strong> — sees every delivery, manages the rider roster, assigns
               riders, sends alerts, and creates merchant accounts, but can&rsquo;t touch pricing or
-              other accounts. <strong>Admin</strong> — everything Ops can do, plus pricing settings,
-              full account management, and portal settings.
+              other accounts. <strong>Finance</strong> — read-only: the ledger and the dashboard for
+              every merchant, and nothing else. No delivery form, no rider roster, no ability to
+              change a single record. <strong>Admin</strong> — everything Ops can do, plus pricing
+              settings, full account management, and portal settings.
             </>
           )}
         </p>

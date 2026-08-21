@@ -1,3 +1,5 @@
+import type { DeliveryStatus } from './types';
+
 /** GHS money formatting, matching the original portal's display. */
 export function fmtMoney(n: number): string {
   const v = Math.round((Number(n) || 0) * 100) / 100;
@@ -22,4 +24,26 @@ export function fmtDateTime(iso: string): string {
 export function shortId(id: string): string {
   const parts = (id || '').split('_');
   return (parts[1] || id || '').slice(-5);
+}
+
+/**
+ * The badge class for a delivery status.
+ *
+ * Here rather than beside one table because the log and the ledger both render
+ * the status, and two copies of this map is how they end up disagreeing about
+ * what colour 'Declined' is.
+ */
+const STATUS_CLASS: Record<DeliveryStatus, string> = {
+  Requested: 'b-requested',
+  Approved: 'b-assigned',
+  Pending: 'b-requested',
+  Declined: 'b-approval',
+  Assigned: 'b-assigned',
+  'Picked up': 'b-assigned',
+  'Recipient confirmed': 'b-delivered',
+  Delivered: 'b-delivered',
+};
+
+export function statusBadgeClass(status: DeliveryStatus): string {
+  return STATUS_CLASS[status] || 'b-requested';
 }

@@ -4,7 +4,7 @@ import { enforceRateLimit } from '@/lib/rateLimit';
 import { listDeliveriesFor } from '@/lib/deliveries';
 import { getPricingParams } from '@/lib/settings';
 import { deliveriesToXlsx, exportFileName } from '@/lib/deliveryExport';
-import { isOpsOrAdmin } from '@/lib/types';
+import { seesAllMerchants } from '@/lib/types';
 
 // write-excel-file/node needs the Node runtime — it reads and zips buffers.
 export const runtime = 'nodejs';
@@ -36,7 +36,7 @@ export async function GET(req: Request) {
     if (records.length === 0) badRequest('There are no deliveries to export yet.');
 
     const file = await deliveriesToXlsx(records, {
-      includeCustomer: isOpsOrAdmin(user),
+      includeCustomer: seesAllMerchants(user),
       // Deliveries store surge charge ids; the sheet shows the labels.
       surcharges: params.surcharges,
     });

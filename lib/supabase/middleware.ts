@@ -71,7 +71,11 @@ export async function updateSession(request: NextRequest) {
 
   if (claims && (pathname === '/login' || pathname === '/setup')) {
     const url = request.nextUrl.clone();
-    url.pathname = '/portal/new';
+    // The portal index, not a named tab: it reads the role and forwards. This
+    // proxy has the role in `claims` and could decide here, but then two places
+    // would own "where does this role belong", and only one of them would get
+    // updated the next time that changes.
+    url.pathname = '/portal';
     url.search = '';
     return NextResponse.redirect(url);
   }

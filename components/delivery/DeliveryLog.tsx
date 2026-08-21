@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, apiDownload, errMessage } from '@/lib/api';
-import { fmtDateTime, fmtMoney, shortId } from '@/lib/format';
+import { fmtDateTime, fmtMoney, shortId, statusBadgeClass } from '@/lib/format';
 import { useToast } from '@/components/Toast';
 import { NotifyModal } from '@/components/delivery/NotifyModal';
 import {
@@ -73,17 +73,6 @@ function matchesQuery(r: DeliveryWithMerchant, query: string): boolean {
     r.status,
   ].some((field) => (field ?? '').toLowerCase().includes(needle));
 }
-
-const STATUS_CLASS: Record<DeliveryStatus, string> = {
-  Requested: 'b-requested',
-  Approved: 'b-assigned',
-  Pending: 'b-requested',
-  Declined: 'b-approval',
-  Assigned: 'b-assigned',
-  'Picked up': 'b-assigned',
-  'Recipient confirmed': 'b-delivered',
-  Delivered: 'b-delivered',
-};
 
 /**
  * The furthest-along milestone on a row, for the small line under the status.
@@ -498,7 +487,7 @@ export function DeliveryLog({
                         ))}
                       </select>
                     ) : (
-                      <span className={`somo-badge ${STATUS_CLASS[r.status] || 'b-requested'}`}>
+                      <span className={`somo-badge ${statusBadgeClass(r.status)}`}>
                         {r.status}
                       </span>
                     )}

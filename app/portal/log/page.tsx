@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getSessionUser } from '@/lib/session';
+import { getSessionUser, roleAllows } from '@/lib/session';
 import { getPricingParams } from '@/lib/settings';
 import { listDeliveriesFor } from '@/lib/deliveries';
 import { listRiders } from '@/lib/riders';
@@ -9,6 +9,9 @@ import { isOpsOrAdmin } from '@/lib/types';
 export default async function DeliveryLogPage() {
   const user = await getSessionUser();
   if (!user) redirect('/login');
+  // The log is the operational screen — assigning riders, sending alerts,
+  // confirming pickups. Finance watches the money on the ledger instead.
+  if (!roleAllows(user, 'admin', 'ops', 'merchant')) redirect('/portal/ledger');
 
   const canManage = isOpsOrAdmin(user);
   // Scoping is enforced by the RLS SELECT policy, so a merchant's browser never

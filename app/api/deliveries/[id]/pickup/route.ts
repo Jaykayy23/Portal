@@ -13,8 +13,9 @@ const PER_USER = { limit: 30, windowSeconds: 300 };
  * filed. This single transition is the merchant's to make: they are the person
  * physically handing the parcel over.
  *
- * requireUser() here only establishes that somebody is signed in. Which delivery
- * they may move, and what they may change on it, is decided by the RLS policy
+ * The role list here only rules out the roles that can never do this at all —
+ * finance holds no UPDATE policy on deliveries. Which delivery the rest may move,
+ * and what they may change on it, is decided by the RLS policy
  * `deliveries_update_merchant_pickup` and the column guard beside it — see
  * supabase/migrations. A merchant aiming this at another merchant's order updates
  * nothing.
@@ -24,7 +25,7 @@ const PER_USER = { limit: 30, windowSeconds: 300 };
  */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   return handle(async () => {
-    const user = await requireUser();
+    const user = await requireUser('admin', 'ops', 'merchant');
     const { id } = await ctx.params;
     await enforceRateLimit('delivery-pickup', user.id, PER_USER);
 

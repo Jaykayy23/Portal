@@ -24,6 +24,12 @@ interface Body {
  * then sends the recipient their confirmation link — that message comes from the
  * merchant, not from ops.
  *
+ * Finance is excluded here rather than by a policy, and this is the one place
+ * that matters: minting writes through the service-role client, so the read
+ * below — which finance *can* satisfy, since it sees every delivery — would
+ * otherwise be the only gate. Watching the money does not extend to issuing
+ * capability links to riders.
+ *
  * What may be minted is decided by the delivery's status, in issueLink(), not
  * here: a rider-response link only exists while a delivery is Pending, and so
  * on. That check is what stops a link asking a question the delivery has already
@@ -36,7 +42,7 @@ interface Body {
  */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   return handle(async () => {
-    const user = await requireUser();
+    const user = await requireUser('admin', 'ops', 'merchant');
     const { id } = await ctx.params;
     const { purpose } = (await req.json().catch(() => ({}))) as Body;
 

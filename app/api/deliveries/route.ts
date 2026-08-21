@@ -16,6 +16,7 @@ import {
   type ItemPayment,
 } from '@/lib/types';
 
+/** Every delivery the caller is allowed to read — RLS decides which those are. */
 export async function GET() {
   return handle(async () => {
     const user = await requireUser();
@@ -64,7 +65,10 @@ const PER_USER = { limit: 30, windowSeconds: 300 };
  */
 export async function POST(req: Request) {
   return handle(async () => {
-    const user = await requireUser();
+    // Named roles rather than "anyone signed in": the RLS INSERT policy would
+    // reject a finance token anyway, but as a row-level failure it surfaces as a
+    // confusing database message instead of a plain 403.
+    const user = await requireUser('admin', 'ops', 'merchant');
     await enforceRateLimit('delivery-create', user.id, PER_USER);
 
     const key = idempotencyKey(req);

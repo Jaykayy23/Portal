@@ -180,6 +180,10 @@ body {
   background: var(--brand-amber-soft);
   color: var(--amber);
 }
+.somo-role-tag.finance {
+  background: var(--brand-finance-soft);
+  color: var(--brand-finance);
+}
 .somo-merchant-badge button {
   background: var(--panel-2);
   border: 1px solid var(--line);
@@ -1408,6 +1412,340 @@ body:has(.somo-link-page) {
   flex: 1;
 }
 
+/* ---------------------------------------------------------------------------
+   Ledger and dashboard
+   ---------------------------------------------------------------------------
+   Both pages are read-only summaries, so they lean on two shapes the rest of
+   the portal did not need: a grid of figures, and bars. Everything below is
+   built from the same tokens as the tables above — no new colours except the
+   finance role tag, which needed a fourth. */
+
+/* A labelled row of selects above a table. Wraps rather than scrolls: on a
+   phone these stack, and a filter you cannot see is a filter you forget is on. */
+.somo-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.somo-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 160px;
+}
+.somo-filter > span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--somo-muted);
+  font-weight: 500;
+}
+
+/* auto-fit rather than a fixed count: the ledger shows six tiles and the
+   dashboard nine, and neither should have to know the other's layout. */
+.somo-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+.somo-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.somo-kpi .k {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--somo-muted);
+  font-weight: 500;
+}
+.somo-kpi .v {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.somo-kpi .s {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--somo-muted);
+}
+/* The left border carries the tone. Every tile also says which way it points in
+   words, so this is a way to find one, never the only way to read it. */
+.somo-kpi.due {
+  border-left-color: var(--amber);
+}
+.somo-kpi.due .v {
+  color: var(--brand-amber-display);
+}
+.somo-kpi.owed {
+  border-left-color: var(--brand-ops);
+}
+.somo-kpi.owed .v {
+  color: var(--brand-ops);
+}
+.somo-kpi.good {
+  border-left-color: var(--teal);
+}
+.somo-kpi.good .v {
+  color: var(--teal);
+}
+.somo-kpi.bad {
+  border-left-color: var(--destructive-text);
+}
+.somo-kpi.bad .v {
+  color: var(--destructive-text);
+}
+.somo-kpi.flight {
+  border-left-color: var(--line);
+}
+.somo-kpi.flight .v {
+  color: var(--somo-muted);
+}
+.somo-kpi.info {
+  border-left-color: var(--somo-muted);
+}
+
+/* Two cards side by side on a wide screen, stacked on a narrow one. */
+.somo-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  align-items: start;
+  margin-top: 18px;
+}
+/* Grid children are spaced by `gap`, so the generic .somo-card + .somo-card rule
+   would double it on the second column. */
+.somo-split > .somo-card {
+  margin-top: 0;
+}
+/* And a card after a split is not a card after a card, so the sibling rule that
+   normally separates them never fires. */
+.somo-split + .somo-card {
+  margin-top: 18px;
+}
+@media (max-width: 900px) {
+  .somo-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* A section label inside a card, for the two halves of the payment mix. */
+.somo-subhead {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--somo-muted);
+  font-weight: 600;
+  margin: 14px 0 8px;
+}
+.somo-subhead:first-of-type {
+  margin-top: 4px;
+}
+
+/* The ledger's two money columns. */
+.somo-holder-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  border-left: 3px solid var(--line);
+  background: var(--panel-2);
+  min-width: 150px;
+}
+.somo-holder-cell .h {
+  font-size: 12px;
+  font-weight: 600;
+}
+.somo-holder-cell .o {
+  font-size: 11px;
+  color: var(--somo-muted);
+  line-height: 1.35;
+}
+.somo-holder-cell.due {
+  border-left-color: var(--amber);
+  background: var(--brand-amber-soft);
+}
+.somo-holder-cell.due .h {
+  color: var(--amber);
+}
+.somo-holder-cell.owed {
+  border-left-color: var(--brand-ops);
+  background: var(--brand-ops-soft);
+}
+.somo-holder-cell.owed .h {
+  color: var(--brand-ops);
+}
+.somo-holder-cell.settled {
+  border-left-color: var(--teal);
+  background: var(--brand-teal-soft);
+}
+.somo-holder-cell.settled .h {
+  color: var(--teal);
+}
+.somo-holder-cell.flight .h {
+  color: var(--somo-muted);
+}
+
+/* A table inside a card that is a summary rather than the main event: no
+   min-width, so it wraps instead of forcing the card to scroll sideways. */
+table.somo-table.somo-mini-table {
+  min-width: 0;
+  font-size: 12.5px;
+}
+table.somo-table.somo-mini-table td {
+  padding: 7px 8px;
+}
+table.somo-table.somo-mini-table th {
+  padding: 6px 8px;
+}
+.somo-mini-table .somo-rider-sub {
+  display: block;
+}
+.somo-table-wrap.short {
+  max-height: 42vh;
+}
+.net-in {
+  color: var(--brand-amber-display);
+}
+.net-out {
+  color: var(--brand-ops);
+}
+
+.somo-empty.small {
+  padding: 22px 12px;
+  font-size: 12px;
+}
+
+/* Horizontal bars: label, track, number. Grid rather than flex so the labels
+   and the numbers line up down the column whatever length they are. */
+.somo-bars {
+  display: grid;
+  gap: 7px;
+}
+.somo-bar-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 30%) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.somo-bar-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.somo-bar-track {
+  height: 9px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.somo-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--amber-fill);
+  /* A zero-count row still shows a hairline, so an empty category reads as
+     "none" rather than as a missing row. */
+  min-width: 2px;
+}
+.somo-bar-num {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+.somo-bar-pct {
+  color: var(--somo-muted);
+  margin-left: 6px;
+  font-size: 11px;
+}
+
+/* Deliveries per day. Bars are flex children with no fixed width, so 7 days and
+   90 days both fill the card. */
+.somo-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.somo-chart-plot {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 140px;
+  padding: 4px 2px;
+  border-bottom: 1px solid var(--line);
+}
+.somo-chart-col {
+  flex: 1;
+  min-width: 3px;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+.somo-chart-bar {
+  position: relative;
+  display: block;
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: var(--brand-amber-soft);
+  border: 1px solid var(--brand-amber-line, var(--line));
+  border-bottom: none;
+  /* A day with one delivery must still be visible next to a day with forty. */
+  min-height: 2px;
+}
+/* The handed-over portion, filled from the bottom of its own bar. */
+.somo-chart-done {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--teal);
+  border-radius: 0 0 2px 2px;
+}
+.somo-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--somo-muted);
+}
+.somo-chart-peak {
+  font-family: var(--font-mono);
+}
+.somo-chart-key {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--somo-muted);
+}
+.somo-chart-key .swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.somo-chart-key .swatch.filed {
+  background: var(--brand-amber-soft);
+  border: 1px solid var(--brand-amber-line, var(--line));
+}
+.somo-chart-key .swatch.done {
+  background: var(--teal);
+  /* Separates the two keys without needing a wrapper per pair. */
+  margin-left: 10px;
+}
+
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: var(--font-sans);
@@ -1502,6 +1840,10 @@ body:has(.somo-link-page) {
   --brand-teal-line: #c3e3dc;
   --brand-ops: #3b5bdb; /* on white — 5.9:1 */
   --brand-ops-soft: #e8ecfb;
+  /* Finance needed a fourth role colour, and the three in use are all warm or
+     green. Verified 7.1:1 on white and 6.3:1 on its own soft background. */
+  --brand-finance: #5f3dc4;
+  --brand-finance-soft: #efeafc;
   --destructive-soft: #fef2f2;
   --destructive-text: #b42318; /* on --destructive-soft — 6.2:1 */
   --destructive-line: #f3b9b4;

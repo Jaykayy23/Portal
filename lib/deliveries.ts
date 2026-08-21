@@ -2,12 +2,12 @@
 //
 // Merchant isolation is now enforced by RLS (see supabase/migrations). These
 // queries no longer filter by merchant themselves — Postgres does it. The
-// explicit ops/admin branch below exists only to decide whether to *enrich* rows
-// with the merchant's phone number, not to decide who sees what.
+// explicit role branch below exists only to decide whether to *enrich* rows with
+// the merchant's phone number, not to decide who sees what.
 
 import { createSupabaseServerClient } from './supabase/server';
 import { syncRiderAvailability } from './riderAvailability';
-import { isOpsOrAdmin, type Delivery, type DeliveryWithMerchant, type SessionUser } from './types';
+import { seesAllMerchants, type Delivery, type DeliveryWithMerchant, type SessionUser } from './types';
 import type { Database } from './database.types';
 
 type DeliveryRow = Database['public']['Tables']['deliveries']['Row'];
@@ -55,9 +55,10 @@ export function fromRow(r: DeliveryRow): Delivery {
  * Newest first. A merchant receives only their own rows because the RLS SELECT
  * policy allows nothing else — not because of anything in this function.
  *
- * For ops/admin each row is enriched with the merchant's phone for the Notify
- * action. That's done with one extra query over the merchant profiles rather than
- * a lookup per row.
+ * For the roles that see every merchant — ops, admin and finance — each row is
+ * enriched with the merchant's phone: ops needs it for the Notify action, and
+ * finance needs a way to reach whoever owes an invoice. That's done with one
+ * extra query over the merchant profiles rather than a lookup per row.
  */
 export async function listDeliveriesFor(user: SessionUser): Promise<DeliveryWithMerchant[]> {
   const supabase = await createSupabaseServerClient();
@@ -70,7 +71,7 @@ export async function listDeliveriesFor(user: SessionUser): Promise<DeliveryWith
   if (error) throw new DeliveryError(error.message);
   const rows = (data ?? []).map(fromRow);
 
-  if (!isOpsOrAdmin(user)) return rows;
+  if (!seesAllMerchants(user)) return rows;
 
   const { data: merchants } = await supabase
     .from('profiles')

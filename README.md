@@ -2,7 +2,8 @@
 
 A merchant delivery request & pricing tool: merchants log delivery requests with
 distance-based pricing, ops/admin assign riders, and everyone gets one-tap
-WhatsApp/SMS alerts.
+WhatsApp/SMS alerts. A ledger tracks where the money for each delivery physically
+is, and a dashboard counts the traffic behind it.
 
 **Next.js** app on **Supabase** (Postgres + Auth).
 
@@ -17,6 +18,8 @@ somoexpress-portal/
 │   ├── supabase/       server / browser / admin clients
 │   ├── accounts.ts     account provisioning (service-role)
 │   ├── deliveries.ts   delivery queries
+│   ├── ledger.ts       whose pocket each delivery's money is in
+│   ├── analytics.ts    dashboard counting
 │   ├── riders.ts       rider roster
 │   ├── settings.ts     pricing, branding, API keys
 │   ├── session.ts      who is signed in
@@ -113,6 +116,11 @@ Consequences worth knowing:
   for any role but `merchant` gets a 403. Resetting a password and
   activating/deactivating stay admin-only. Ops can read merchant profile rows
   (and only those) so the Merchants pane can list them.
+- **Four roles.** `merchant`, `ops`, `finance`, `admin`. Only an admin issues an
+  ops, finance or admin account. A `finance` account is read-only by construction
+  and lands on the ledger rather than the New delivery form — see the finance
+  bullet under Security model for how that is enforced, and why it needed no
+  "deny" policy.
 
 Roles live in the JWT's **`app_metadata`**, never `user_metadata` — the latter is
 editable by the account holder and must not be trusted for authorization.
@@ -141,18 +149,18 @@ a database guarantee**, not an application one. A merchant's `SELECT` on
 
 Who can reach what:
 
-| Table | anon | merchant | ops | admin |
-| --- | --- | --- | --- | --- |
-| `branding` (logo) | read | read | read | read + write |
-| `pricing_params` | — | read | read | read + write |
-| `delivery_options` | — | read | read | read + write |
-| `profiles` | — | own row | own row + merchant rows | all + write |
-| `deliveries` | — | own rows, insert | all, update | all, update |
-| `riders` | — | — | read + write | read + write |
-| `app_settings` (API keys) | — | — | — | via server only |
-| `delivery_links` | — | — | — | via server only |
-| `rate_limits` | — | — | — | via server only |
-| `idempotency_keys` | — | — | — | via server only |
+| Table | anon | merchant | ops | finance | admin |
+| --- | --- | --- | --- | --- | --- |
+| `branding` (logo) | read | read | read | read | read + write |
+| `pricing_params` | — | read | read | read | read + write |
+| `delivery_options` | — | read | read | read | read + write |
+| `profiles` | — | own row | own row + merchant rows | own row + merchant rows | all + write |
+| `deliveries` | — | own rows, insert | all, update | **all, read-only** | all, update |
+| `riders` | — | — | read + write | — | read + write |
+| `app_settings` (API keys) | — | — | — | — | via server only |
+| `delivery_links` | — | — | — | — | via server only |
+| `rate_limits` | — | — | — | — | via server only |
+| `idempotency_keys` | — | — | — | — | via server only |
 
 `app_settings` is granted to **no** public role: the WhatsApp/SMS provider keys
 are only ever read by the server's service-role client, after the caller has been
@@ -175,6 +183,25 @@ Two deliberate exceptions:
   show the merchant's pickup address. A link stops working once used, once the
   delivery moves past the step it asks about, or (for rider links) the moment the
   delivery is reassigned.
+- **Finance can read everything and write nothing.** The role was added by
+  `20260821100000_finance_role.sql`, which does two things: widen the role check
+  constraint, and add two SELECT policies (every delivery, and merchant profiles
+  for the merchant picker). It adds no INSERT or UPDATE policy anywhere, and it
+  does not need to add a "deny" policy either — every write policy in this schema
+  names the roles it permits, so a new role is inert until something mentions it.
+  That is the property worth keeping when the next role is added.
+
+  Two places back it up in application code, and only one of them matters.
+  `POST /api/deliveries` and `POST /api/deliveries/[id]/pickup` name their roles
+  purely for a clean `403` instead of a confusing row-level failure — RLS would
+  refuse them anyway. `POST /api/deliveries/[id]/links` is the real one: minting a
+  link writes through the service-role client, and the only check under it is
+  "can the caller read this delivery" — which finance can. So the role list on
+  that handler is load-bearing, and it is commented as such.
+
+  Riders are the one table finance might be expected to need and does not: the
+  rider's name, phone and bike are snapshotted onto every delivery row, so
+  "GHS 400 is with Kwame Mensah" reads correctly with no access to the roster.
 - **A merchant may make exactly one edit to their own delivery.** Confirming
   pickup belongs to the merchant — they are the one handing the parcel over — but
   they must not be able to edit anything else on a request they filed. That is two
@@ -203,6 +230,7 @@ would reset on every cold start and count separately in each instance. See
 | `GET /api/auth/bootstrap-status` | IP | 60 per 5 min |
 | `POST /api/deliveries` | user | 30 per 5 min |
 | `GET /api/deliveries/export` | user | 5 per 5 min |
+| `GET /api/ledger/export` | user | 5 per 5 min |
 | `POST /api/deliveries/[id]/links` | user / delivery | 40 / 10 per 5 min |
 | `POST /api/deliveries/[id]/pickup` | user | 30 per 5 min |
 | `POST /api/accounts` | user | 20 per 5 min |
@@ -260,6 +288,14 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
   `listDeliveriesFor` returns — so RLS decides the contents and a merchant's file
   can only hold their own rows. Money and distances are written as numbers with a
   display format, not as text, so the sheet can be summed and sorted.
+
+  The ledger has its own two-sheet export ([lib/ledgerExport.ts](lib/ledgerExport.ts)),
+  separate rather than another flag on the first: one is the operational record
+  (milestones, surge charges, who confirmed what) and the other is the money, and
+  merged they would fight over the same column list. Its filters travel as query
+  parameters so the file matches the screen it was pressed on — exporting
+  "everything" from a screen showing one merchant's overdue invoices is a quiet way
+  to hand somebody the wrong spreadsheet.
 - **Item categories** (what is being sent — food, medication, documents…) are a
   list an admin edits under Settings, stored in `delivery_options`. The New
   delivery form requires a choice whenever the list is non-empty, and the Route
@@ -304,6 +340,48 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
   the amount, because that is the only figure the portal holds for the goods. If
   the COD amount ever needs to differ from the declared value, that wants its own
   column rather than being inferred.
+- **The ledger says whose pocket the money is in.** Those same two payment terms
+  are what it reads, plus one more fact — whether the handover has happened. Cash
+  on delivery that has not been delivered is still in the customer's pocket; the
+  same row an hour later is cash a rider is carrying, and that is the difference
+  between a forecast and a float somebody has to remit. Four positions come out of
+  it:
+
+  | The money | Term | Where it is |
+  | --- | --- | --- |
+  | Goods | `Prepaid` | with the merchant — the customer paid them directly, and none of it passes through us |
+  | Goods | `Cash on delivery` | with the **customer** until handover, then with the **rider**, owed to the merchant |
+  | Fee | `Merchant` | on the merchant's account — they owe us, and it is invoiceable once the delivery completes |
+  | Fee | `Customer` | with the customer until handover, then with the **rider**, owed to us |
+
+  Nothing is stored. [lib/ledger.ts](lib/ledger.ts) derives every position from
+  the delivery row on each read, because a settlement table would be a second
+  source of truth to keep in step with the status — and the status is already the
+  thing that moves. The cost is real and worth naming: the portal has no record of
+  a rider handing their float in, so the figures say what is *owed*, not what is
+  unpaid. Recording remittances wants its own table.
+
+  The page groups by what somebody has to *do* — remit the rider float, raise the
+  merchant invoices, pay merchants their COD takings, leave the in-flight rows
+  alone — with a rider-float table, a per-merchant position in both directions,
+  and a two-sheet Excel export whose Summary tab carries the totals. It is
+  read-only for every role including admin: the money follows from the delivery,
+  so changing it means changing the delivery, which is what the log is for.
+
+  Who sees what is decided in Postgres, not here. Finance, ops and admin get every
+  merchant plus a merchant picker; a merchant gets the same page, and the RLS
+  SELECT policy is what makes it their own company's rows.
+- **The dashboard counts the same rows the log lists.** Volume and completion day
+  by day, where deliveries sit in the lifecycle, the payment mix, item categories,
+  busiest drop-offs, per-merchant and per-rider tables, and repeat recipients —
+  matched on phone number rather than name, since the name is typed fresh every
+  time and the same doorstep gets spelled two ways.
+
+  Counted in the browser from the array the page already loaded, not aggregated in
+  SQL, for the same reason the log filters client-side: a range switch should not
+  cost a round trip. An install big enough for that to feel slow wants paged
+  queries and materialised rollups, which is a different piece of work rather than
+  a bigger version of this one. See [lib/analytics.ts](lib/analytics.ts).
 - **Google Maps** (autocomplete + driving-distance lookup) works once an admin
   saves a Maps API key with Places API and Distance Matrix API enabled and billing
   on.

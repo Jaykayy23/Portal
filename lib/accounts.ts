@@ -165,6 +165,47 @@ export async function updateAccount(
   return { account: publicAccount(updated), password: newPassword };
 }
 
+/** Just enough of a merchant account to put it in a picker. */
+export interface MerchantOption {
+  /** The profile id, which is what deliveries.merchant_id holds. */
+  id: string;
+  name: string;
+  active: boolean;
+}
+
+/**
+ * Every merchant, for the ledger and dashboard merchant pickers.
+ *
+ * Reads through the caller's session, so RLS decides who gets a list at all:
+ * admin, ops and finance each have a SELECT policy covering merchant profiles,
+ * and a merchant viewing their own ledger sees only themselves — which is why
+ * the pages only ask for this when the viewer sees every merchant.
+ *
+ * Deactivated merchants are included on purpose. An account being closed does
+ * not settle what it owes, and a ledger that quietly dropped them would hide
+ * exactly the balance somebody needs to chase.
+ *
+ * The id is the auth user's uuid. It already reaches these roles on every
+ * delivery row they can read (`merchant_id`), so this adds no exposure — and it
+ * is the only key that survives a merchant being renamed, which the snapshotted
+ * company name on a delivery does not.
+ */
+export async function listMerchantOptions(): Promise<MerchantOption[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username, company_name, active')
+    .eq('role', 'merchant')
+    .order('company_name', { ascending: true });
+
+  if (error) throw new AccountError(error.message);
+  return (data ?? []).map((m) => ({
+    id: m.id,
+    name: m.company_name || m.username,
+    active: m.active,
+  }));
+}
+
 /** Used by the merchant-phone lookup for notification messages. */
 export async function findMerchantPhoneByCompany(companyName: string): Promise<string> {
   if (!companyName) return '';

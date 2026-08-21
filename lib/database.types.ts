@@ -29,7 +29,7 @@ export interface Database {
         Row: {
           id: string;
           username: string;
-          role: 'admin' | 'ops' | 'merchant';
+          role: 'admin' | 'ops' | 'merchant' | 'finance';
           company_name: string;
           phone: string;
           active: boolean;
@@ -38,7 +38,7 @@ export interface Database {
         Insert: {
           id: string;
           username: string;
-          role: 'admin' | 'ops' | 'merchant';
+          role: 'admin' | 'ops' | 'merchant' | 'finance';
           company_name: string;
           phone?: string;
           active?: boolean;
@@ -46,7 +46,7 @@ export interface Database {
         };
         Update: {
           username?: string;
-          role?: 'admin' | 'ops' | 'merchant';
+          role?: 'admin' | 'ops' | 'merchant' | 'finance';
           company_name?: string;
           phone?: string;
           active?: boolean;
