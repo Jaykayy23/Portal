@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiDownload, errMessage } from '@/lib/api';
+import { api, apiDownload, errMessage } from '@/lib/api';
 import { fmtDateTime, fmtMoney, shortId, statusBadgeClass } from '@/lib/format';
 import { useToast } from '@/components/Toast';
 import { StatTile } from '@/components/StatTile';
+import { Modal } from '@/components/Modal';
+import { SettleModal, type SettleParty } from '@/components/ledger/SettleModal';
 import { RANGES, filterByRange, type RangeKey } from '@/lib/analytics';
 import {
   COMPANY,
@@ -18,7 +20,9 @@ import {
   type LedgerEntry,
   type LedgerFocus,
   type LedgerPosition,
+  type SettlementMark,
 } from '@/lib/ledger';
+import type { SettlementRecord } from '@/lib/settlements';
 import type { MerchantOption } from '@/lib/accounts';
 import type { DeliveryWithMerchant } from '@/lib/types';
 
@@ -51,10 +55,10 @@ function matchesQuery(r: DeliveryWithMerchant, query: string): boolean {
 /**
  * Which way the money is pointing, as a class name.
  *
- * Four states worth telling apart at a glance: money owed to us, money we owe a
- * merchant, money that has not moved yet, and money already where it belongs.
- * Colour is not the only cue — every cell also says it in words — but on a table
- * of forty rows it is what lets someone find the amber ones.
+ * Four states worth telling apart at a glance: owed to us, owed out to a
+ * merchant, not moved yet, and finished travelling. Colour is not the only cue —
+ * every cell also says it in words — but on a table of forty rows it is what lets
+ * someone find the amber ones.
  */
 function tone(p: LedgerPosition | null): string {
   if (!p) return '';
@@ -63,29 +67,56 @@ function tone(p: LedgerPosition | null): string {
   return p.owedTo === 'Merchant' ? 'owed' : 'due';
 }
 
+/** 'Mar 4' — a settlement's date is a day, not a minute. */
+function fmtDay(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return '';
+  return at.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+
 function HolderCell({ position }: { position: LedgerPosition | null }) {
   if (!position) {
     return <span className="somo-unassigned">—</span>;
   }
+  // The most recent leg, which for a settled position is the one that cleared it.
+  const latest = position.marks[position.marks.length - 1];
   return (
     <div className={`somo-holder-cell ${tone(position)}`} title={position.detail}>
       <span className="h">{position.holderLabel}</span>
       {position.owedLabel ? <span className="o">{position.owedLabel}</span> : null}
+      {latest ? (
+        <span className="o">
+          {fmtDay(latest.settledAt)}
+          {latest.reference ? ` · ${latest.reference}` : ''}
+        </span>
+      ) : null}
     </div>
   );
 }
 
 export function LedgerPane({
   records,
+  marks: markInput,
+  settlements,
   merchants,
   seesAll,
+  canRecord,
   viewerCompany,
 }: {
   records: DeliveryWithMerchant[];
+  /**
+   * Settled legs by delivery id. A plain object rather than a Map because this
+   * crosses the server/client boundary, and an object is unambiguously
+   * serialisable where a Map leans on the framework's serialiser.
+   */
+  marks: Record<string, SettlementMark[]>;
+  settlements: SettlementRecord[];
   /** Merchant accounts for the picker. Empty for a merchant viewing their own. */
   merchants: MerchantOption[];
   /** True for admin, ops and finance — the roles that see every merchant. */
   seesAll: boolean;
+  /** True for admin, ops and finance — the roles that may record money moving. */
+  canRecord: boolean;
   viewerCompany: string;
 }) {
   const router = useRouter();
@@ -106,6 +137,10 @@ export function LedgerPane({
   const [compact, setCompact] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [settling, setSettling] = useState<SettleParty | null>(null);
+  const [voiding, setVoiding] = useState<SettlementRecord | null>(null);
+  const [voidReason, setVoidReason] = useState('');
+  const [voidBusy, setVoidBusy] = useState(false);
 
   useEffect(() => {
     setCompact(window.localStorage.getItem(COMPACT_KEY) === '1');
@@ -124,6 +159,10 @@ export function LedgerPane({
   }
 
   useEffect(() => {
+    // Held while either dialog is open: re-rendering under someone half-way
+    // through ticking off a rider's float is worse than being 25 seconds stale.
+    if (settling || voiding) return;
+
     const refreshIfVisible = () => {
       if (document.visibilityState === 'visible') router.refresh();
     };
@@ -133,7 +172,7 @@ export function LedgerPane({
       clearInterval(timer);
       document.removeEventListener('visibilitychange', refreshIfVisible);
     };
-  }, [router]);
+  }, [router, settling, voiding]);
 
   function refreshNow() {
     setRefreshing(true);
@@ -154,6 +193,24 @@ export function LedgerPane({
       toast(errMessage(e));
     }
     setExporting(false);
+  }
+
+  async function voidNow() {
+    if (!voiding) return;
+    setVoidBusy(true);
+    try {
+      await api(`/settlements/${voiding.id}/void`, {
+        method: 'POST',
+        body: { reason: voidReason.trim() },
+      });
+      toast('Settlement voided — the obligations are open again');
+      setVoiding(null);
+      setVoidReason('');
+      router.refresh();
+    } catch (e) {
+      toast(errMessage(e));
+    }
+    setVoidBusy(false);
   }
 
   /**
@@ -180,11 +237,26 @@ export function LedgerPane({
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [merchants, records]);
 
+  const markMap = useMemo(() => new Map(Object.entries(markInput)), [markInput]);
+
   const entries = useMemo(() => {
     const inRange = filterByRange(records, range);
     const scoped = merchantId ? inRange.filter((r) => r.merchantId === merchantId) : inRange;
-    return toLedger(scoped).filter((e) => matchesFocus(e, focus));
-  }, [records, range, merchantId, focus]);
+    return toLedger(scoped, markMap).filter((e) => matchesFocus(e, focus));
+  }, [records, markMap, range, merchantId, focus]);
+
+  /**
+   * Everything in range for the selected merchant, before the focus filter.
+   *
+   * The settle dialog reads this rather than the visible rows: narrowing the
+   * table to "Cash with riders" should not quietly shrink what a settlement is
+   * allowed to cover.
+   */
+  const settleableEntries = useMemo(() => {
+    const inRange = filterByRange(records, range);
+    const scoped = merchantId ? inRange.filter((r) => r.merchantId === merchantId) : inRange;
+    return toLedger(scoped, markMap);
+  }, [records, markMap, range, merchantId]);
 
   const trimmed = query.trim().toLowerCase();
   const visible = useMemo(
@@ -195,6 +267,21 @@ export function LedgerPane({
   const totals = useMemo(() => ledgerTotals(visible), [visible]);
   const floats = useMemo(() => riderFloat(visible), [visible]);
   const balances = useMemo(() => merchantBalances(visible), [visible]);
+
+  /** Which merchant each delivery belongs to, for scoping the settlement list. */
+  const merchantByDelivery = useMemo(
+    () => new Map(records.map((r) => [r.id, r.merchantId])),
+    [records]
+  );
+
+  const visibleSettlements = useMemo(() => {
+    if (!merchantId) return settlements;
+    return settlements.filter(
+      (s) =>
+        s.merchantId === merchantId ||
+        s.lines.some((l) => merchantByDelivery.get(l.deliveryId) === merchantId)
+    );
+  }, [settlements, merchantId, merchantByDelivery]);
 
   const selectedName = merchantOptions.find((m) => m.id === merchantId)?.name ?? '';
   const scopeLabel = merchantId ? selectedName : seesAll ? 'All merchants' : viewerCompany;
@@ -211,12 +298,15 @@ export function LedgerPane({
           <span className="tag-note">{scopeLabel}</span>
         </h3>
         <p className="somo-card-intro">
-          Every delivery carries two sums, and each of them is in somebody&rsquo;s hands right now.
-          Goods paid for up front sit with the merchant and never reach us; cash on delivery is
-          collected at the door, so once a parcel is handed over that money is with the rider and
-          belongs to the merchant. A delivery fee billed to a merchant account is owed to{' '}
-          {COMPANY}; a fee the customer pays at the door is with the rider, and owed to {COMPANY}
-          too.
+          Every delivery carries two sums, and each is somewhere right now. Goods paid for up front
+          sit with the merchant and never reach us. Cash on delivery is collected at the door, so
+          once a parcel is handed over that money is with the rider, then with {COMPANY} when they
+          remit it, and gone once the merchant has been paid. A fee billed to a merchant account is
+          owed to {COMPANY}; a fee the customer pays at the door is with the rider until they hand
+          it in.
+          {canRecord
+            ? ' Recording a remittance or a payment is what clears these figures.'
+            : ''}
         </p>
 
         <div className="somo-filters">
@@ -268,13 +358,28 @@ export function LedgerPane({
               ))}
             </select>
           </label>
+
+          {canRecord && merchantId ? (
+            <div className="somo-filter">
+              <span>&nbsp;</span>
+              <button
+                type="button"
+                className="somo-btn small"
+                onClick={() =>
+                  setSettling({ kind: 'merchant', id: merchantId, name: selectedName })
+                }
+              >
+                Settle with {selectedName}
+              </button>
+            </div>
+          ) : null}
         </div>
 
         <div className="somo-kpis">
           <StatTile
             label={`Merchants owe ${COMPANY}`}
             value={fmtMoney(totals.merchantInvoicesDue)}
-            sub="fees on account, delivery completed — invoice these"
+            sub="fees on account, delivery complete, unpaid"
             tone="due"
           />
           <StatTile
@@ -286,7 +391,13 @@ export function LedgerPane({
           <StatTile
             label="Riders holding merchant money"
             value={fmtMoney(totals.cashWithRidersForMerchants)}
-            sub="cash on delivery collected, owed back to merchants"
+            sub="cash on delivery collected, not yet remitted"
+            tone="owed"
+          />
+          <StatTile
+            label="Ready to pay merchants"
+            value={fmtMoney(totals.heldForMerchants)}
+            sub={`remitted to ${COMPANY}, owed onward`}
             tone="owed"
           />
           <StatTile
@@ -296,10 +407,15 @@ export function LedgerPane({
             tone="flight"
           />
           <StatTile
+            label="Settled in this view"
+            value={fmtMoney(totals.feesCollected + totals.goodsPaidToMerchants)}
+            sub={`${totals.clearedRows} of ${totals.deliveries} rows fully cleared`}
+            tone="good"
+          />
+          <StatTile
             label="Prepaid, with merchants"
             value={fmtMoney(totals.prepaidWithMerchants)}
             sub="customers already paid the merchant — never ours"
-            tone="info"
           />
           <StatTile
             label="Delivery fees in period"
@@ -307,7 +423,6 @@ export function LedgerPane({
             sub={`${totals.deliveries} ${totals.deliveries === 1 ? 'delivery' : 'deliveries'}${
               totals.untracked > 0 ? ` · ${totals.untracked} with no terms recorded` : ''
             }`}
-            tone="info"
           />
         </div>
       </div>
@@ -318,34 +433,58 @@ export function LedgerPane({
             <div className="somo-card">
               <h3>
                 <span className="n">—</span> Rider float
-                <span className="tag-note">cash in hand</span>
+                <span className="tag-note">cash in hand, not yet remitted</span>
               </h3>
-              <table className="somo-table somo-mini-table">
-                <thead>
-                  <tr>
-                    <th>Rider</th>
-                    <th>Jobs</th>
-                    <th>For merchants</th>
-                    <th>For {COMPANY}</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {floats.map((f) => (
-                    <tr key={f.riderId || f.riderName}>
-                      <td>{f.riderName}</td>
-                      <td className="somo-price-cell">{f.deliveries}</td>
-                      <td className="somo-price-cell">{fmtMoney(f.forMerchants)}</td>
-                      <td className="somo-price-cell">{fmtMoney(f.forUs)}</td>
-                      <td className="somo-agreed-cell">{fmtMoney(f.total)}</td>
+              <div className="somo-table-wrap short">
+                <table className="somo-table somo-mini-table">
+                  <thead>
+                    <tr>
+                      <th>Rider</th>
+                      <th>Jobs</th>
+                      <th>For merchants</th>
+                      <th>For {COMPANY}</th>
+                      <th>Total</th>
+                      {canRecord && <th />}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {floats.map((f) => (
+                      <tr key={f.riderId || f.riderName}>
+                        <td>{f.riderName}</td>
+                        <td className="somo-price-cell">{f.deliveries}</td>
+                        <td className="somo-price-cell">{fmtMoney(f.forMerchants)}</td>
+                        <td className="somo-price-cell">{fmtMoney(f.forUs)}</td>
+                        <td className="somo-agreed-cell">{fmtMoney(f.total)}</td>
+                        {canRecord && (
+                          <td>
+                            <button
+                              type="button"
+                              className="somo-mini-btn"
+                              // A rider removed from the roster leaves rider_id
+                              // null on their old deliveries, and a remittance is
+                              // keyed on that id. Nothing to record it against.
+                              disabled={!f.riderId}
+                              title={
+                                f.riderId
+                                  ? `Record what ${f.riderName} has handed in`
+                                  : 'This rider is no longer on the roster, so a remittance cannot be recorded against them'
+                              }
+                              onClick={() =>
+                                setSettling({ kind: 'rider', id: f.riderId, name: f.riderName })
+                              }
+                            >
+                              Record remittance
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               <div className="somo-note">
-                What each rider is carrying, worked out from the deliveries they have handed over.
-                The portal has no record of a rider handing their float in, so these figures are
-                what is owed, not what is unpaid — clearing them happens off the system.
+                What each rider is carrying: the deliveries they have handed over, less what they
+                have remitted. Recording a remittance takes them off this table.
               </div>
             </div>
           )}
@@ -356,46 +495,56 @@ export function LedgerPane({
                 <span className="n">—</span> Merchant positions
                 <span className="tag-note">both directions</span>
               </h3>
-              <table className="somo-table somo-mini-table">
-                <thead>
-                  <tr>
-                    <th>Merchant</th>
-                    <th>Jobs</th>
-                    <th>Owes us</th>
-                    <th>We owe</th>
-                    <th>Net</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {balances.map((b) => (
-                    <tr key={b.merchantId}>
-                      <td>{b.name}</td>
-                      <td className="somo-price-cell">{b.deliveries}</td>
-                      <td className="somo-price-cell">{fmtMoney(b.owesUs)}</td>
-                      <td className="somo-price-cell">{fmtMoney(b.weOweThem)}</td>
-                      <td className={`somo-price-cell ${b.net >= 0 ? 'net-in' : 'net-out'}`}>
-                        {fmtMoney(Math.abs(b.net))}
-                        <span className="somo-rider-sub">
-                          {b.net >= 0 ? 'to us' : 'to them'}
-                        </span>
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="somo-mini-btn"
-                          onClick={() => setMerchantId(b.merchantId)}
-                        >
-                          Open ledger
-                        </button>
-                      </td>
+              <div className="somo-table-wrap short">
+                <table className="somo-table somo-mini-table">
+                  <thead>
+                    <tr>
+                      <th>Merchant</th>
+                      <th>Owes us</th>
+                      <th>We owe</th>
+                      <th>Ready</th>
+                      <th>Net</th>
+                      <th />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {balances.map((b) => (
+                      <tr key={b.merchantId}>
+                        <td>
+                          {b.name}
+                          <span className="somo-rider-sub">{b.deliveries} jobs</span>
+                        </td>
+                        <td className="somo-price-cell">{fmtMoney(b.owesUs)}</td>
+                        <td className="somo-price-cell">{fmtMoney(b.weOweThem)}</td>
+                        <td
+                          className="somo-price-cell"
+                          title={`Of what we owe them, this much has already been remitted to ${COMPANY} and could be paid out today`}
+                        >
+                          {fmtMoney(b.readyToPayOut)}
+                        </td>
+                        <td className={`somo-price-cell ${b.net >= 0 ? 'net-in' : 'net-out'}`}>
+                          {fmtMoney(Math.abs(b.net))}
+                          <span className="somo-rider-sub">{b.net >= 0 ? 'to us' : 'to them'}</span>
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="somo-mini-btn"
+                            onClick={() => setMerchantId(b.merchantId)}
+                          >
+                            Open
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               <div className="somo-note">
                 Net is what would change hands if everything settled today: fees the merchant owes
-                us, less the cash on delivery our riders are holding for them.
+                us, less the cash-on-delivery takings owed to them. <strong>Ready</strong> is the
+                part of that we are already holding.
+                {canRecord ? ' Open a merchant to settle with them.' : ''}
               </div>
             </div>
           )}
@@ -452,7 +601,7 @@ export function LedgerPane({
             className="somo-btn ghost small"
             onClick={exportLedger}
             disabled={exporting || visible.length === 0}
-            title="Download these rows, plus a totals sheet, as an Excel file"
+            title="Download these rows, plus a totals sheet and the settlements, as an Excel file"
           >
             {exporting ? 'Preparing…' : 'Export to Excel'}
           </button>
@@ -549,7 +698,9 @@ export function LedgerPane({
                             )}
                             <br />
                             <span className="somo-rider-sub">
-                              {r.deliveryPaidBy ? `${r.deliveryPaidBy.toLowerCase()} pays fee` : '—'}
+                              {r.deliveryPaidBy
+                                ? `${r.deliveryPaidBy.toLowerCase()} pays fee`
+                                : '—'}
                             </span>
                           </>
                         ) : (
@@ -602,11 +753,161 @@ export function LedgerPane({
         )}
 
         <div className="somo-note">
-          This page is read-only for every role, including admin — statuses and rider assignments
-          are changed in the delivery log, and the money position follows from them. Rows filed
-          before payment terms were captured show a dash rather than a guess.
+          Statuses and rider assignments are changed in the delivery log, not here — the money
+          position follows from them. What this page writes is settlements: the record that an
+          obligation was met. Rows filed before payment terms were captured show a dash rather than
+          a guess.
         </div>
       </div>
+
+      <div className="somo-card">
+        <h3>
+          <span className="n">—</span> Settlements recorded
+          <span className="tag-note">
+            {visibleSettlements.length} {visibleSettlements.length === 1 ? 'entry' : 'entries'}
+          </span>
+        </h3>
+
+        {visibleSettlements.length === 0 ? (
+          <div className="somo-empty small">
+            {canRecord
+              ? 'Nothing recorded yet. Record a rider’s remittance from the float table above, or open a merchant to settle with them.'
+              : 'No settlements recorded yet.'}
+          </div>
+        ) : (
+          <div className="somo-table-wrap short">
+            <table className="somo-table somo-mini-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>With</th>
+                  <th>In</th>
+                  <th>Out</th>
+                  <th>How</th>
+                  <th>Covers</th>
+                  {canRecord && <th />}
+                </tr>
+              </thead>
+              <tbody>
+                {visibleSettlements.map((s) => (
+                  <tr key={s.id} className={s.voidedAt ? 'somo-voided' : undefined}>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      {fmtDateTime(s.settledAt)}
+                      {s.recordedByName ? (
+                        <span className="somo-rider-sub">by {s.recordedByName}</span>
+                      ) : null}
+                    </td>
+                    <td>
+                      {s.riderName || s.merchantName || '—'}
+                      <span className="somo-rider-sub">
+                        {s.riderName ? 'rider remittance' : 'merchant settlement'}
+                      </span>
+                    </td>
+                    <td className="somo-price-cell">
+                      {s.totalIn > 0 ? fmtMoney(s.totalIn) : '—'}
+                    </td>
+                    <td className="somo-price-cell">
+                      {s.totalOut > 0 ? fmtMoney(s.totalOut) : '—'}
+                    </td>
+                    <td>
+                      {s.method || '—'}
+                      {s.reference ? <span className="somo-rider-sub">{s.reference}</span> : null}
+                    </td>
+                    <td>
+                      {s.lines.length} {s.lines.length === 1 ? 'obligation' : 'obligations'}
+                      <span
+                        className="somo-rider-sub"
+                        title={s.lines.map((l) => `#${l.orderNo} ${l.stream} ${l.leg}`).join(', ')}
+                      >
+                        {s.lines
+                          .slice(0, 3)
+                          .map((l) => `#${l.orderNo}`)
+                          .join(' ')}
+                        {s.lines.length > 3 ? ` +${s.lines.length - 3}` : ''}
+                      </span>
+                      {s.note ? <span className="somo-rider-sub">{s.note}</span> : null}
+                      {s.voidedAt ? (
+                        <span className="somo-void-note">
+                          voided {fmtDay(s.voidedAt)}
+                          {s.voidedByName ? ` by ${s.voidedByName}` : ''} — {s.voidReason}
+                        </span>
+                      ) : null}
+                    </td>
+                    {canRecord && (
+                      <td>
+                        {s.voidedAt ? (
+                          <span className="somo-unassigned">voided</span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="somo-mini-btn"
+                            onClick={() => {
+                              setVoiding(s);
+                              setVoidReason('');
+                            }}
+                          >
+                            Void
+                          </button>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="somo-note">
+          A settlement is never deleted. Voiding one stamps who did it and why, keeps it in this
+          list, and hands the obligations back to the ledger as unsettled — so money can never look
+          paid, or unpaid, with nothing to say how it got that way.
+        </div>
+      </div>
+
+      <SettleModal
+        party={settling}
+        entries={settleableEntries}
+        onClose={() => setSettling(null)}
+        onDone={() => {
+          setSettling(null);
+          router.refresh();
+        }}
+      />
+
+      <Modal
+        open={!!voiding}
+        title="Void this settlement"
+        description={
+          voiding
+            ? `Recorded ${fmtDateTime(voiding.settledAt)} with ${
+                voiding.riderName || voiding.merchantName
+              }. The ${voiding.lines.length} obligation${
+                voiding.lines.length === 1 ? '' : 's'
+              } it cleared will show as unsettled again.`
+            : ''
+        }
+        closeLabel="Cancel"
+        onClose={() => setVoiding(null)}
+      >
+        <label className="somo-field">
+          <span>Why is it being voided? (required)</span>
+          <input
+            className="somo-input"
+            placeholder="e.g. recorded against the wrong rider"
+            value={voidReason}
+            onChange={(e) => setVoidReason(e.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          className="somo-btn decline small"
+          disabled={voidBusy || !voidReason.trim()}
+          onClick={voidNow}
+        >
+          {voidBusy ? 'Voiding…' : 'Void settlement'}
+        </button>
+      </Modal>
     </>
   );
 }

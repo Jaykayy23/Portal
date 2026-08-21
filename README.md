@@ -3,7 +3,7 @@
 A merchant delivery request & pricing tool: merchants log delivery requests with
 distance-based pricing, ops/admin assign riders, and everyone gets one-tap
 WhatsApp/SMS alerts. A ledger tracks where the money for each delivery physically
-is, and a dashboard counts the traffic behind it.
+is and records it being settled, and a dashboard counts the traffic behind it.
 
 **Next.js** app on **Supabase** (Postgres + Auth).
 
@@ -19,6 +19,7 @@ somoexpress-portal/
 │   ├── accounts.ts     account provisioning (service-role)
 │   ├── deliveries.ts   delivery queries
 │   ├── ledger.ts       whose pocket each delivery's money is in
+│   ├── settlements.ts  recording that it moved
 │   ├── analytics.ts    dashboard counting
 │   ├── riders.ts       rider roster
 │   ├── settings.ts     pricing, branding, API keys
@@ -157,6 +158,8 @@ Who can reach what:
 | `profiles` | — | own row | own row + merchant rows | own row + merchant rows | all + write |
 | `deliveries` | — | own rows, insert | all, update | **all, read-only** | all, update |
 | `riders` | — | — | read + write | — | read + write |
+| `settlements` | — | own party's | read | read | read |
+| `settlement_lines` | — | own deliveries | read | read | read |
 | `app_settings` (API keys) | — | — | — | — | via server only |
 | `delivery_links` | — | — | — | — | via server only |
 | `rate_limits` | — | — | — | — | via server only |
@@ -183,13 +186,19 @@ Two deliberate exceptions:
   show the merchant's pickup address. A link stops working once used, once the
   delivery moves past the step it asks about, or (for rider links) the moment the
   delivery is reassigned.
-- **Finance can read everything and write nothing.** The role was added by
+- **Finance reads everything and writes one thing.** The role was added by
   `20260821100000_finance_role.sql`, which does two things: widen the role check
   constraint, and add two SELECT policies (every delivery, and merchant profiles
   for the merchant picker). It adds no INSERT or UPDATE policy anywhere, and it
   does not need to add a "deny" policy either — every write policy in this schema
   names the roles it permits, so a new role is inert until something mentions it.
   That is the property worth keeping when the next role is added.
+
+  The one thing finance writes is a **settlement** — the record that money
+  changed hands — and even that is not an INSERT policy: `authenticated` holds no
+  write grant on those tables at all, and the only path in is a SECURITY DEFINER
+  function that checks the role itself. Finance still cannot touch a delivery, a
+  rider, an account or a price. See the settlements section under §4.
 
   Two places back it up in application code, and only one of them matters.
   `POST /api/deliveries` and `POST /api/deliveries/[id]/pickup` name their roles
@@ -231,6 +240,8 @@ would reset on every cold start and count separately in each instance. See
 | `POST /api/deliveries` | user | 30 per 5 min |
 | `GET /api/deliveries/export` | user | 5 per 5 min |
 | `GET /api/ledger/export` | user | 5 per 5 min |
+| `POST /api/settlements` | user | 30 per 5 min |
+| `POST /api/settlements/[id]/void` | user | 20 per 5 min |
 | `POST /api/deliveries/[id]/links` | user / delivery | 40 / 10 per 5 min |
 | `POST /api/deliveries/[id]/pickup` | user | 30 per 5 min |
 | `POST /api/accounts` | user | 20 per 5 min |
@@ -258,6 +269,11 @@ a merchant on a bad signal who taps twice gets back the delivery already filed
 rather than a duplicate. Successful responses are cached for 24 hours in
 `idempotency_keys`; failures release the key so a corrected retry works normally,
 and a second request arriving while the first is still running gets a `409`.
+
+`POST /api/settlements` takes one too, and it is the endpoint where a lost
+response hurts most: the money really was recorded, and a blind retry would be
+refused by the one-obligation-one-leg index and read back as a failure by whoever
+is standing at the desk with the cash.
 
 The other write endpoints are already idempotent by construction and take no key:
 `PATCH /api/deliveries/[id]` sets the same row to the same values, link redemption
@@ -371,6 +387,66 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
   Who sees what is decided in Postgres, not here. Finance, ops and admin get every
   merchant plus a merchant picker; a merchant gets the same page, and the RLS
   SELECT policy is what makes it their own company's rows.
+- **Settlements are what make those figures clear.** Without them the ledger only
+  ever grew: a rider who handed their float in on Monday still showed as carrying
+  it on Friday. `20260821120000_settlements.sql` adds the other half.
+
+  Each sum travels a route, written as **legs** — `in` meaning money reaching
+  SomoExpress, `out` meaning money leaving it:
+
+  | The money | Term | Route |
+  | --- | --- | --- |
+  | Goods | `Cash on delivery` | customer → rider –[in]→ us –[out]→ merchant |
+  | Goods | `Prepaid` | customer → merchant. Never ours, so no legs at all |
+  | Fee | `Customer` | customer → rider –[in]→ us. Ours on arrival |
+  | Fee | `Merchant` | merchant –[in]→ us. Ours on arrival |
+
+  So the goods stream has two legs and the fee stream has one, and there is no
+  such thing as a fee going out. `settlement_lines` is one row per leg travelled,
+  and a **partial unique index** on `(delivery_id, stream, leg) where not voided`
+  is what makes a leg travel exactly once. `settlements` is the event above them —
+  who, when, how, receipt number — so a rider handing over one bundle of cash
+  covering eight deliveries is one action rather than eight.
+
+  There is no `kind` column, because a merchant settlement can run both ways at
+  once: a merchant who owes GHS 400 in fees while we hold GHS 2,000 of their
+  cash-on-delivery takings settles with one payment of GHS 1,600, and that
+  settlement carries fee `in` lines and goods `out` lines together. The lines say
+  what moved; a kind column would only be a second opinion.
+
+  **The writes are functions, not policies**, which is the one place this schema
+  departs from "RLS decides". Two reasons, both real: a settlement is a parent row
+  plus N lines and supabase-js has no transactions, so two round trips can leave a
+  receipt for nothing; and whether a leg is even legal depends on the delivery's
+  status and on which legs it has already travelled, which is a read of another
+  table per line that a `WITH CHECK` cannot do. So `record_settlement` and
+  `void_settlement` are SECURITY DEFINER, check the caller's role themselves, and
+  `authenticated` holds no INSERT, UPDATE or DELETE grant on either table. That is
+  stronger than an INSERT policy, not weaker: no shape of request writes a
+  settlement without passing these rules, and the amount is read from the delivery
+  row rather than sent by the caller — the same rule the delivery price follows.
+
+  One consequence worth knowing: these are the **only two tables with RLS enabled
+  but not forced**. A definer function runs as the table owner, and `FORCE` would
+  subject the owner to policies that deliberately do not exist for INSERT — which
+  would refuse the function's own writes. Adding INSERT policies to let them
+  through would be the wrong fix, because the day somebody adds a matching grant,
+  direct inserts would start succeeding and skip every check.
+
+  **Who may record:** finance, ops and admin. Finance because watching the money
+  is the job; ops because riders hand cash to whoever is at base, and a rule that
+  waits for finance to be present is a rule that ends with cash unrecorded.
+
+  **Voided, never deleted.** Unwinding a settlement stamps who did it and why,
+  keeps it in the list, and hands the obligations back to the ledger as unsettled —
+  the partial index ignores voided lines, and so does the ledger. A settlement that
+  vanished would leave money looking unpaid with nothing to say how it got that
+  way, which is the one thing a ledger must never do.
+
+  What is still outside the system: nothing forces a rider to remit, and nothing
+  reconciles a declared bundle against the lines it covers. If a rider brings less
+  than they owe, you untick what they have not brought and record the rest when it
+  arrives.
 - **The dashboard counts the same rows the log lists.** Volume and completion day
   by day, where deliveries sit in the lifecycle, the payment mix, item categories,
   busiest drop-offs, per-merchant and per-rider tables, and repeat recipients —

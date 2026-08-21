@@ -243,6 +243,71 @@ export interface Database {
         Update: { item_categories?: string[] };
         Relationships: [];
       };
+      settlements: {
+        Row: {
+          id: string;
+          created_at: string;
+          settled_at: string;
+          rider_id: string | null;
+          rider_name: string;
+          merchant_id: string | null;
+          method: '' | 'Cash' | 'Mobile money' | 'Bank transfer' | 'Cheque' | 'Offset';
+          reference: string;
+          note: string;
+          recorded_by: string;
+          recorded_by_name: string;
+          voided_at: string | null;
+          voided_by: string | null;
+          voided_by_name: string;
+          void_reason: string;
+        };
+        // Written only by public.record_settlement() / public.void_settlement(),
+        // which run as owner. `authenticated` holds no INSERT or UPDATE grant on
+        // this table, so these two exist for the service-role client alone.
+        Insert: {
+          id?: string;
+          settled_at?: string;
+          rider_id?: string | null;
+          rider_name?: string;
+          merchant_id?: string | null;
+          method?: '' | 'Cash' | 'Mobile money' | 'Bank transfer' | 'Cheque' | 'Offset';
+          reference?: string;
+          note?: string;
+          recorded_by: string;
+          recorded_by_name?: string;
+        };
+        Update: {
+          voided_at?: string | null;
+          voided_by?: string | null;
+          voided_by_name?: string;
+          void_reason?: string;
+        };
+        Relationships: [];
+      };
+      settlement_lines: {
+        Row: {
+          id: string;
+          settlement_id: string;
+          delivery_id: string;
+          stream: 'goods' | 'fee';
+          leg: 'in' | 'out';
+          amount: number;
+          settled_at: string;
+          voided: boolean;
+        };
+        Insert: {
+          id?: string;
+          settlement_id: string;
+          delivery_id: string;
+          stream: 'goods' | 'fee';
+          leg: 'in' | 'out';
+          amount: number;
+          settled_at: string;
+          voided?: boolean;
+        };
+        Update: { voided?: boolean };
+        Relationships: [];
+      };
       branding: {
         Row: { id: number; logo_data_url: string; updated_at: string };
         Insert: { id?: number; logo_data_url?: string };
@@ -279,6 +344,25 @@ export interface Database {
       rate_limit_hit: {
         Args: { p_bucket: string; p_limit: number; p_window_seconds: number };
         Returns: { allowed: boolean; retry_after_seconds: number }[];
+      };
+      // Note the absent amount: record_settlement reads every figure from the
+      // delivery row itself, so there is nothing for a caller to propose.
+      record_settlement: {
+        Args: {
+          p_rider_id: string | null;
+          p_merchant_id: string | null;
+          p_method: string;
+          p_reference: string;
+          p_note: string;
+          p_settled_at: string | null;
+          p_lines: { delivery_id: string; stream: 'goods' | 'fee'; leg: 'in' | 'out' }[];
+        };
+        /** The new settlement's id. */
+        Returns: string;
+      };
+      void_settlement: {
+        Args: { p_id: string; p_reason: string };
+        Returns: undefined;
       };
     };
     Enums: Record<never, never>;

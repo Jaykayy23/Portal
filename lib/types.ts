@@ -355,6 +355,23 @@ export function seesAllMerchants(user: Pick<SessionUser, 'role'> | null): boolea
 }
 
 /**
+ * May this user record that money changed hands — a rider remitting a float, a
+ * merchant paying their invoice, us paying a merchant their takings?
+ *
+ * Finance because watching the money is the job. Ops because riders hand cash to
+ * whoever is at base, and a rule that waits for finance to be present is a rule
+ * that ends with cash unrecorded. The same three may void a settlement, which is
+ * always stamped with who did it and why.
+ *
+ * This is the readable version of the check; `record_settlement` and
+ * `void_settlement` in the database each re-check it themselves, and are the only
+ * way either table is ever written.
+ */
+export function canRecordSettlements(user: Pick<SessionUser, 'role'> | null): boolean {
+  return user?.role === 'admin' || user?.role === 'ops' || user?.role === 'finance';
+}
+
+/**
  * Finance has one screen pair — the ledger and the dashboard — and no business
  * on the request or fulfilment tabs. Used to send them somewhere useful rather
  * than to a page whose every control would be inert.

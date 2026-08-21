@@ -1746,6 +1746,127 @@ table.somo-table.somo-mini-table th {
   margin-left: 10px;
 }
 
+/* --- Recording a settlement ------------------------------------------------
+   The dialog is a list of obligations with tickboxes, which is a shape the
+   portal did not have: the checks under Settings are a handful of options, this
+   is a dozen rows of money that each need reading before they are agreed to. */
+.somo-settle-list {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  /* Twelve rows is a normal shift's float; beyond that it scrolls rather than
+     pushing the totals and the Record button off the screen. */
+  max-height: 38vh;
+  overflow-y: auto;
+  margin-bottom: 14px;
+}
+.somo-settle-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--somo-muted);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.somo-settle-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.somo-settle-row:last-child {
+  border-bottom: none;
+}
+.somo-settle-row:hover {
+  background: rgb(0 0 0 / 0.02);
+}
+/* Unticked rows read as excluded rather than merely unhighlighted — the whole
+   risk in this dialog is agreeing to a line nobody meant to include. */
+.somo-settle-row:not(.on) .what {
+  opacity: 0.5;
+}
+.somo-settle-row:not(.on) .amt {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.somo-settle-row .what {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.somo-settle-row .line1 {
+  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.somo-settle-row .line2 {
+  font-size: 11px;
+  color: var(--somo-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.somo-settle-row .amt {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+/* Which way this leg points. Two words would crowd the row; the tag plus the
+   totals block below is enough to read the direction. */
+.somo-leg-tag {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 999px;
+}
+.somo-leg-tag.in {
+  background: var(--brand-amber-soft);
+  color: var(--amber);
+}
+.somo-leg-tag.out {
+  background: var(--brand-ops-soft);
+  color: var(--brand-ops);
+}
+.somo-settle-totals {
+  background: var(--brand-amber-soft);
+  border: 1px solid var(--brand-amber-line, var(--line));
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+/* --- Voided settlements ---------------------------------------------------
+   Present but plainly undone. Not hidden: a settlement that vanished would
+   leave money looking unpaid with nothing to say why. */
+tr.somo-voided td {
+  opacity: 0.55;
+}
+tr.somo-voided .somo-price-cell,
+tr.somo-voided .somo-agreed-cell {
+  text-decoration: line-through;
+}
+.somo-void-note {
+  display: block;
+  font-size: 11px;
+  color: var(--destructive-text);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: var(--font-sans);

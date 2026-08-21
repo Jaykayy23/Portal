@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { badRequest, handle, requireUser } from '@/lib/http';
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { listDeliveriesFor } from '@/lib/deliveries';
+import { listSettlementMarks, listSettlements } from '@/lib/settlements';
 import { filterByRange, RANGES, type RangeKey } from '@/lib/analytics';
 import { LEDGER_FOCUSES, matchesFocus, toLedger, type LedgerFocus } from '@/lib/ledger';
 import { ledgerFileName, ledgerToXlsx } from '@/lib/ledgerExport';
@@ -43,10 +44,14 @@ export async function GET(req: Request) {
     const focus = LEDGER_FOCUSES.find((f) => f.value === focusParam)?.value;
     if (!focus) badRequest('Unknown ledger filter.');
 
-    const all = await listDeliveriesFor(user);
+    const [all, marks, settlements] = await Promise.all([
+      listDeliveriesFor(user),
+      listSettlementMarks(),
+      listSettlements(),
+    ]);
     const inRange = filterByRange(all, range as RangeKey);
     const scoped = merchantId ? inRange.filter((r) => r.merchantId === merchantId) : inRange;
-    const entries = toLedger(scoped).filter((e) => matchesFocus(e, focus as LedgerFocus));
+    const entries = toLedger(scoped, marks).filter((e) => matchesFocus(e, focus as LedgerFocus));
 
     // The button is hidden when the table is empty; this covers someone reaching
     // the URL directly, where a workbook of headers would only be puzzling.
@@ -65,6 +70,16 @@ export async function GET(req: Request) {
     const file = await ledgerToXlsx(entries, {
       includeMerchant: seesAllMerchants(user) && !merchantId,
       scopeLabel: `${merchantLabel} · ${rangeLabel} · ${focusLabel}`,
+      // Scoped to the merchant when one is selected, so the sheet matches the
+      // rows beside it. A rider's remittance that happens to cover this
+      // merchant's orders counts as theirs.
+      settlements: merchantId
+        ? settlements.filter(
+            (s) =>
+              s.merchantId === merchantId ||
+              s.lines.some((l) => scoped.some((d) => d.id === l.deliveryId))
+          )
+        : settlements,
     });
     const filename = ledgerFileName();
 

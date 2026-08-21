@@ -10,8 +10,9 @@
 // Two sheets, because a finance person opening this wants the headline first and
 // the workings second:
 //
-//   Summary   the totals, the rider float, and each merchant's position
-//   Ledger    one row per delivery, with both money positions spelled out
+//   Summary       the totals, the rider float, and each merchant's position
+//   Ledger        one row per delivery, with both money positions spelled out
+//   Settlements   the remittance book: what was paid, by whom, against what
 //
 // Amounts are written as numbers with a currency format rather than as "GHS
 // 51.25" strings, so every column can be summed and sorted — the same rule
@@ -27,7 +28,9 @@ import {
   merchantBalances,
   riderFloat,
   type LedgerEntry,
+  type LedgerPosition,
 } from './ledger';
+import type { SettlementRecord } from './settlements';
 
 const MONEY = '"GHS" #,##0.00';
 
@@ -61,6 +64,19 @@ export interface LedgerExportOptions {
   includeMerchant: boolean;
   /** Shown on the summary sheet so a filtered export says what it was filtered to. */
   scopeLabel: string;
+  /** The remittance book for the third sheet. Empty leaves the sheet out. */
+  settlements: SettlementRecord[];
+}
+
+/** When a position cleared, or null while it is still travelling. */
+function clearedOn(position: LedgerPosition | null) {
+  if (!position || !position.settled) return null;
+  const last = position.marks[position.marks.length - 1];
+  if (!last) return null;
+  const at = new Date(last.settledAt);
+  return Number.isNaN(at.getTime())
+    ? null
+    : ({ type: Date, value: at, format: 'dd mmm yyyy' } as const);
 }
 
 function columnsFor(opts: LedgerExportOptions): Column<LedgerEntry>[] {
@@ -140,6 +156,13 @@ function columnsFor(opts: LedgerExportOptions): Column<LedgerEntry>[] {
       // filters and counts correctly, a word for "nothing" does not.
       cell: ({ item }) => (item && item.owedTo ? item.owedTo : null),
     },
+    {
+      header: header('Goods settled'),
+      width: 15,
+      // Blank while the money is still moving, which is what makes the column
+      // filterable: non-empty means finished.
+      cell: ({ item }) => clearedOn(item),
+    },
     { header: header('Goods note'), width: 52, cell: ({ item }) => item?.detail ?? null },
 
     // --- the fee ---------------------------------------------------------
@@ -155,6 +178,7 @@ function columnsFor(opts: LedgerExportOptions): Column<LedgerEntry>[] {
       width: 22,
       cell: ({ fee }) => (fee && fee.owedTo ? fee.owedTo : null),
     },
+    { header: header('Fee settled'), width: 15, cell: ({ fee }) => clearedOn(fee) },
     { header: header('Fee note'), width: 52, cell: ({ fee }) => fee?.detail ?? null },
 
     {
@@ -189,6 +213,8 @@ function summarySheet(entries: LedgerEntry[], opts: LedgerExportOptions): SheetD
     line('Cash with riders, owed to merchants', totals.cashWithRidersForMerchants),
     line(`Cash with riders, owed to ${COMPANY}`, totals.cashWithRidersForUs),
     line('Rider float, total', totals.cashWithRiders),
+    line(`Remitted to ${COMPANY}, owed onward to merchants`, totals.heldForMerchants),
+    line('Owed to merchants, whoever is holding it', totals.owedToMerchants),
     line(`Merchant invoices due to ${COMPANY}`, totals.merchantInvoicesDue),
     line('Total outstanding', totals.outstanding),
     [],
@@ -196,6 +222,11 @@ function summarySheet(entries: LedgerEntry[], opts: LedgerExportOptions): SheetD
     line('Cash on delivery still to collect', totals.codAwaitingCollection),
     line('Fees still to collect at the door', totals.feesAwaitingCollection),
     line('Merchant fees accruing on open deliveries', totals.merchantFeesAccruing),
+    [],
+    heading('Settled'),
+    line(`Fees that have reached ${COMPANY}`, totals.feesCollected),
+    line('Cash-on-delivery takings paid to merchants', totals.goodsPaidToMerchants),
+    line('Rows with nothing left to move', totals.clearedRows, false),
     [],
     heading('For information'),
     line('Prepaid goods, already with merchants', totals.prepaidWithMerchants),
@@ -252,18 +283,74 @@ function summarySheet(entries: LedgerEntry[], opts: LedgerExportOptions): SheetD
   return rows;
 }
 
+/**
+ * The remittance book as its own sheet.
+ *
+ * Voided settlements stay in, marked. "We recorded this and then unwound it, here
+ * is who and why" is the thing a sheet that quietly omitted them could not say,
+ * and it is the first question anyone reconciling will ask.
+ */
+function settlementsSheet(settlements: SettlementRecord[]): SheetData {
+  const rows: SheetData = [
+    [
+      header('Date'),
+      header('With'),
+      header('Kind'),
+      header(`In to ${COMPANY}`),
+      header('Out'),
+      header('How'),
+      header('Reference'),
+      header('Orders'),
+      header('Recorded by'),
+      header('Voided'),
+      header('Void reason'),
+      header('Note'),
+    ],
+  ];
+
+  for (const s of settlements) {
+    const at = new Date(s.settledAt);
+    const voided = s.voidedAt ? new Date(s.voidedAt) : null;
+    rows.push([
+      Number.isNaN(at.getTime()) ? null : { type: Date, value: at, format: 'dd mmm yyyy hh:mm' },
+      s.riderName || s.merchantName || null,
+      s.riderName ? 'Rider remittance' : 'Merchant settlement',
+      s.totalIn > 0 ? money(s.totalIn) : null,
+      s.totalOut > 0 ? money(s.totalOut) : null,
+      s.method || null,
+      s.reference || null,
+      s.lines.map((l) => `#${l.orderNo} ${l.stream}/${l.leg}`).join(', ') || null,
+      s.recordedByName || null,
+      voided && !Number.isNaN(voided.getTime())
+        ? { type: Date, value: voided, format: 'dd mmm yyyy' }
+        : null,
+      s.voidReason || null,
+      s.note || null,
+    ]);
+  }
+
+  return rows;
+}
+
 export async function ledgerToXlsx(
   entries: LedgerEntry[],
   opts: LedgerExportOptions
 ): Promise<Buffer> {
   const columns = columnsFor(opts);
 
-  return writeXlsxFile([
+  const sheets: Parameters<typeof writeXlsxFile>[0] = [
     {
       sheet: 'Summary',
       data: summarySheet(entries, opts),
       // Wide enough for the longest label on the left and the money on the right.
-      columns: [{ width: 44 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }],
+      columns: [
+        { width: 46 },
+        { width: 18 },
+        { width: 18 },
+        { width: 18 },
+        { width: 18 },
+        { width: 18 },
+      ],
     },
     {
       sheet: 'Ledger',
@@ -273,7 +360,31 @@ export async function ledgerToXlsx(
       columns: columns.map((c) => ({ width: c.width })),
       stickyRowsCount: 1,
     },
-  ]).toBuffer();
+  ];
+
+  if (opts.settlements.length > 0) {
+    sheets.push({
+      sheet: 'Settlements',
+      data: settlementsSheet(opts.settlements),
+      columns: [
+        { width: 20 },
+        { width: 22 },
+        { width: 20 },
+        { width: 16 },
+        { width: 16 },
+        { width: 15 },
+        { width: 20 },
+        { width: 44 },
+        { width: 18 },
+        { width: 14 },
+        { width: 30 },
+        { width: 30 },
+      ],
+      stickyRowsCount: 1,
+    });
+  }
+
+  return writeXlsxFile(sheets).toBuffer();
 }
 
 /** e.g. somoexpress-ledger-2026-08-21.xlsx */
