@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Analytics } from "@vercel/analytics/next"
 import { ToastProvider } from '@/components/Toast';
 import './globals.css';
 import localFont from 'next/font/local';
