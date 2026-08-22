@@ -14,6 +14,7 @@ import {
 } from '@/lib/types';
 import { FLOAT_DEADLINE_HOURS, type RiderFloat } from '@/lib/ledger';
 import { fmtMoney as money } from '@/lib/format';
+import { amountsDue, cashToCollect } from '@/lib/amounts';
 
 /**
  * Most the queue will show at once.
@@ -74,6 +75,18 @@ function matchesQuery(r: DeliveryWithMerchant, query: string): boolean {
     r.recipientPhone,
     r.status,
   ].some((field) => (field ?? '').toLowerCase().includes(needle));
+}
+
+/**
+ * Declared item value + delivery fee, from the delivery's payment terms.
+ *
+ * Ops need it in the log for the same reason the rider needs it in their
+ * message: it is what somebody is expected to hand over at the door, and the sum
+ * is the system's job rather than a thing to be done in your head over the phone.
+ * lib/amounts.ts is the one calculation behind all three surfaces.
+ */
+function cashDue(r: DeliveryWithMerchant): number {
+  return cashToCollect(amountsDue(r));
 }
 
 /**
@@ -430,6 +443,7 @@ export function DeliveryLog({
           <tbody>
             {visible.map((r) => {
               const step = milestone(r);
+              const collect = cashDue(r);
               return (
                 <tr key={r.id}>
                   {/* --somo-muted, not --muted: the latter is shadcn's muted
@@ -483,6 +497,16 @@ export function DeliveryLog({
                         <span className="somo-rider-sub">
                           {r.deliveryPaidBy ? `${r.deliveryPaidBy.toLowerCase()} pays fee` : '—'}
                         </span>
+                        {/* The figure the rider was sent, not a second sum of the
+                            two columns to its left: ops answering "how much am I
+                            collecting?" on the phone must read the same number
+                            out that the message and the rider's page show. */}
+                        {collect > 0 ? (
+                          <>
+                            <br />
+                            <span className="somo-collect-note">collect {money(collect)}</span>
+                          </>
+                        ) : null}
                       </>
                     ) : (
                       <span className="somo-unassigned">—</span>

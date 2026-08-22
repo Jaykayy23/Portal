@@ -8,6 +8,7 @@ import { getLogoDataUrl } from '@/lib/settings';
 import { loadLink } from '@/lib/deliveryLinks';
 import { LinkActions, OutcomeNote } from '@/components/delivery/LinkActions';
 import { fmtMoney } from '@/lib/format';
+import { cashToCollect } from '@/lib/amounts';
 import type { LinkSummary, LinkView } from '@/lib/types';
 
 // The token is the credential, so nothing about this page may be cached at the
@@ -80,7 +81,8 @@ function RiderCollects({ summary }: { summary: LinkSummary }) {
   const feeKnown = deliveryFee > 0 || feeOnMerchant;
   if (!itemKnown && !feeKnown) return null;
 
-  const collectsCash = itemCash > 0 || deliveryFee > 0;
+  const total = cashToCollect(summary.due);
+  const collectsCash = total > 0;
 
   return (
     <div className={`somo-confirm-due${collectsCash ? '' : ' clear'}`}>
@@ -108,11 +110,15 @@ function RiderCollects({ summary }: { summary: LinkSummary }) {
         </div>
       ) : null}
 
-      {/* Only worth a total when there are two numbers to add up. */}
-      {itemCash > 0 && deliveryFee > 0 ? (
-        <div className="due-row total">
-          <span className="k">Total</span>
-          <span className="v">{fmtMoney(itemCash + deliveryFee)}</span>
+      {/* Stated whenever there is cash, even when it only repeats one line
+          above: this is the figure the rider is accountable for at the gate and
+          again when they remit, so it is always in the same place under the same
+          words rather than being a line they have to notice is missing. The
+          addition is the system's job — see lib/amounts.ts. */}
+      {collectsCash ? (
+        <div className="due-row total grand">
+          <span className="k">Total cash to collect</span>
+          <span className="v">{fmtMoney(total)}</span>
         </div>
       ) : null}
     </div>
@@ -129,7 +135,8 @@ function RiderCollects({ summary }: { summary: LinkSummary }) {
  */
 function RecipientPays({ summary }: { summary: LinkSummary }) {
   const { itemCash, deliveryFee } = summary.due;
-  if (itemCash <= 0 && deliveryFee <= 0) return null;
+  const total = cashToCollect(summary.due);
+  if (total <= 0) return null;
 
   return (
     <div className="somo-confirm-due">
@@ -146,12 +153,15 @@ function RecipientPays({ summary }: { summary: LinkSummary }) {
           <span className="v">{fmtMoney(deliveryFee)}</span>
         </div>
       ) : null}
-      {itemCash > 0 && deliveryFee > 0 ? (
-        <div className="due-row total">
-          <span className="k">Total</span>
-          <span className="v">{fmtMoney(itemCash + deliveryFee)}</span>
-        </div>
-      ) : null}
+      {/* The same figure the rider was sent, so the amount is settled before
+          anyone is standing at a door disagreeing about it. Shown even when it
+          restates the single line above — under a rule, in a column of amounts,
+          it reads as the sum of them, which is not true of the same repetition in
+          a sentence (see recipientPaymentClause). */}
+      <div className="due-row total grand">
+        <span className="k">Total to pay</span>
+        <span className="v">{fmtMoney(total)}</span>
+      </div>
     </div>
   );
 }

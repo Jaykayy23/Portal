@@ -10,7 +10,8 @@
 // Deliberately dependency-free (no database, no admin client, no React), so both
 // the browser modal and a future Route Handler can call it.
 
-import { shortId } from './format';
+import { amountsDue, cashToCollect } from './amounts';
+import { fmtMoney, shortId } from './format';
 import type { Delivery, DeliveryWithMerchant, LinkPurpose } from './types';
 
 /**
@@ -84,35 +85,84 @@ function recipientClause(record: Delivery): string {
  * The declared value is quoted as the reference for a cash-on-delivery item
  * because it is the only figure the portal holds for the goods — see the README
  * note on adding a separate COD amount if the two ever need to differ.
+ *
+ * The breakdown is followed by the total, and the total is what the rider is
+ * held to: declared value plus fee, added by the system so nobody is doing sums
+ * at a gate on a bad line. It is stated even when only one of the two applies,
+ * so "TOTAL CASH TO COLLECT" means the same thing in every message a rider ever
+ * gets rather than being a line they have to notice is missing.
  */
 function paymentClause(record: Delivery): string {
+  const due = amountsDue(record);
   const parts: string[] = [];
 
   if (record.itemPayment === 'Cash on delivery') {
-    parts.push(`COLLECT CASH for the item (declared value GHS ${record.declaredValue})`);
+    parts.push(`COLLECT CASH for the item (declared value ${fmtMoney(due.itemCash)})`);
   } else if (record.itemPayment === 'Prepaid') {
     parts.push('item is PREPAID, collect nothing for the goods');
   }
 
   if (record.deliveryPaidBy === 'Customer') {
-    parts.push(`collect the delivery fee of GHS ${record.price.toFixed(2)} from the customer`);
+    parts.push(`collect the delivery fee of ${fmtMoney(due.deliveryFee)} from the customer`);
   } else if (record.deliveryPaidBy === 'Merchant') {
     parts.push('delivery fee is on the merchant account, do not collect it');
   }
 
   // Rows filed before payment terms were captured say nothing rather than
   // guessing, which would be the one kind of wrong that costs somebody money.
-  return parts.length ? ` PAYMENT: ${parts.join('; ')}.` : '';
+  if (!parts.length) return '';
+
+  const total = cashToCollect(due);
+  const totalClause =
+    total > 0
+      ? ` TOTAL CASH TO COLLECT from the customer: ${fmtMoney(total)}.`
+      : ' TOTAL CASH TO COLLECT: nothing — this is a no-cash delivery.';
+
+  return ` PAYMENT: ${parts.join('; ')}.${totalClause}`;
 }
 
-/** What the recipient should have ready, if anything. */
+/**
+ * What the recipient should have ready, if anything.
+ *
+ * The total leads and the breakdown follows, so the amount is settled before a
+ * rider is standing at the door with a different figure in their message. Both
+ * sides are quoting the same calculation — see lib/amounts.ts.
+ */
 function recipientPaymentClause(record: Delivery): string {
-  const owed: string[] = [];
-  if (record.itemPayment === 'Cash on delivery') owed.push('cash for the item');
-  if (record.deliveryPaidBy === 'Customer') {
-    owed.push(`the delivery fee of GHS ${record.price.toFixed(2)}`);
+  const due = amountsDue(record);
+  const { itemCash, deliveryFee } = due;
+
+  if (itemCash > 0 && deliveryFee > 0) {
+    return ` Please have ${fmtMoney(cashToCollect(due))} ready for the rider — ${fmtMoney(
+      itemCash
+    )} for the item and ${fmtMoney(deliveryFee)} delivery fee.`;
   }
-  return owed.length ? ` Please have ${owed.join(' and ')} ready for the rider.` : '';
+  if (itemCash > 0) {
+    return ` Please have ${fmtMoney(itemCash)} for the item ready for the rider.`;
+  }
+  if (deliveryFee > 0) {
+    return ` Please have the delivery fee of ${fmtMoney(deliveryFee)} ready for the rider.`;
+  }
+  // Nothing owed, and nothing said: "GHS 0.00 to pay" only invites a phone call.
+  return '';
+}
+
+/**
+ * The same total, compressed for an ops message.
+ *
+ * Ops need it at two moments: filing the request, where it is what the merchant's
+ * customer will be asked for, and offering the job, where it is the float that
+ * rider will be carrying and will have to remit. Both read the figure the rider
+ * was given, never a second calculation.
+ */
+function opsCashClause(record: Delivery): string {
+  // Same silence as the rider's clause on rows filed before terms were captured.
+  if (!record.itemPayment && !record.deliveryPaidBy) return '';
+
+  const total = cashToCollect(amountsDue(record));
+  return total > 0
+    ? ` Cash to collect on delivery: ${fmtMoney(total)}.`
+    : ' No cash to collect (prepaid, fee on the merchant).';
 }
 
 function riderClause(record: Delivery): string {
@@ -143,7 +193,7 @@ export function outboundFor(
           id: 'ops-created',
           who: 'Ops team',
           phone: ctx.opsPhone,
-          text: `New SomoExpress delivery request ${no}: ${record.customer} — ${route} (${record.distance.toFixed(1)}km${record.durationMin > 0 ? `, ~${record.durationMin.toFixed(0)}min` : ''}).${itemClause(record)}${recipientClause(record)} Declared value GHS ${record.declaredValue}. Price GHS ${record.price.toFixed(2)}. Please assign a rider.`,
+          text: `New SomoExpress delivery request ${no}: ${record.customer} — ${route} (${record.distance.toFixed(1)}km${record.durationMin > 0 ? `, ~${record.durationMin.toFixed(0)}min` : ''}).${itemClause(record)}${recipientClause(record)} Declared value ${fmtMoney(record.declaredValue)}. Delivery fee ${fmtMoney(record.price)}.${opsCashClause(record)} Please assign a rider.`,
         },
       ];
 
@@ -160,7 +210,7 @@ export function outboundFor(
           id: 'ops-offered',
           who: 'Ops team',
           phone: ctx.opsPhone,
-          text: `SomoExpress ${no} offered to ${riderClause(record)}. Route: ${route}. Awaiting their accept or decline.`,
+          text: `SomoExpress ${no} offered to ${riderClause(record)}. Route: ${route}.${opsCashClause(record)} Awaiting their accept or decline.`,
         },
       ];
 

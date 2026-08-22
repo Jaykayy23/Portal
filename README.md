@@ -335,23 +335,35 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
   against the configured values, because a crafted request that stored "free"
   would send a rider to a door expecting to collect nothing.
 
-  They exist for the rider's alert, which now spells out what to collect *and what
-  not to*: "PAYMENT: item is PREPAID, collect nothing for the goods; collect the
-  delivery fee of GHS 32.00 from the customer." Saying "prepaid" explicitly is what
+  They exist for the rider's alert, which spells out what to collect *and what
+  not to*, and then adds up: "PAYMENT: COLLECT CASH for the item (declared value
+  GHS 150.00); collect the delivery fee of GHS 31.00 from the customer. TOTAL CASH
+  TO COLLECT from the customer: GHS 181.00." Saying "prepaid" explicitly is what
   stops a rider asking for money already paid — the mistake that costs a merchant a
-  customer rather than costing anyone cash. The recipient's message gets the
-  matching half ("please have … ready for the rider"), and the log shows a
-  COD/Prepaid badge that **Compact does not hide**.
+  customer rather than costing anyone cash. The total is there so no rider is doing
+  arithmetic at a gate on a bad line, and it is stated in **every** rider message,
+  including the no-cash case ("TOTAL CASH TO COLLECT: nothing"), so the words mean
+  the same thing every time rather than being a line they have to notice is
+  missing. The recipient's message leads with the same figure ("please have GHS
+  181.00 ready for the rider — GHS 150.00 for the item and GHS 31.00 delivery
+  fee"), so the amount is agreed before anyone is standing at a door. Ops get it
+  too, in the request and offer alerts and as a `collect GHS 181.00` line under the
+  log's COD/Prepaid badge, which **Compact does not hide**.
 
   The amounts also appear **on the link page itself** — an amber block reading
-  "To pay the rider" for the customer, "Collect on delivery" for the rider, with a
-  total when both the item cash and the fee apply. It repeats what the message
+  "To pay the rider" for the customer, "Collect on delivery" for the rider, each
+  ending in the total in the largest type on the page. It repeats what the message
   said, which is the point: the message is the thing that got scrolled past, the
   page is the thing open in their hand at the door. It is absent entirely when the
   item is prepaid and the merchant pays, since "GHS 0.00 to pay" invites a second
   look at a page whose whole job is one tap. Note what is *not* there: the
   price a link holder sees is only what changes hands at the door, never the
   delivery's own figure.
+
+  One calculation feeds all of it — `lib/amounts.ts`, called by the message
+  composer, the link page and the log. That is deliberate: a rider quoted GHS 181
+  on WhatsApp and shown GHS 150 at the door stops trusting both numbers, and three
+  copies of `declared value + fee` is how they come to disagree.
 
   One thing to know: a cash-on-delivery message quotes the **declared value** as
   the amount, because that is the only figure the portal holds for the goods. If

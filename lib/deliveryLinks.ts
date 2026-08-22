@@ -22,6 +22,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { createAdminClient } from './supabase/admin';
 import { syncRiderAvailability } from './riderAvailability';
 import { shortId } from './format';
+import { amountsDue } from './amounts';
 import type { Database } from './database.types';
 import {
   PURPOSE_REQUIRES_STATUS,
@@ -115,17 +116,18 @@ function summarise(
   riderName: string
 ): LinkSummary {
   // The rider collects exactly what the recipient owes, so one calculation serves
-  // both audiences — only the wording on the page differs.
-  const due: AmountsDue = {
-    itemCash: delivery.item_payment === 'Cash on delivery' ? Number(delivery.declared_value) : 0,
+  // both audiences — only the wording on the page differs. It comes from
+  // lib/amounts.ts, shared with the WhatsApp message: the page open at the gate
+  // and the message sent an hour earlier must not be able to quote different
+  // figures. The terms travel with it so the page can say "prepaid" outright
+  // rather than leaving a zero to be read as an absence.
+  const due: AmountsDue = amountsDue({
+    itemPayment: delivery.item_payment,
+    deliveryPaidBy: delivery.delivery_paid_by,
+    declaredValue: delivery.declared_value,
     // `agreed` is the delivery's price column; see fromRow in lib/deliveries.ts.
-    deliveryFee: delivery.delivery_paid_by === 'Customer' ? Number(delivery.agreed) : 0,
-    // Carried as the terms rather than as an absence, so the rider's page can say
-    // "prepaid" outright — the same thing paymentClause in lib/deliveryMessages.ts
-    // spells out in the WhatsApp message.
-    itemPrepaid: delivery.item_payment === 'Prepaid',
-    feeOnMerchant: delivery.delivery_paid_by === 'Merchant',
-  };
+    price: delivery.agreed,
+  });
 
   return {
     orderNo: shortId(delivery.id),

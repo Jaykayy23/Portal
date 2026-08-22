@@ -118,6 +118,27 @@ export default function ThemePreview() {
             <button className="somo-btn small">Add rider</button>
             <button className="somo-btn ghost small">Remove logo</button>
           </div>
+
+          {/* The rider's link page, which nothing else here covers: it is the one
+              screen a rider actually reads, and the amber-to-teal switch between
+              "collect this much" and "collect nothing" is the whole point of the
+              block. Both states side by side so neither can drift. */}
+          <div className="somo-confirm-due">
+            <div className="due-head">Collect on delivery</div>
+            <div className="due-row"><span className="k">For the item</span>
+              <span className="v">GHS 150.00</span></div>
+            <div className="due-row"><span className="k">Delivery fee</span>
+              <span className="v">GHS 31.00</span></div>
+            <div className="due-row total grand"><span className="k">Total cash to collect</span>
+              <span className="v">GHS 181.00</span></div>
+          </div>
+          <div className="somo-confirm-due clear">
+            <div className="due-head">Nothing to collect</div>
+            <div className="due-row"><span className="k">For the item</span>
+              <span className="v note">Prepaid — collect nothing</span></div>
+            <div className="due-row"><span className="k">Delivery fee</span>
+              <span className="v note">On the merchant — do not collect</span></div>
+          </div>
         </div>
       </div>
     </>
