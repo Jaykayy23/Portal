@@ -173,7 +173,13 @@ enable_refresh_token_rotation = true
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
-enable_signup = true
+#
+# OFF, and it must stay off. This portal has no self-registration: an admin (or
+# ops, for merchants) provisions every account through the service-role client in
+# lib/accounts.ts, which is unaffected by this flag. Leaving it on let anyone
+# holding the publishable key — which ships in the client bundle by design — call
+# /auth/v1/signup and receive a valid `authenticated` token for this project.
+enable_signup = false
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
@@ -218,7 +224,11 @@ web3 = 30
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.
-enable_signup = true
+#
+# OFF for the same reason as [auth] enable_signup above. Account emails are
+# synthetic addresses on an undeliverable domain (see lib/identity.ts), so there
+# is no email flow here to sign up through.
+enable_signup = false
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
