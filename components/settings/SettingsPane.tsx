@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Plus, X } from 'lucide-react';
 import { api, errMessage } from '@/lib/api';
 import { useToast } from '@/components/Toast';
+import { InfoHint } from '@/components/InfoHint';
+import { Spinner } from '@/components/Spinner';
 import type { AppSettings, DeliveryOptions, MaskedSecret } from '@/lib/types';
 
 const MAX_LOGO_BYTES = 900 * 1024;
@@ -236,7 +239,13 @@ export function SettingsPane({
     <div className="somo-settings-grid">
       <div className="somo-card span-full">
         <h3>
-          <span className="n">—</span> Branding
+          Branding
+          <InfoHint label="branding">
+            <p>
+              The logo shows in the portal header and on the login screen, for everyone. A square
+              icon under ~500KB works best.
+            </p>
+          </InfoHint>
         </h3>
         <div className="somo-logo-row">
           <div className="somo-logo-preview">
@@ -258,7 +267,8 @@ export function SettingsPane({
         </div>
         <div className="somo-btn-row">
           <button className="somo-btn small" onClick={saveLogo} disabled={busy === 'logo'}>
-            Save logo
+            {busy === 'logo' ? <Spinner /> : null}
+            {busy === 'logo' ? 'Saving…' : 'Save logo'}
           </button>
           <button
             className="somo-btn ghost small"
@@ -268,21 +278,23 @@ export function SettingsPane({
             Remove logo
           </button>
         </div>
-        <div className="somo-note">
-          Shows in the header and login screen for everyone using this portal. Keep the file small (a
-          square icon under ~500KB works best).
-        </div>
       </div>
 
       <form className="somo-card" onSubmit={saveItemCategories}>
         <h3>
-          <span className="n">—</span> Item categories
+          Item categories
+          <InfoHint label="item categories">
+            <p>
+              What merchants choose from when they say what they are sending. The choice is
+              recorded on the delivery and carried into the rider&rsquo;s alert.
+            </p>
+            <p>
+              Deliveries already filed keep the category they were logged with, renaming included,
+              so editing this list never rewrites history.
+            </p>
+          </InfoHint>
           <span className="tag-note">New delivery form</span>
         </h3>
-        <p className="somo-card-intro">
-          What merchants choose from when they say what they are sending. The choice is recorded on
-          the delivery and included in the rider&rsquo;s alert.
-        </p>
 
         {itemCategories.length === 0 ? (
           <div className="somo-note" style={{ marginTop: 0 }}>
@@ -304,7 +316,7 @@ export function SettingsPane({
                 aria-label={`Remove ${label || 'item category'}`}
                 onClick={() => setItemCategories((rows) => rows.filter((_, j) => j !== i))}
               >
-                ✕
+                <X size={14} strokeWidth={2.25} aria-hidden="true" />
               </button>
             </div>
           ))
@@ -316,23 +328,31 @@ export function SettingsPane({
           style={{ marginBottom: 14 }}
           onClick={() => setItemCategories((rows) => [...rows, ''])}
         >
-          + Add an item category
+          <Plus size={14} strokeWidth={2.25} aria-hidden="true" />
+          Add an item category
         </button>
 
         <button className="somo-btn" type="submit" disabled={busy === 'categories'}>
+          {busy === 'categories' ? <Spinner /> : null}
           {busy === 'categories' ? 'Saving…' : 'Save item categories'}
         </button>
-
-        <div className="somo-note">
-          Deliveries already filed keep the category they were logged with, so renaming or removing
-          one never rewrites history. Renaming does not update past records either — they keep the
-          wording that was chosen at the time.
-        </div>
       </form>
 
       <form className="somo-card" onSubmit={saveApiKeys}>
         <h3>
-          <span className="n">—</span> API keys
+          API keys
+          <InfoHint label="API keys">
+            <p>
+              These live in the database, not in the browser. The Google Maps key is the one
+              exception — Maps JS runs client-side, so signed-in browsers receive it. Restrict it by
+              HTTP referrer in the Google Cloud Console.
+            </p>
+            <p>
+              The WhatsApp and SMS keys are stored ready for a provider integration that is not
+              wired up yet. Alerts go out today through the one-tap links on the delivery
+              log&rsquo;s <strong>Notify</strong> button.
+            </p>
+          </InfoHint>
           <span className="tag-note">stored server-side</span>
         </h3>
 
@@ -401,22 +421,14 @@ export function SettingsPane({
             setOtherKeys((keys) => [...keys, { name: '', value: '', masked: '', set: false }])
           }
         >
-          + Add another key
+          <Plus size={14} strokeWidth={2.25} aria-hidden="true" />
+          Add another key
         </button>
 
         <button className="somo-btn" type="submit" disabled={busy === 'keys'}>
+          {busy === 'keys' ? <Spinner /> : null}
           {busy === 'keys' ? 'Saving…' : 'Save API keys'}
         </button>
-
-        <div className="somo-note">
-          These live in the backend&rsquo;s database file, not in the browser — regular users never
-          receive them (only the Google Maps key is sent to signed-in browsers, since Maps JS has to
-          load client-side; restrict it by HTTP referrer in Google Cloud Console). The WhatsApp/SMS
-          keys are stored ready for a provider integration; today, actual message sending still goes
-          through the one-tap WhatsApp/SMS links on the Notify button, since sending via a provider
-          API requires this app&rsquo;s server to call that provider directly — ask your developer to
-          wire that up when you&rsquo;re ready to automate it.
-        </div>
       </form>
     </div>
   );

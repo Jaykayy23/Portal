@@ -2,8 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Plus, X } from 'lucide-react';
 import { api, errMessage } from '@/lib/api';
 import { useToast } from '@/components/Toast';
+import { InfoHint } from '@/components/InfoHint';
+import { Spinner } from '@/components/Spinner';
 import type { PricingParams, SurchargeOption } from '@/lib/types';
 
 export function PricingForm({ params }: { params: PricingParams }) {
@@ -82,11 +85,31 @@ export function PricingForm({ params }: { params: PricingParams }) {
     <>
       <form className="somo-card" style={{ marginTop: 0, maxWidth: 480 }} onSubmit={save}>
         <h3>
-          <span className="n">03</span> Pricing parameters
+          Pricing parameters
+          <InfoHint label="pricing parameters">
+            <p>
+              Price ={' '}
+              <strong>
+                max(minimum fare, base + rate × km + per-minute × minutes)
+              </strong>{' '}
+              + surge charges.
+            </p>
+            <p>
+              Driving time comes from Google Maps at the moment of quoting, so two runs of the same
+              distance price differently when one of them sits in traffic. Set the per-minute rate
+              to 0 to quote on distance alone.
+            </p>
+            <p>
+              What these rules produce is the charged price, not a starting point — nobody can type
+              a different one. Edits are admin-only and apply to new quotes portal-wide at once.
+            </p>
+            <p>
+              The ops phone is where the delivery log&rsquo;s <strong>Notify</strong> button points
+              its one-tap WhatsApp and SMS alerts.
+            </p>
+          </InfoHint>
+          <span className="tag-note">admin only</span>
         </h3>
-        <p className="somo-card-intro">
-          Editable by admin. Changes apply immediately to new quotes for everyone using this portal.
-        </p>
 
         <div className="somo-row2">
           <label className="somo-field">
@@ -124,35 +147,26 @@ export function PricingForm({ params }: { params: PricingParams }) {
           style={{ marginTop: 6 }}
           disabled={busy === 'fares'}
         >
+          {busy === 'fares' ? <Spinner /> : null}
           {busy === 'fares' ? 'Saving…' : 'Save pricing parameters'}
         </button>
-
-        <div className="somo-note">
-          Delivery price = max(minimum fare, base fare + rate × distance + rate per minute ×
-          estimated driving time) + surge charges. The surge charge list and its amounts are set
-          below.
-          <br />
-          The driving time comes from Google Maps at the moment of quoting, so two runs of the same
-          distance price differently when one of them sits in traffic. Set the per-minute rate to 0
-          to quote on distance alone.
-          <br />
-          This is the price, not a starting point: the figure these rules produce is what the
-          delivery is logged and charged at. Nobody can type a different one.
-          <br />
-          The ops phone number is used to generate one-tap WhatsApp/SMS alerts — see the
-          &ldquo;Notify&rdquo; button on each row in the delivery log.
-        </div>
       </form>
 
       <form className="somo-card" style={{ maxWidth: 480 }} onSubmit={saveSurcharges}>
         <h3>
-          <span className="n">—</span> Surge charges
+          Surge charges
+          <InfoHint label="surge charges">
+            <p>
+              The optional extras merchants can tick on a new delivery. Each ticked charge is added
+              on top of the computed fare.
+            </p>
+            <p>
+              Edits apply to new quotes at once. Deliveries already filed keep the price they were
+              quoted, so editing or removing a charge never rewrites history.
+            </p>
+          </InfoHint>
           <span className="tag-note">admin only</span>
         </h3>
-        <p className="somo-card-intro">
-          The optional extras merchants can tick on a new delivery. Each ticked charge is added on
-          top of the recommended price.
-        </p>
 
         {surcharges.length === 0 ? (
           <div className="somo-note" style={{ marginTop: 0 }}>
@@ -183,7 +197,7 @@ export function PricingForm({ params }: { params: PricingParams }) {
                   aria-label={`Remove ${s.label || 'surge charge'}`}
                   onClick={() => setSurcharges((rows) => rows.filter((_, j) => j !== i))}
                 >
-                  ✕
+                  <X size={14} strokeWidth={2.25} aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -196,18 +210,14 @@ export function PricingForm({ params }: { params: PricingParams }) {
           style={{ marginBottom: 14 }}
           onClick={() => setSurcharges((rows) => [...rows, { id: '', label: '', amount: 0 }])}
         >
-          + Add a surge charge
+          <Plus size={14} strokeWidth={2.25} aria-hidden="true" />
+          Add a surge charge
         </button>
 
         <button className="somo-btn ghost" type="submit" disabled={busy === 'surcharges'}>
+          {busy === 'surcharges' ? <Spinner /> : null}
           {busy === 'surcharges' ? 'Saving…' : 'Save surge charges'}
         </button>
-
-        <div className="somo-note">
-          Changes apply immediately to new quotes for everyone using this portal. Deliveries already
-          filed keep the price they were quoted, so editing or removing a charge never rewrites
-          history.
-        </div>
       </form>
     </>
   );

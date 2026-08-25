@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { usernameToEmail } from '@/lib/identity';
 import { useToast } from '@/components/Toast';
+import { Spinner } from '@/components/Spinner';
 
 export function LoginForm({ nextPath }: { nextPath: string }) {
   const router = useRouter();
@@ -56,10 +57,6 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
   return (
     <form onSubmit={submit}>
       <h1>Log in</h1>
-      <p className="sub-text">
-        Use the username and password issued to you. Accounts are issued by your SomoExpress admin
-        or, for merchants, by the ops team.
-      </p>
       <div
         className={`somo-auth-error${error ? ' show' : ''}`}
         id={errorId}
@@ -95,6 +92,7 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
         />
       </label>
       <button className="somo-btn" type="submit" disabled={busy}>
+        {busy ? <Spinner /> : null}
         {busy ? 'Logging in…' : 'Log in'}
       </button>
     </form>

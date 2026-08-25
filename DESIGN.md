@@ -28,37 +28,37 @@ colors:
   scrim: "rgb(0 0 0 / 0.45)"
 typography:
   display:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "Roboto, system-ui, sans-serif"
     fontSize: "24px"
     fontWeight: 600
     lineHeight: 1.2
   headline:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "Roboto, system-ui, sans-serif"
     fontSize: "19px"
     fontWeight: 600
     lineHeight: 1.2
   title:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "Roboto, system-ui, sans-serif"
     fontSize: "18px"
     fontWeight: 600
     letterSpacing: "0.2px"
   section:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "Roboto, system-ui, sans-serif"
     fontSize: "14px"
     fontWeight: 600
     letterSpacing: "0.2px"
   body:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "Roboto, system-ui, sans-serif"
     fontSize: "14px"
     fontWeight: 400
     lineHeight: 1.5
   meta:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "Roboto, system-ui, sans-serif"
     fontSize: "11.5px"
     fontWeight: 400
     letterSpacing: "0.4px"
   label:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "Roboto, system-ui, sans-serif"
     fontSize: "11px"
     fontWeight: 500
     letterSpacing: "0.5px"
@@ -322,12 +322,12 @@ except the accounts list. A fifth seat needs a hue that is not another blue.
 
 ## Typography
 
-**Display Font:** Inter (with `system-ui`, `sans-serif`)
-**Body Font:** Inter (with `system-ui`, `sans-serif`)
-**Label/Mono Font:** Inter — see the rule below
+**Display Font:** Roboto (with `system-ui`, `sans-serif`)
+**Body Font:** Roboto (with `system-ui`, `sans-serif`)
+**Label/Mono Font:** Roboto — see the rule below
 
 **Character:** One variable face doing every job, which suits a document that
-values sameness over expression. Inter's neutrality is the point: nothing in the
+values sameness over expression. Roboto's neutrality is the point: nothing in the
 type competes with the figures, and the hierarchy is carried almost entirely by
 size, weight, and tracking rather than by contrast of family.
 
@@ -350,16 +350,26 @@ size, weight, and tracking rather than by contrast of family.
 ### Named Rules
 
 **The Tabular Rule.** `font-variant-numeric: tabular-nums` is set once on the frame
-and inherited everywhere. Inter's proportional digits would make prices, distances,
+and inherited everywhere. Roboto's proportional digits would make prices, distances,
 and IDs jitter between rows, and a column of money that shifts as it scrolls is
 harder to audit. Never override it.
 
-**The Mono-Intent Rule.** `--font-mono` resolves to Inter, not to a monospace face.
+**The Mono-Intent Rule.** `--font-mono` resolves to Roboto, not to a monospace face.
 The three type tokens (`--font-display`, `--font-body`, `--font-mono`) survive as
 separate names so the stylesheet keeps expressing intent — display / body / numeric —
 even though all three resolve to one family. Applying `--font-mono` marks a value as
 numeric or machine-ish; it does not request a different typeface, and it must not be
 "fixed" by pointing it at one.
+
+**The Vendored-Face Rule.** The portal's face is **Roboto**, vendored as
+`app/fonts/Roboto-Variable.woff2` — the SIL OFL latin weight axis, taken from
+`@fontsource-variable/roboto` and copied in rather than depended on, so the build
+never reaches the network for type. It replaced Inter, which had held the same
+single-family job. Roboto is also the system face on Android, which is what most
+merchants file requests from, so on a phone the portal very often renders a face
+the device already holds. Never load a face from a CDN and never add a second
+family; `next/font/local` folds the metric-matched fallback into `--font-sans`,
+so the three type tokens carry only a last-resort generic after it.
 
 **The Micro-Label Rule.** Every label above a value is 11–11.5px, uppercase, +0.4
 to +0.5px tracked, and muted. Values are never uppercase and never tracked. The
@@ -463,6 +473,11 @@ is a shadow that is simply there at rest.
   Do not reuse it on a card inside one of them.
 - **State lift** (new work): keep it under the panel lift's total weight and pair it
   with a colour or border change, so it reads as a response rather than decoration.
+- **Overlay lift** (`0 1px 2px rgb(0 0 0 / 0.05), 0 8px 22px rgb(0 0 0 / 0.10)`): the
+  hint bubble, and only things that float over content they did not displace. It is
+  the one shadow that is not a response to state, and it is allowed because an
+  overlay that shares a plane with what it covers is unreadable. Anything at rest in
+  the layout still takes no shadow at all.
 
 ### Named Rules
 
@@ -635,6 +650,48 @@ cells use. It used to be a `2px` underline in strip form; once the strip became 
 own bordered panel that underline sat on the panel's bottom edge and read as a flaw
 in the border, so there is no underline anywhere now.
 
+### The "?" Hint
+
+A `15px` Lucide `CircleQuestionMark` in a `19px` circular button, sitting beside a
+card heading or a field label. Muted at rest; on hover, focus or open it takes
+Waybill Navy on Waybill Navy Soft — the same soft-tint-plus-accent pairing the
+status badges and the active nav row use. `cursor: help`, because it reveals a note
+rather than going anywhere.
+
+The bubble is a `10px` white panel on a `1px` Rule Grey hairline at the overlay
+lift, `12px 14px` of padding, `12.5px/1.55` in Muted Ink, capped at
+`min(330px, 78vw)`, with a rotated `8px` notch borrowing two of its own borders so
+the hairline reads as continuous. It enters with `somoHintIn` — opacity plus a
+`4px` rise over `0.16s` expo-out.
+
+It is a **disclosure**, not a `role="tooltip"`: some hints carry a link, and a
+tooltip is not somewhere you can travel to. Three ways in — mouse hover (with a
+`160ms` grace period so the pointer can reach a link inside), keyboard focus, and
+tap. Tap pins it, because `pointerenter` fires on touch too, so the mouse handlers
+check `pointerType` and leave touch to the click handler. Escape closes it and
+returns focus to the mark. Under `(pointer: coarse)` a `44px` pseudo-element gives
+it a real touch target without growing the `19px` circle.
+
+### Spinner
+
+A drawn `14px` arc over a `28%`-opacity track, both in `currentColor`, turning on
+the `somoSpin` keyframe the toolbar's `RefreshCw` icon already uses. It sits beside
+the busy label on a pressed control — not instead of it — because "Saving…" alone
+looks identical whether the server answered a second ago or never answered at all.
+Under reduced motion it stops turning and breathes on opacity instead.
+
+### Skeletons
+
+Route-level placeholders under each portal tab's `loading.tsx`, drawn from the same
+primitives the real pane uses — `.somo-kpis` tiles, `.somo-card` headings at a
+`17px` min-height, field pairs at the `14px` rhythm — so nothing shifts when the
+rows arrive. Blocks are flat `oklch(0.925)` and pulse in **tone**, between
+`0.925` and `0.962` over `1.5s`; a shimmer sweep would be a third gradient in a
+system whose only two encode something. Widths come from fixed cycling arrays
+rather than `Math.random()`, which would differ between server and client and read
+as a hydration mismatch. The pane carries one `role="status"` with a single
+`sr-only` label; every block under it is `aria-hidden`.
+
 ### Badges and Tags
 
 - **Status badge:** `999px` pill, `3px 9px`, 11px/600, `white-space: nowrap`.
@@ -678,9 +735,14 @@ without replacing it with something at least as visible.
 - **Easing:** `cubic-bezier(0.16, 1, 0.3, 1)` (expo-out) for transforms — the route
   fill at `0.25s`, the toast at `0.2s`.
 - **Opacity:** `0.2s ease`.
+- **Hint enter:** `somoHintIn`, `0.16s` expo-out — opacity 0→1 with a `4px` rise.
+- **Spinner:** `somoSpin`, `0.7s` linear, shared with the toolbar's refresh icon.
+- **Skeleton:** `somoSkeletonPulse`, `1.5s ease-in-out`, background tone only.
 - **Reduced motion:** `prefers-reduced-motion: reduce` removes the pane animation
   and the route transition outright, and collapses the toast to `opacity 0.1s linear`
-  with no transform. Any new motion must have an entry here.
+  with no transform. It also drops the hint's entrance and the skeleton's pulse, and
+  swaps the spinner's rotation for an opacity breath — the indicator still has to
+  say "in flight". Any new motion must have an entry here.
 
 ## Do's and Don'ts
 
@@ -698,11 +760,19 @@ without replacing it with something at least as visible.
 - **Do** keep `44px` minimum control heights under `(pointer: coarse)`.
 - **Do** add a `prefers-reduced-motion` case for any new animation or transition.
 - **Do** vendor any new typeface as a local `.woff2` under `app/fonts/`.
+- **Do** put a card's standing explanation behind the `"?"` hint rather than in a
+  paragraph under its heading. The words are worth keeping; the daily cost of
+  scrolling past them is not.
+- **Do** give a control that fires a request both a busy label and the spinner.
+- **Do** re-assert a `.somo-hint-bubble` typographic property at `#somo-root`
+  weight. `.somo-card h3` and `label.somo-field span` are `.class element` rules,
+  which outrank a bare class — a class-only reset silently loses.
 
 ### Don't:
 
-- **Don't** add shadcn components. `components/ui/button.tsx` is scaffolding imported
-  nowhere; introducing it would give the portal two button languages at once.
+- **Don't** add shadcn components. The scaffolded `components/ui/` has been deleted;
+  reintroducing it would give the portal two button languages at once. The shadcn
+  install underneath `globals.css` supplies neutral tokens only.
 - **Don't** design, verify, or screenshot against `.dark`. The dark token block in
   `globals.css` is inherited shadcn scaffolding that nothing applies — the portal is
   light-only on purpose and every documented ratio is against white.
@@ -722,6 +792,11 @@ without replacing it with something at least as visible.
 - **Don't** point `--font-mono` at a real monospace face, or add a second typeface.
   Never load a font from a CDN — the build cannot reach `fonts.gstatic.com` and will
   fail, in Docker too.
+- **Don't** shimmer a skeleton. Placeholders pulse in tone; a sweeping highlight is
+  a gradient, and this system's two both encode something.
+- **Don't** use a unicode glyph as an icon. Icons come from Lucide, at the stroke
+  and size of the nav's marks — the `✕`, `+`, `↻` and `⤡/⤢` characters that used
+  to stand in for them are gone.
 - **Don't** add a gradient. This system has exactly two, and both are structural:
   the route line's `navy → teal` fill encodes direction of travel, and the radial
   wash grounds the two session-less screens. A third gradient is decoration.

@@ -53,20 +53,24 @@ body {
      white text (the error toast), where the brighter --destructive only reaches
      about 5:1. Verified 6.7:1 against white. */
   --danger-fill: var(--destructive-text);
-  /* Inter is the single typeface for the whole portal. The three tokens stay
+  /* Roboto is the single typeface for the whole portal. The three tokens stay
      as separate names so the stylesheet keeps expressing intent (display /
-     body / numeric), but they all resolve to Inter now. The literal family
-     name stays as a fallback for anyone who has the face installed locally. */
-  --font-display: var(--font-sans), "Inter", sans-serif;
-  --font-body: var(--font-sans), "Inter", sans-serif;
-  --font-mono: var(--font-sans), "Inter", sans-serif;
+     body / numeric), but they all resolve to Roboto now. The literal family
+     name stays as a fallback in app/layout.tsx: Roboto is the system face on
+     Android, so a merchant on a phone often renders a font the device holds.
+
+     next/font already folds the metric-matched fallback and the local Roboto
+     into --font-sans, so these only carry a last-resort generic. */
+  --font-display: var(--font-sans), sans-serif;
+  --font-body: var(--font-sans), sans-serif;
+  --font-mono: var(--font-sans), sans-serif;
 
   position: relative;
   width: 100%;
   max-width: 1100px;
   color: var(--text);
   font-family: var(--font-body);
-  /* Inter's proportional digits would make the mono-token numerics (prices,
+  /* Roboto's proportional digits would make the mono-token numerics (prices,
      distances, IDs) jitter, so lock figures to fixed width portal-wide. */
   font-variant-numeric: tabular-nums;
   min-height: 640px;
@@ -2525,6 +2529,293 @@ tr.somo-overdue-row td {
 .somo-check-inline input {
   accent-color: var(--destructive-text);
 }
+
+/* ===========================================================================
+   The "?" hint
+   ===========================================================================
+   Standing explanation used to sit under every heading as a paragraph of grey
+   prose. That is right on day one and wrong every day after — an operator who
+   files twenty deliveries a week scrolls past the same essay for two years. The
+   words did not change; they moved behind a trigger, so they cost nothing until
+   somebody wants them. See components/InfoHint.tsx for the open/close rules. */
+.somo-hint {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  vertical-align: middle;
+}
+.somo-hint-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--somo-muted);
+  /* Not `pointer`: this reveals a note, it does not go anywhere. */
+  cursor: help;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+.somo-hint-trigger:hover,
+.somo-hint-trigger.open {
+  color: var(--accent);
+  background: var(--brand-navy-soft);
+}
+/* Keeping the mark at 19px beside a 14px heading and giving it a 44px target
+   underneath, rather than growing a question mark to the size of a button. */
+@media (pointer: coarse) {
+  .somo-hint-trigger::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+}
+.somo-hint-bubble {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 9px);
+  /* Anchored to the trigger's left edge and opening rightward. The mark sits
+     wherever its heading text ends, though, so on a phone that can put the far
+     edge past the viewport — InfoHint measures on open and slides it back
+     through --hint-dx, moving the notch the other way by the same amount. */
+  left: calc(-9px + var(--hint-dx, 0px));
+  display: block;
+  width: max-content;
+  max-width: min(330px, 78vw);
+  padding: 12px 14px;
+  /* An overlay is the one thing in this system that genuinely has to lift off
+     what it covers. Kept under the panel lift's weight, per Elevation. */
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.05),
+    0 8px 22px rgb(0 0 0 / 0.1);
+  animation: somoHintIn 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* A bubble is a paragraph living inside a 14px/600 heading or an 11.5px
+   uppercase field label, and both of those rules are `.class element` — one
+   step above a bare class, so a class-only reset here loses every typographic
+   property to its own container. Reasserted at ID weight, the way the portal
+   already re-asserts link colour against `#somo-root a`. */
+#somo-root .somo-hint-bubble {
+  color: var(--somo-muted);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: left;
+  white-space: normal;
+}
+.somo-hint-bubble[hidden] {
+  display: none;
+}
+/* The notch: a rotated square borrowing two of the bubble's own borders, so the
+   hairline reads as continuous rather than as a triangle parked underneath. */
+.somo-hint-bubble::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: var(--hint-notch, 13px);
+  width: 8px;
+  height: 8px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  border-top-left-radius: 2px;
+  transform: rotate(45deg);
+}
+.somo-hint-bubble strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.somo-hint-bubble p {
+  margin: 0;
+}
+.somo-hint-bubble p + p {
+  margin-top: 9px;
+}
+.somo-hint-bubble code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text);
+}
+/* `#somo-root a { color: inherit }` wins on ID specificity over any class, so a
+   link inside a bubble has to be re-asserted at matching weight. */
+#somo-root .somo-hint-bubble a {
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* Snug against the heading text; the h3's own 8px gap is set for its ordinal. */
+.somo-card h3 .somo-hint {
+  margin-left: -4px;
+}
+/* A modal heading is not a flex row until a mark needs aligning inside it. */
+.somo-modal h3:has(.somo-hint) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* A field label is a block of uppercase text; a mark sitting in it needs the
+   label to become a row, or the 19px trigger drops the line height on its own. */
+label.somo-field span:has(.somo-hint) {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+@keyframes somoHintIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ===========================================================================
+   Spinner
+   ===========================================================================
+   The turning arc on a control that has been pressed. A busy label alone
+   ("Saving…") looks identical whether the server answered a second ago or never
+   answered at all. */
+/* Reuses the somoSpin keyframe the toolbar's RefreshCw icon already turns on. */
+.somo-spinner {
+  flex: none;
+  color: inherit;
+  animation: somoSpin 0.7s linear infinite;
+}
+.somo-spinner .track {
+  stroke: currentColor;
+  opacity: 0.28;
+}
+.somo-spinner .arc {
+  stroke: currentColor;
+}
+/* A button that has gone busy keeps its label and gains the arc beside it. The
+   same rule centres a Lucide mark next to a label, so an icon button and a busy
+   button are laid out by one piece of geometry rather than two. */
+.somo-btn:has(svg),
+.somo-mini-btn:has(svg),
+.somo-toolbar-btn:has(svg) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+/* Icon-only controls have no label to sit beside, so the gap would be padding. */
+.somo-mini-btn:has(> svg:only-child) {
+  gap: 0;
+}
+
+/* ===========================================================================
+   Skeletons
+   ===========================================================================
+   Every portal tab queries Supabase before it can render, so a tab switch used
+   to leave the previous page on screen with nothing to say another was coming.
+   These carry the incoming pane's shape, so the layout does not jump when the
+   rows arrive.
+
+   The blocks pulse in tone rather than sweeping a highlight across themselves:
+   the system has exactly two gradients and both encode something, so a shimmer
+   would be a third that means nothing at all. */
+.somo-skeleton {
+  display: block;
+  /* Darker than the recessed ground (0.97) so a placeholder reads as a
+     placeholder on a white card and inside a grey tile both. */
+  background: oklch(0.925 0 0);
+  animation: somoSkeletonPulse 1.5s ease-in-out infinite;
+}
+@keyframes somoSkeletonPulse {
+  0%,
+  100% {
+    background-color: oklch(0.925 0 0);
+  }
+  50% {
+    background-color: oklch(0.962 0 0);
+  }
+}
+.somo-skeleton-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Matches `.somo-card h3` exactly, so the card does not resize on arrival. */
+  min-height: 17px;
+  margin-bottom: 16px;
+}
+.somo-skeleton-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.somo-skeleton-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.somo-skeleton-table {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.somo-skeleton-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+}
+.somo-skeleton-row + .somo-skeleton-row {
+  border-top: 1px solid var(--line);
+}
+.somo-skeleton-row.head {
+  background: var(--panel-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .somo-hint-bubble {
+    animation: none;
+  }
+  .somo-hint-trigger {
+    transition: none;
+  }
+  /* A rotation is the part to drop; the arc still has to say "in flight". It
+     breathes instead, which is how the toast collapses under this query too. */
+  .somo-spinner {
+    animation: somoSpinnerBreathe 1.6s ease-in-out infinite;
+  }
+  @keyframes somoSpinnerBreathe {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
+  .somo-skeleton {
+    animation: none;
+    background: oklch(0.94 0 0);
+  }
+}
+
 
 @theme inline {
   --font-heading: var(--font-sans);

@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { api, errMessage } from '@/lib/api';
 import { useToast } from '@/components/Toast';
 import { Modal } from '@/components/Modal';
+import { InfoHint } from '@/components/InfoHint';
+import { Spinner } from '@/components/Spinner';
 import type { PublicAccount, Role } from '@/lib/types';
 
 const ROLE_CHOICES: { value: Role; label: string }[] = [
@@ -110,29 +112,37 @@ export function AccountsPane({
     <>
       <form className="somo-card" style={{ marginTop: 0 }} onSubmit={createAccount}>
         <h3>
-          <span className="n">—</span> {merchantsOnly ? 'Create merchant' : 'Create account'}
+          {merchantsOnly ? 'Create merchant' : 'Create account'}
+          <InfoHint label={merchantsOnly ? 'merchant accounts' : 'the four roles'}>
+            {merchantsOnly ? (
+              <p>
+                A <strong>merchant</strong> sees and submits only its own delivery requests, and
+                only its own ledger. Ops issue merchant accounts; ops, finance and admin accounts
+                come from an admin.
+              </p>
+            ) : (
+              <>
+                <p>
+                  <strong>Merchant</strong> — their own deliveries, ledger and dashboard, and
+                  nothing else.
+                </p>
+                <p>
+                  <strong>Ops</strong> — every delivery, the rider roster, assignments, alerts, and
+                  new merchant accounts. Not pricing, not other accounts.
+                </p>
+                <p>
+                  <strong>Finance</strong> — the ledger and dashboard for every merchant, read-only.
+                  Settlements are the one thing they write.
+                </p>
+                <p>
+                  <strong>Admin</strong> — everything ops can do, plus pricing, portal settings and
+                  full account management.
+                </p>
+              </>
+            )}
+          </InfoHint>
           <span className="tag-note">issue login access</span>
         </h3>
-        <p className="somo-card-intro">
-          {merchantsOnly ? (
-            <>
-              A <strong>merchant</strong> account sees and submits only its own delivery requests,
-              and its own ledger. Ops accounts create merchants; ops, finance and admin accounts are
-              issued by an admin.
-            </>
-          ) : (
-            <>
-              <strong>Merchant</strong> — sees and submits only their own delivery requests, with a
-              ledger and dashboard covering their own company.{' '}
-              <strong>Ops team</strong> — sees every delivery, manages the rider roster, assigns
-              riders, sends alerts, and creates merchant accounts, but can&rsquo;t touch pricing or
-              other accounts. <strong>Finance</strong> — read-only: the ledger and the dashboard for
-              every merchant, and nothing else. No delivery form, no rider roster, no ability to
-              change a single record. <strong>Admin</strong> — everything Ops can do, plus pricing
-              settings, full account management, and portal settings.
-            </>
-          )}
-        </p>
 
         <div className="somo-row2">
           {!merchantsOnly && (
@@ -198,13 +208,24 @@ export function AccountsPane({
         </label>
 
         <button className="somo-btn small" type="submit" disabled={busy}>
+          {busy ? <Spinner /> : null}
           {busy ? 'Creating…' : merchantsOnly ? 'Create merchant' : 'Create account'}
         </button>
       </form>
 
       <div className="somo-card">
         <h3>
-          <span className="n">—</span> {merchantsOnly ? 'Merchant accounts' : 'Existing accounts'}
+          {merchantsOnly ? 'Merchant accounts' : 'Existing accounts'}
+          <InfoHint label="how passwords are handled">
+            <p>
+              Supabase Auth stores and verifies passwords; this app never holds one in plain text. A
+              password is shown exactly once — right after you create the account
+              {merchantsOnly ? '' : ' or reset it'} — so you can hand it over.
+            </p>
+            {merchantsOnly ? (
+              <p>Resetting a merchant password, or deactivating an account, is an admin action.</p>
+            ) : null}
+          </InfoHint>
         </h3>
 
         {accounts.length === 0 ? (
@@ -252,13 +273,6 @@ export function AccountsPane({
           })
         )}
 
-        <div className="somo-note">
-          Passwords are stored and verified by Supabase Auth and never held by this app in plain text
-          — the only time a password is shown is right after you create the account
-          {merchantsOnly ? '' : ' or reset it'}, so you can hand it to the account holder.
-          {merchantsOnly &&
-            ' Resetting a merchant password or deactivating an account is an admin action.'}
-        </div>
       </div>
 
       <Modal

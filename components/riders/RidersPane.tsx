@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, errMessage } from '@/lib/api';
 import { useToast } from '@/components/Toast';
+import { Spinner } from '@/components/Spinner';
 import { RIDER_STATUSES, type Rider, type RiderStatus } from '@/lib/types';
 import { fmtMoney } from '@/lib/format';
 import { FLOAT_DEADLINE_HOURS, type RiderFloat } from '@/lib/ledger';
@@ -88,7 +89,7 @@ export function RidersPane({
   return (
     <div className="somo-card" style={{ marginTop: 0 }}>
       <h3>
-        <span className="n">—</span> Rider roster
+        Rider roster
         <span className="tag-note">shared, managed by admin/ops</span>
       </h3>
 
@@ -125,6 +126,7 @@ export function RidersPane({
           </label>
         </div>
         <button className="somo-btn small" type="submit" disabled={busy}>
+          {busy ? <Spinner /> : null}
           {busy ? 'Adding…' : 'Add rider'}
         </button>
       </form>

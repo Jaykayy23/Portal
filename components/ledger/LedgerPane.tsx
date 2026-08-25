@@ -4,8 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, apiDownload, errMessage } from '@/lib/api';
 import { fmtDateTime, fmtMoney, shortId, statusBadgeClass } from '@/lib/format';
+import { Download, Maximize2, Minimize2, RefreshCw } from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import { StatTile } from '@/components/StatTile';
+import { InfoHint } from '@/components/InfoHint';
+import { Spinner } from '@/components/Spinner';
 import { Modal } from '@/components/Modal';
 import { ScrollableTable } from '@/components/ScrollableTable';
 import { ProgressiveRows } from '@/components/ProgressiveRows';
@@ -331,20 +334,24 @@ export function LedgerPane({
     <>
       <div className="somo-card" style={{ marginTop: 0 }}>
         <h3>
-          <span className="n">—</span> Where the money is
+          Where the money is
+          <InfoHint label="how the positions are derived">
+            <p>Every delivery carries two sums, and each one is somewhere right now.</p>
+            <p>
+              <strong>Goods.</strong> Prepaid sits with the merchant and never reaches us. Cash on
+              delivery is collected at the door — with the rider, then with {COMPANY} once they
+              remit, and gone once the merchant has been paid.
+            </p>
+            <p>
+              <strong>Fee.</strong> Billed to a merchant account, it is owed to {COMPANY}. Paid by
+              the customer at the door, it is with the rider until they hand it in.
+            </p>
+            {canRecord ? (
+              <p>Recording a remittance or a payment is what clears these figures.</p>
+            ) : null}
+          </InfoHint>
           <span className="tag-note">{scopeLabel}</span>
         </h3>
-        <p className="somo-card-intro">
-          Every delivery carries two sums, and each is somewhere right now. Goods paid for up front
-          sit with the merchant and never reach us. Cash on delivery is collected at the door, so
-          once a parcel is handed over that money is with the rider, then with {COMPANY} when they
-          remit it, and gone once the merchant has been paid. A fee billed to a merchant account is
-          owed to {COMPANY}; a fee the customer pays at the door is with the rider until they hand
-          it in.
-          {canRecord
-            ? ' Recording a remittance or a payment is what clears these figures.'
-            : ''}
-        </p>
 
         <div className="somo-filters">
           <label className="somo-filter">
@@ -475,7 +482,19 @@ export function LedgerPane({
           {floats.length > 0 && (
             <div className="somo-card">
               <h3>
-                <span className="n">—</span> Rider float
+                Rider float
+                <InfoHint label="rider float">
+                  <p>
+                    What each rider is carrying: the deliveries they have handed over, less what
+                    they have remitted. <strong>Held for</strong> runs from the handover of the
+                    oldest amount still in their hands.
+                  </p>
+                  <p>
+                    Past {FLOAT_DEADLINE_HOURS} hours the database refuses to assign them anything
+                    new. Recording a remittance — or writing off what they cannot produce — is
+                    what releases them.
+                  </p>
+                </InfoHint>
                 <span className="tag-note">cash in hand, not yet remitted</span>
               </h3>
               <ScrollableTable label="Rider float" short>
@@ -556,20 +575,21 @@ export function LedgerPane({
                   </tbody>
                 </table>
               </ScrollableTable>
-              <div className="somo-note">
-                What each rider is carrying: the deliveries they have handed over, less what they
-                have remitted. <strong>Held for</strong> runs from the handover of the oldest
-                amount still in their hands. Past {FLOAT_DEADLINE_HOURS} hours the database
-                refuses to assign them anything new until they settle — recording a remittance,
-                or writing off what they cannot produce, is what releases them.
-              </div>
             </div>
           )}
 
           {seesAll && !merchantId && balances.length > 0 && (
             <div className="somo-card">
               <h3>
-                <span className="n">—</span> Merchant positions
+                Merchant positions
+                <InfoHint label="merchant positions">
+                  <p>
+                    <strong>Net</strong> is what would change hands if everything settled today:
+                    fees the merchant owes us, less the cash-on-delivery takings owed to them.
+                    <strong> Ready</strong> is the part of that we are already holding.
+                  </p>
+                  {canRecord ? <p>Open a merchant to settle with them.</p> : null}
+                </InfoHint>
                 <span className="tag-note">both directions</span>
               </h3>
               <ScrollableTable label="Merchant positions" short>
@@ -617,12 +637,6 @@ export function LedgerPane({
                   </tbody>
                 </table>
               </ScrollableTable>
-              <div className="somo-note">
-                Net is what would change hands if everything settled today: fees the merchant owes
-                us, less the cash-on-delivery takings owed to them. <strong>Ready</strong> is the
-                part of that we are already holding.
-                {canRecord ? ' Open a merchant to settle with them.' : ''}
-              </div>
             </div>
           )}
         </div>
@@ -630,7 +644,17 @@ export function LedgerPane({
 
       <div className="somo-card">
         <h3>
-          <span className="n">—</span> Ledger
+          Ledger
+          <InfoHint label="the ledger table">
+            <p>
+              Statuses and rider assignments are changed in the delivery log, not here — the money
+              position follows from them.
+            </p>
+            <p>
+              What this page writes is settlements: the record that an obligation was met. Rows
+              filed before payment terms were captured show a dash rather than a guess.
+            </p>
+          </InfoHint>
           <span className="tag-note">
             {visible.length} {visible.length === 1 ? 'row' : 'rows'}
           </span>
@@ -662,7 +686,12 @@ export function LedgerPane({
                 : 'Hide the detail columns so the table fits without scrolling sideways'
             }
           >
-            {compact ? '⤢ All columns' : '⤡ Compact'}
+            {compact ? (
+              <Maximize2 aria-hidden="true" size={13} />
+            ) : (
+              <Minimize2 aria-hidden="true" size={13} />
+            )}
+            <span>{compact ? 'All columns' : 'Compact'}</span>
           </button>
           <button
             type="button"
@@ -671,7 +700,8 @@ export function LedgerPane({
             disabled={refreshing}
             title="Riders and customers move these along from their phones — this checks now"
           >
-            {refreshing ? 'Refreshing…' : '↻ Refresh'}
+            <RefreshCw aria-hidden="true" size={13} className={refreshing ? 'somo-spin' : undefined} />
+            <span>{refreshing ? 'Refreshing…' : 'Refresh'}</span>
           </button>
           <button
             type="button"
@@ -680,7 +710,8 @@ export function LedgerPane({
             disabled={exporting || visible.length === 0}
             title="Download these rows, plus a totals sheet and the settlements, as an Excel file"
           >
-            {exporting ? 'Preparing…' : 'Export to Excel'}
+            <Download aria-hidden="true" size={13} />
+            <span>{exporting ? 'Preparing…' : 'Export to Excel'}</span>
           </button>
         </div>
 
@@ -831,17 +862,18 @@ export function LedgerPane({
           </ScrollableTable>
         )}
 
-        <div className="somo-note">
-          Statuses and rider assignments are changed in the delivery log, not here — the money
-          position follows from them. What this page writes is settlements: the record that an
-          obligation was met. Rows filed before payment terms were captured show a dash rather than
-          a guess.
-        </div>
       </div>
 
       <div className="somo-card">
         <h3>
-          <span className="n">—</span> Settlements recorded
+          Settlements recorded
+          <InfoHint label="voiding a settlement">
+            <p>
+              A settlement is never deleted. Voiding one stamps who did it and why, keeps it in this
+              list, and hands the obligations back to the ledger as unsettled — so money can never
+              look paid, or unpaid, with nothing to say how it got that way.
+            </p>
+          </InfoHint>
           <span className="tag-note">
             {visibleSettlements.length} {visibleSettlements.length === 1 ? 'entry' : 'entries'}
           </span>
@@ -949,11 +981,6 @@ export function LedgerPane({
           </ScrollableTable>
         )}
 
-        <div className="somo-note">
-          A settlement is never deleted. Voiding one stamps who did it and why, keeps it in this
-          list, and hands the obligations back to the ledger as unsettled — so money can never look
-          paid, or unpaid, with nothing to say how it got that way.
-        </div>
       </div>
 
       <SettleModal
@@ -996,6 +1023,7 @@ export function LedgerPane({
           disabled={voidBusy || !voidReason.trim()}
           onClick={voidNow}
         >
+          {voidBusy ? <Spinner /> : null}
           {voidBusy ? 'Voiding…' : 'Void settlement'}
         </button>
       </Modal>

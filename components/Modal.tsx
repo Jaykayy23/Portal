@@ -1,11 +1,18 @@
 'use client';
 
 import { useEffect, useId, useRef } from 'react';
+import { InfoHint } from '@/components/InfoHint';
 
 interface ModalProps {
   open: boolean;
   title: string;
   description?: string;
+  /**
+   * The standing explanation of the dialog's rules, behind the "?" beside its
+   * title. `description` is the one line somebody needs to act; this is what
+   * they open when the answer to "what happens if I leave this blank" matters.
+   */
+  hint?: React.ReactNode;
   wide?: boolean;
   closeLabel?: string;
   onClose: () => void;
@@ -16,6 +23,7 @@ export function Modal({
   open,
   title,
   description,
+  hint,
   wide,
   closeLabel = 'Done',
   onClose,
@@ -88,7 +96,10 @@ export function Modal({
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
       >
-        <h3 id={titleId}>{title}</h3>
+        <h3 id={titleId}>
+          {title}
+          {hint ? <InfoHint label={title.toLowerCase()}>{hint}</InfoHint> : null}
+        </h3>
         {description ? <p id={descriptionId}>{description}</p> : null}
         {children}
         <button className="somo-btn ghost" style={{ marginTop: 14 }} onClick={onClose}>

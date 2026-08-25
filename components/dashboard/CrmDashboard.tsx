@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { fmtDateTime, fmtMoney } from '@/lib/format';
 import { StatTile } from '@/components/StatTile';
 import { ScrollableTable } from '@/components/ScrollableTable';
+import { InfoHint } from '@/components/InfoHint';
 import {
   RANGES,
   categoryMix,
@@ -189,20 +190,22 @@ export function CrmDashboard({
     <>
       <div className="somo-card" style={{ marginTop: 0 }}>
         <h3>
-          <span className="n">—</span> Delivery dashboard
+          Delivery dashboard
+          <InfoHint label="the delivery dashboard">
+            <p>
+              Volume, completion and money over a period, counted from the same delivery rows the
+              log and the ledger read — so a merchant sees their own traffic and nobody
+              else&rsquo;s.
+            </p>
+            <p>
+              For the detail behind any figure here, the{' '}
+              <Link href="/portal/ledger">ledger</Link> has it row by row.
+            </p>
+          </InfoHint>
           <span className="tag-note">
             {scopeLabel} · {rangeLabel.toLowerCase()}
           </span>
         </h3>
-        <p className="somo-card-intro">
-          Volume, completion and money over a period, from the same delivery rows the log and the
-          ledger read — so a merchant sees their own traffic and nobody else&rsquo;s. For the
-          detail behind any figure here, the{' '}
-          <Link className="somo-inline-link" href="/portal/ledger">
-            ledger
-          </Link>{' '}
-          has it row by row.
-        </p>
 
         <div className="somo-filters">
           <label className="somo-filter">
@@ -309,7 +312,7 @@ export function CrmDashboard({
         <>
           <div className="somo-card">
             <h3>
-              <span className="n">—</span> Day by day
+              Day by day
               <span className="tag-note">
                 {rangeDays(range) === 0 ? `last ${ALL_TIME_CHART_DAYS} days` : rangeLabel.toLowerCase()}
               </span>
@@ -319,7 +322,7 @@ export function CrmDashboard({
 
           <div className="somo-card">
             <h3>
-              <span className="n">—</span> Money in this period
+              Money in this period
               <span className="tag-note">summary of the ledger</span>
             </h3>
             <div className="somo-kpis">
@@ -355,7 +358,7 @@ export function CrmDashboard({
           <div className="somo-split">
             <div className="somo-card">
               <h3>
-                <span className="n">—</span> Where deliveries sit
+                Where deliveries sit
                 <span className="tag-note">lifecycle order</span>
               </h3>
               <Bars rows={statuses} empty="No deliveries in this period." />
@@ -363,7 +366,7 @@ export function CrmDashboard({
 
             <div className="somo-card">
               <h3>
-                <span className="n">—</span> Payment mix
+                Payment mix
                 <span className="tag-note">two independent questions</span>
               </h3>
               <div className="somo-subhead">The goods</div>
@@ -376,7 +379,7 @@ export function CrmDashboard({
           <div className="somo-split">
             <div className="somo-card">
               <h3>
-                <span className="n">—</span> What is being sent
+                What is being sent
                 <span className="tag-note">item categories</span>
               </h3>
               <Bars rows={categories} empty="No item categories recorded." />
@@ -384,7 +387,7 @@ export function CrmDashboard({
 
             <div className="somo-card">
               <h3>
-                <span className="n">—</span> Busiest drop-offs
+                Busiest drop-offs
                 <span className="tag-note">top 8</span>
               </h3>
               <Bars rows={dropoffs} empty="No drop-offs in this period." />
@@ -394,7 +397,7 @@ export function CrmDashboard({
           {seesAll && !merchantId && volume.length > 0 && (
             <div className="somo-card">
               <h3>
-                <span className="n">—</span> Merchants
+                Merchants
                 <span className="tag-note">by volume</span>
               </h3>
               <ScrollableTable label="Merchant delivery performance" short>
@@ -449,7 +452,13 @@ export function CrmDashboard({
             {riders.length > 0 && (
               <div className="somo-card">
                 <h3>
-                  <span className="n">—</span> Riders
+                  Riders
+                  <InfoHint label="the rider table">
+                    <p>
+                      Read from the rider details snapshotted onto each delivery, so somebody who
+                      has since left the fleet still appears against the jobs they carried.
+                    </p>
+                  </InfoHint>
                   <span className="tag-note">on these deliveries</span>
                 </h3>
                 <ScrollableTable label="Rider performance" short>
@@ -479,16 +488,18 @@ export function CrmDashboard({
                   </tbody>
                   </table>
                 </ScrollableTable>
-                <div className="somo-note">
-                  Read from the rider details snapshotted onto each delivery, so a rider who has
-                  since left the fleet still appears against the jobs they carried.
-                </div>
               </div>
             )}
 
             <div className="somo-card">
               <h3>
-                <span className="n">—</span> Repeat recipients
+                Repeat recipients
+                <InfoHint label="repeat recipients">
+                  <p>
+                    Matched on the phone number rather than the name: the name is typed fresh on
+                    every request, and the same doorstep is often spelled two ways.
+                  </p>
+                </InfoHint>
                 <span className="tag-note">more than one delivery</span>
               </h3>
               {repeats.length === 0 ? (
@@ -525,10 +536,6 @@ export function CrmDashboard({
                   </table>
                 </ScrollableTable>
               )}
-              <div className="somo-note">
-                Matched on the phone number rather than the name, since the name is typed fresh on
-                every request and the same doorstep is often spelled two ways.
-              </div>
             </div>
           </div>
         </>

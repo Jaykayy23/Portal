@@ -8,6 +8,8 @@ import { calcPrice } from '@/lib/pricing';
 import { isValidPhone } from '@/lib/phone';
 import { useToast } from '@/components/Toast';
 import { useMaps } from '@/components/MapsProvider';
+import { InfoHint } from '@/components/InfoHint';
+import { Spinner } from '@/components/Spinner';
 import { NotifyModal } from '@/components/delivery/NotifyModal';
 import {
   DELIVERY_PAYERS,
@@ -298,6 +300,7 @@ export function NewDeliveryForm({
                       : 'Ask an admin to add a Google Maps API key in Settings'
                   }
                 >
+                  {calculating ? <Spinner size={13} /> : null}
                   {calculating ? 'Calculating…' : 'Get from Maps'}
                 </button>
               </div>
@@ -305,14 +308,28 @@ export function NewDeliveryForm({
 
             {!maps.ready && (
               <div className="somo-maps-hint">
-                Manual entry is active. An admin can add a Google Maps API key (Places + Distance
-                Matrix) in the Settings tab to enable location autocomplete and automatic
-                driving distance and time lookup for everyone.
+                Manual entry — type the distance and time yourself. An admin can switch on
+                autocomplete and automatic lookup by adding a Google Maps key (Places + Distance
+                Matrix) under Settings.
               </div>
             )}
 
             <label className="somo-field">
-              <span>Estimated driving time (min)</span>
+              <span>
+                Estimated driving time (min)
+                {params.perMin > 0 && (
+                  <InfoHint label="estimated driving time">
+                    <p>
+                      Priced at GHS {params.perMin}/min, so a slow route through traffic costs more
+                      than an open run of the same distance.
+                    </p>
+                    <p>
+                      Filled by <strong>Get from Maps</strong>, or type it in. Leave it at 0 to
+                      quote on distance alone.
+                    </p>
+                  </InfoHint>
+                )}
+              </span>
               <input
                 className="somo-input"
                 type="number"
@@ -323,13 +340,6 @@ export function NewDeliveryForm({
                 onChange={(e) => setDurationMin(e.target.value)}
               />
             </label>
-            {params.perMin > 0 && (
-              <div className="somo-note borderless">
-                Priced at GHS {params.perMin}/min, so a slow route through traffic costs more than
-                an open run of the same distance. Filled by &ldquo;Get from Maps&rdquo;, or type it
-                in. Leave it at 0 to quote on distance alone.
-              </div>
-            )}
 
             <label className="somo-field">
               <span>Delivery type</span>
@@ -386,7 +396,16 @@ export function NewDeliveryForm({
             )}
 
             <label className="somo-field">
-              <span>Declared value of item (GHS, required)</span>
+              <span>
+                Declared value of item (GHS, required)
+                <InfoHint label="declared value">
+                  <p>What the item is worth. It covers handling care and liability.</p>
+                  <p>
+                    On a cash-on-delivery request this is also the sum the rider collects at the
+                    door.
+                  </p>
+                </InfoHint>
+              </span>
               <input
                 className="somo-input"
                 type="number"
@@ -398,7 +417,20 @@ export function NewDeliveryForm({
               />
             </label>
             <label className="somo-field">
-              <span>Item payment (required)</span>
+              <span>
+                Item payment (required)
+                <InfoHint label="the two payment answers">
+                  <p>
+                    Two independent questions: whether the <strong>item</strong> is already paid
+                    for, and who settles the <strong>delivery fee</strong>. All four combinations
+                    are valid.
+                  </p>
+                  <p>
+                    Both answers go into the rider&rsquo;s alert, so they know exactly what to
+                    collect at the door — and what not to.
+                  </p>
+                </InfoHint>
+              </span>
               <select
                 className="somo-select"
                 value={itemPayment}
@@ -429,11 +461,6 @@ export function NewDeliveryForm({
               </select>
             </label>
 
-            <div className="somo-note borderless">
-              Declared value covers handling care and liability. The two payment
-              answers go into the rider&rsquo;s alert, so they know exactly what to
-              collect at the door — and what not to.
-            </div>
           </div>
         </div>
 
@@ -479,6 +506,13 @@ export function NewDeliveryForm({
           <div className="somo-card">
             <h3>
               <span className="n">03</span> Price
+              <InfoHint label="how this price is set">
+                <p>
+                  Computed from the pricing rules, and computed again on the server when the request
+                  is filed — so this preview and the logged figure cannot disagree.
+                </p>
+                <p>It is the charged price, not a starting point. Nobody can type a different one.</p>
+              </InfoHint>
               <span className="tag-note">set by the pricing rules</span>
             </h3>
 
@@ -517,13 +551,8 @@ export function NewDeliveryForm({
               />
             </label>
 
-            <div className="somo-note borderless">
-              The price comes from the pricing rules and is recalculated on the server
-              when the request is filed, so this preview and the logged figure cannot
-              disagree.
-            </div>
-
             <button className="somo-btn" type="submit" disabled={busy}>
+              {busy ? <Spinner /> : null}
               {busy ? 'Logging…' : 'Log delivery request'}
             </button>
           </div>

@@ -34,7 +34,7 @@ export default async function DeliveryLogPage() {
   return (
     <div className="somo-card" style={{ marginTop: 0 }}>
       <h3>
-        <span className="n">—</span> {canManage ? 'All deliveries' : 'My delivery log'}
+        {canManage ? 'All deliveries' : 'My delivery log'}
         <span className="tag-note">
           {canManage ? `${user.role} view — every merchant` : 'visible only to you'}
         </span>

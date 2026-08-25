@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { Spinner } from '@/components/Spinner';
 
 export function LogoutButton() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export function LogoutButton() {
         router.refresh();
       }}
     >
+      {busy ? <Spinner size={12} /> : null}
       {busy ? 'Logging out…' : 'Log out'}
     </button>
   );

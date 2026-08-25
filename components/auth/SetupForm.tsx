@@ -6,6 +6,7 @@ import { api, errMessage } from '@/lib/api';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { usernameToEmail } from '@/lib/identity';
 import { useToast } from '@/components/Toast';
+import { Spinner } from '@/components/Spinner';
 import type { PublicAccount } from '@/lib/types';
 
 export function SetupForm() {
@@ -145,6 +146,7 @@ export function SetupForm() {
         />
       </label>
       <button className="somo-btn" type="submit" disabled={busy}>
+        {busy ? <Spinner /> : null}
         {busy ? 'Creating…' : 'Create admin account'}
       </button>
     </form>

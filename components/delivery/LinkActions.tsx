@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { api, errMessage } from '@/lib/api';
 import { fmtDateTime } from '@/lib/format';
+import { Spinner } from '@/components/Spinner';
 import type { LinkAction, LinkOutcome, LinkPurpose } from '@/lib/types';
 
 /** What the holder is told once they — or someone before them — have answered. */
@@ -91,6 +92,7 @@ export function LinkActions({ token, purpose }: { token: string; purpose: LinkPu
           onClick={() => take('accept')}
           disabled={busy !== null}
         >
+          {busy === 'accept' ? <Spinner /> : null}
           {busy === 'accept' ? 'Accepting…' : 'Accept this job'}
         </button>
         <button
@@ -99,6 +101,7 @@ export function LinkActions({ token, purpose }: { token: string; purpose: LinkPu
           onClick={() => take('decline')}
           disabled={busy !== null}
         >
+          {busy === 'decline' ? <Spinner /> : null}
           {busy === 'decline' ? 'Declining…' : "I can't take this one"}
         </button>
         <div className="somo-confirm-hint">
@@ -124,6 +127,7 @@ export function LinkActions({ token, purpose }: { token: string; purpose: LinkPu
         onClick={() => take('confirm')}
         disabled={busy !== null}
       >
+        {busy ? <Spinner /> : null}
         {busy ? 'Confirming…' : label}
       </button>
       <div className="somo-confirm-hint">{hint}</div>

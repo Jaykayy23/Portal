@@ -5,6 +5,7 @@ import { api, errMessage } from '@/lib/api';
 import { fmtDateTime, fmtMoney, shortId } from '@/lib/format';
 import { useToast } from '@/components/Toast';
 import { Modal } from '@/components/Modal';
+import { Spinner } from '@/components/Spinner';
 import {
   COMPANY,
   SETTLEMENT_METHODS,
@@ -252,7 +253,28 @@ export function SettleModal({
     : `Fees ${party.name} owes ${COMPANY}, and cash-on-delivery takings ${COMPANY} owes them. Both directions can go on one settlement.`;
 
   return (
-    <Modal open title={title} description={description} wide closeLabel="Cancel" onClose={onClose}>
+    <Modal
+      open
+      title={title}
+      description={description}
+      wide
+      closeLabel="Cancel"
+      onClose={onClose}
+      hint={
+        <>
+          <p>
+            Leave an amount blank to settle all of it. A partial amount leaves the rest outstanding,
+            so it appears here again next time.
+          </p>
+          <p>
+            Writing an amount off closes it instead, and charges it{isRider ? ` to ${party.name}` : ''}.
+            Nothing here can exceed what is owed — the database bounds every figure to the
+            obligation it is against.
+          </p>
+          <p>Recorded by mistake? Void it under the ledger and everything reopens.</p>
+        </>
+      }
+    >
       {candidates.length === 0 ? (
         <div className="somo-empty small">
           Nothing outstanding to settle here. If you were expecting something, widen the period on
@@ -436,18 +458,11 @@ export function SettleModal({
             disabled={busy || outgoing.length === 0}
             onClick={submit}
           >
+            {busy ? <Spinner /> : null}
             {busy
               ? 'Recording…'
               : `Record ${outgoing.length} ${outgoing.length === 1 ? 'entry' : 'entries'}`}
           </button>
-
-          <div className="somo-note">
-            Leave an amount blank to settle all of it. A partial amount leaves the rest
-            outstanding, so it appears here again next time — unless you write it off, which closes
-            it and charges it{isRider ? ` to ${party.name}` : ''} instead. Nothing here can exceed
-            what is owed: the database bounds every figure to the obligation it is against. Recorded
-            by mistake? Void it below the ledger and everything reopens.
-          </div>
         </>
       )}
     </Modal>
