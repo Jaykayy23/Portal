@@ -2,12 +2,29 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import {
+  Bike,
+  Calculator,
+  CirclePlus,
+  LayoutDashboard,
+  type LucideIcon,
+  Package,
+  Settings,
+  Users,
+  Wallet,
+} from 'lucide-react';
 import type { Role } from '@/lib/types';
 
 interface Tab {
   href: string;
   label: string;
   roles: Role[];
+  /**
+   * Decorative only — every item keeps its label, and the icon is
+   * `aria-hidden`. It is there to make a known destination findable at a glance,
+   * not to name it.
+   */
+  icon: LucideIcon;
   /** Override where the same route means something narrower to one role. */
   labelByRole?: Partial<Record<Role, string>>;
 }
@@ -21,28 +38,42 @@ interface Tab {
  * is reached for.
  */
 const TABS: Tab[] = [
-  { href: '/portal/dashboard', label: 'Dashboard', roles: ['admin', 'ops', 'merchant', 'finance'] },
-  { href: '/portal/new', label: 'New delivery', roles: ['admin', 'ops', 'merchant'] },
-  { href: '/portal/log', label: 'Deliveries', roles: ['admin', 'ops', 'merchant'] },
+  {
+    href: '/portal/dashboard',
+    label: 'Dashboard',
+    icon: LayoutDashboard,
+    roles: ['admin', 'ops', 'merchant', 'finance'],
+  },
+  // A plain plus rather than a second parcel: `PackagePlus` beside `Package` is
+  // two boxes differing by a few pixels at 16px, and "create" is the one action
+  // every interface already draws this way.
+  { href: '/portal/new', label: 'New delivery', icon: CirclePlus, roles: ['admin', 'ops', 'merchant'] },
+  { href: '/portal/log', label: 'Deliveries', icon: Package, roles: ['admin', 'ops', 'merchant'] },
   {
     href: '/portal/ledger',
     label: 'Ledger',
+    // A wallet, not a book: the page answers "whose pocket is this cedi in", and
+    // that reads faster than the ledger metaphor does at this size.
+    icon: Wallet,
     roles: ['admin', 'ops', 'merchant', 'finance'],
     // A merchant's ledger is their own company's and nobody else's, and saying so
     // on the tab saves them wondering what they are about to see.
     labelByRole: { merchant: 'My ledger' },
   },
-  { href: '/portal/riders', label: 'Riders', roles: ['admin', 'ops'] },
-  { href: '/portal/pricing', label: 'Pricing', roles: ['admin'] },
+  { href: '/portal/riders', label: 'Riders', icon: Bike, roles: ['admin', 'ops'] },
+  // The page is the fare formula, not a price list, so a calculator rather than a
+  // tag — which would also collide with the item categories under Settings.
+  { href: '/portal/pricing', label: 'Pricing', icon: Calculator, roles: ['admin'] },
   {
     href: '/portal/accounts',
     label: 'Users',
+    icon: Users,
     roles: ['admin', 'ops'],
     // Ops only ever sees merchants there, so naming it 'Users' would promise more
     // than the pane delivers.
     labelByRole: { ops: 'Merchants' },
   },
-  { href: '/portal/settings', label: 'Settings', roles: ['admin'] },
+  { href: '/portal/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
 ];
 
 /**
@@ -61,7 +92,8 @@ export function PortalTabs({ role }: { role: Role }) {
           className={`somo-tab${pathname === tab.href ? ' active' : ''}`}
           aria-current={pathname === tab.href ? 'page' : undefined}
         >
-          {tab.labelByRole?.[role] ?? tab.label}
+          <tab.icon className="somo-tab-icon" aria-hidden="true" size={16} />
+          <span>{tab.labelByRole?.[role] ?? tab.label}</span>
         </Link>
       ))}
     </nav>

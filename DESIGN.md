@@ -385,8 +385,8 @@ fills the row while the nav hugs its items.
 short viewport scrolls the nav itself rather than running it off the screen. The
 header scrolls away; the nav does not.
 
-Below **900px** the row becomes a column, the nav goes back to a horizontal strip,
-and nothing sticks — a nav pinned above the content it is scrolling over would eat a
+Below **900px** the row becomes a column, the nav goes back to a strip that wraps to
+as many rows as the width needs, and nothing sticks — a nav pinned above the content it is scrolling over would eat a
 third of a phone screen. The row also switches to `align-items: stretch` there, or
 the nav card would shrink to the width of its own tabs and leave three stacked
 panels at two different widths. Gaps tighten to `12px` under **640px**.
@@ -572,17 +572,50 @@ The section nav has two forms, and the same markup produces both. Every item is 
 real route link either way, so panes are never hidden — the `somoFade` animation
 just softens the change.
 
+Every item carries a **16px Lucide icon** beside its label, `aria-hidden` and
+stroked in `currentColor` so it takes the row's own colour with no rule of its own —
+muted at rest, navy when selected. The icons are decorative: the label always ships,
+and the accessible name is the label alone. One per destination, chosen to be
+distinct at 16px rather than literal:
+
+| | | |
+|---|---|---|
+| Dashboard | `LayoutDashboard` | Riders | `Bike` |
+| New delivery | `CirclePlus` | Pricing | `Calculator` |
+| Deliveries | `Package` | Users | `Users` |
+| Ledger | `Wallet` | Settings | `Settings` |
+
+`CirclePlus` rather than `PackagePlus` because a second parcel differing by a few
+pixels from Deliveries' `Package` is not a distinction at this size, and `Calculator`
+rather than `Tag` because the page is the fare formula, not a price list — and a tag
+would collide with the item categories under Settings.
+
 **Sidebar (over 900px).** Its own `200px` lifted panel on the left of the frame,
 `12px` of padding and `2px` between items. Each item is `9px 12px` at 13.5px/500
-with an `8px` radius. Inactive is Muted Ink; hover takes Ink text on Ground Grey;
+with an `8px` radius, icon beside the label at a `10px` gap. Inactive is Muted Ink; hover takes Ink text on Ground Grey;
 active is Waybill Navy text on Waybill Navy Soft at 600 weight. **Sticky** at
 `top: 16px`, so it stays where the eye left it on a long log or ledger.
 
-**Strip (900px and under).** The same panel becomes a horizontally scrolling row
-above the content, `8px` padding and `4px` gaps, stretched to the full frame width
-so it lines up with the header and content panels. Nothing sticks. The sidebar's
-`200px` is worth more as content width at that size, which is also where the
-two-column content grids collapse.
+**Strip (900px and under).** The same panel becomes a row above the content, `8px`
+padding and `4px` gaps, stretched to the full frame width so it lines up with the
+header and content panels. Nothing sticks. The sidebar's `200px` is worth more as
+content width at that size, which is also where the two-column content grids
+collapse.
+
+In the strip the icon sits **above** the label rather than beside it, at `7px 10px`
+padding. Beside it, each tab would grow by the icon plus its gap — about 26px — and
+eight of those push a three-row wrap to four. Stacked, the tab stays as wide as its
+label, so the row count is exactly what it was before the icons arrived; it is also
+the arrangement every phone tab bar already uses. The cost is height per row: 44px
+becomes 53px.
+
+The strip **wraps rather than scrolls**, and items grow to fill each row with
+`10px` insets and centred labels, so a short last row reads as a deliberate block
+rather than a leftover. Wrapping is adaptive, so the row count follows the width:
+one row at 768px (71px), two at 414px (129px), three at 375px and below (186px). Every tab is on screen at
+every width — which a scrolling strip could not promise, because it clipped five of
+eight on a phone, including the active one, with no affordance and a sideways swipe
+inside a vertically scrolling page as the only way to find the rest.
 
 **Order.** Dashboard, New delivery, Deliveries, Ledger, Riders, Pricing, Users,
 Settings. Dashboard leads because it answers "where do things stand"; the next two
@@ -590,7 +623,9 @@ carry the day's work; the rest is reference and setup. Role filtering removes it
 without reordering them, and two labels narrow per role — a merchant sees "My
 ledger", ops sees "Merchants" for Users.
 
-- **Touch:** `44px` minimum height under `(pointer: coarse)`.
+- **Touch:** `44px` minimum height under `(pointer: coarse)`; the stacked icon takes
+  each strip row to 53px anyway. The strip's height is the price of never hiding a
+  destination, and it is only paid on first view since the strip does not stick.
 
 ### Named Rules
 
@@ -678,6 +713,11 @@ without replacing it with something at least as visible.
 - **Don't** reintroduce `--brand-amber`, `--amber`, or a size-dependent accent variant.
   The accent is one navy and the aliases (`--accent`, `--accent-fill`, `--accent-dim`)
   all resolve to it.
+- **Don't** set a link colour inside the portal with a class alone. `#somo-root a
+  { color: inherit }` beats any single class on ID specificity, so a `.somo-*` rule
+  colouring an `<a>` is silently ignored — it had killed the whole nav's muted/active
+  colour hierarchy until it was re-asserted as `#somo-root .somo-tab`. Match the
+  specificity, the way the notify-modal links do.
 - **Don't** override `font-variant-numeric: tabular-nums`.
 - **Don't** point `--font-mono` at a real monospace face, or add a second typeface.
   Never load a font from a CDN — the build cannot reach `fonts.gstatic.com` and will

@@ -289,7 +289,15 @@ body {
   user-select: none;
   font-family: var(--font-body);
   text-decoration: none;
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* Lucide strokes are `currentColor`, so the icon tracks the row's own colour —
+   muted at rest, navy when selected — with no rule of its own. It only needs to
+   refuse to be squashed when a label is long. */
+.somo-tab-icon {
+  flex-shrink: 0;
 }
 .somo-tab:hover {
   color: var(--text);
@@ -303,6 +311,20 @@ body {
   color: var(--accent);
   background: var(--brand-navy-soft);
   font-weight: 600;
+}
+/* Every nav item is a Link, so `#somo-root a { color: inherit }` above beats all
+   three colours on ID specificity and renders the whole nav at full-strength Ink —
+   no recede on the inactive items, no accent on the selected one. Re-asserted at
+   matching specificity, the same way the notify-modal links are. The icons take
+   currentColor, so this colours them too. */
+#somo-root .somo-tab {
+  color: var(--somo-muted);
+}
+#somo-root .somo-tab:hover {
+  color: var(--text);
+}
+#somo-root .somo-tab.active {
+  color: var(--accent);
 }
 
 .somo-body {
@@ -1130,10 +1152,6 @@ table.somo-table tr:hover td {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .somo-tabs {
-    padding-inline: 12px;
-    scrollbar-width: thin;
-  }
   .somo-body {
     padding: 16px;
   }
@@ -1671,11 +1689,37 @@ body:has(.somo-link-page) {
     gap: 4px;
     padding: 8px;
     max-height: none;
+    /* Wraps rather than scrolls. Eight tabs compress to about 727px, which fits
+       one row on a tablet and does not on a phone — where the strip used to clip
+       five of them, including the one you were on, with nothing to say so and a
+       sideways swipe inside a vertically scrolling page as the only way to find
+       out. `wrap` is adaptive: one row wherever one row fits, two where it does
+       not, and no hidden state at any width.
+
+       overflow-x stays as a guard for the degenerate case of a single label wider
+       than the whole strip, which wrapping cannot solve. */
+    flex-wrap: wrap;
     overflow-x: auto;
     overflow-y: visible;
   }
   .somo-tab {
     white-space: nowrap;
+    /* Icon above the label here, not beside it. Beside it, each tab would grow by
+       the icon plus its gap — about 26px — and eight of those push the strip from
+       three wrapped rows to four. Stacked, the tab stays as wide as its label, so
+       the wrapping is exactly what it was before the icons arrived. It is also
+       the arrangement every phone tab bar already uses. */
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    /* Tighter than the sidebar's 9px 12px: the stack is taller than a single line,
+       so the row buys its height back from the padding. */
+    padding: 7px 10px;
+    /* Fill the row rather than leaving a ragged end, so a short last row reads as
+       a deliberate block instead of a leftover. */
+    flex: 1 1 auto;
+    text-align: center;
   }
 }
 
