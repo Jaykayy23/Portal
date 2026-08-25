@@ -233,7 +233,16 @@ export async function patchDelivery(
         // the last rider declined — but never overrides an explicit status sent in
         // the same patch. It stops at 'Pending': only the rider's own acceptance
         // makes a delivery 'Assigned'.
-        if (current?.status === 'Requested' || current?.status === 'Declined') {
+        //
+        // 'Approved' belongs here for the same reason 'Requested' does: both are
+        // pre-rider states that the log reports as "Assign a rider", so leaving one
+        // behind would keep that line in Needs attention for a delivery that
+        // already has someone on it.
+        if (
+          current?.status === 'Requested' ||
+          current?.status === 'Approved' ||
+          current?.status === 'Declined'
+        ) {
           update.status = 'Pending';
         }
       }
