@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { fmtDateTime, fmtMoney } from '@/lib/format';
 import { StatTile } from '@/components/StatTile';
+import { ScrollableTable } from '@/components/ScrollableTable';
 import {
   RANGES,
   categoryMix,
@@ -396,7 +397,7 @@ export function CrmDashboard({
                 <span className="n">—</span> Merchants
                 <span className="tag-note">by volume</span>
               </h3>
-              <div className="somo-table-wrap short">
+              <ScrollableTable label="Merchant delivery performance" short>
                 <table className="somo-table somo-mini-table">
                   <thead>
                     <tr>
@@ -440,7 +441,7 @@ export function CrmDashboard({
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </ScrollableTable>
             </div>
           )}
 
@@ -451,7 +452,8 @@ export function CrmDashboard({
                   <span className="n">—</span> Riders
                   <span className="tag-note">on these deliveries</span>
                 </h3>
-                <table className="somo-table somo-mini-table">
+                <ScrollableTable label="Rider performance" short>
+                  <table className="somo-table somo-mini-table">
                   <thead>
                     <tr>
                       <th>Rider</th>
@@ -475,7 +477,8 @@ export function CrmDashboard({
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                  </table>
+                </ScrollableTable>
                 <div className="somo-note">
                   Read from the rider details snapshotted onto each delivery, so a rider who has
                   since left the fleet still appears against the jobs they carried.
@@ -493,7 +496,8 @@ export function CrmDashboard({
                   Nobody in this period has received more than once.
                 </div>
               ) : (
-                <table className="somo-table somo-mini-table">
+                <ScrollableTable label="Repeat recipients" short>
+                  <table className="somo-table somo-mini-table">
                   <thead>
                     <tr>
                       <th>Recipient</th>
@@ -518,7 +522,8 @@ export function CrmDashboard({
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                  </table>
+                </ScrollableTable>
               )}
               <div className="somo-note">
                 Matched on the phone number rather than the name, since the name is typed fresh on

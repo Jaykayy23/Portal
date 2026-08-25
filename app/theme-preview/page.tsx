@@ -6,6 +6,8 @@
 // in lib/supabase/middleware.ts) once you're happy with the palette.
 import { notFound } from 'next/navigation';
 import { BrandMark } from '@/components/BrandMark';
+import { ScrollableTable } from '@/components/ScrollableTable';
+import { Bell } from 'lucide-react';
 
 export default function ThemePreview() {
   if (process.env.NODE_ENV === 'production') notFound();
@@ -41,7 +43,7 @@ export default function ThemePreview() {
           <div className="somo-card">
             <h3><span className="n">01</span> Trip details</h3>
             <div className="somo-route">
-              <div className="dot a" /><div className="line"><div className="line-fill" style={{ width: '40%' }} /></div>
+              <div className="dot a" /><div className="line"><div className="line-fill" style={{ transform: 'scaleX(0.4)' }} /></div>
               <div className="dot b" /><div className="dist">8.0 km</div>
             </div>
             <label className="somo-field"><span>Pickup location</span>
@@ -71,29 +73,29 @@ export default function ThemePreview() {
 
         <div className="somo-card">
           <h3><span className="n">—</span> All deliveries<span className="tag-note">admin view</span></h3>
-          <div className="somo-table-wrap">
+          <ScrollableTable label="Delivery preview">
             <table className="somo-table">
               <thead><tr><th>Date</th><th>Customer</th><th>Route</th><th>Recommended</th><th>Status</th><th>Alerts</th></tr></thead>
               <tbody>
                 <tr><td>Aug 18 11:36</td><td>Jumia</td><td>Osu → East Legon</td>
                   <td className="somo-price-cell">GHS 67.00</td>
                   <td><span className="somo-badge b-requested">Requested</span></td>
-                  <td><button className="somo-notify-btn">🔔 Notify</button></td></tr>
+                  <td><button className="somo-notify-btn"><Bell aria-hidden="true" size={14} /><span>Notify</span></button></td></tr>
                 <tr><td>Aug 18 11:31</td><td>Mr Wu</td><td>Accra Mall → Tema</td>
                   <td className="somo-price-cell">GHS 112.00</td>
                   <td><span className="somo-badge b-approval">Declined</span></td>
-                  <td><button className="somo-notify-btn">🔔 Notify</button></td></tr>
+                  <td><button className="somo-notify-btn"><Bell aria-hidden="true" size={14} /><span>Notify</span></button></td></tr>
                 <tr><td>Aug 18 10:02</td><td>Jumia</td><td>Osu → Airport</td>
                   <td className="somo-price-cell">GHS 77.00</td>
                   <td><span className="somo-badge b-assigned">Assigned</span></td>
-                  <td><button className="somo-notify-btn">🔔 Notify</button></td></tr>
+                  <td><button className="somo-notify-btn"><Bell aria-hidden="true" size={14} /><span>Notify</span></button></td></tr>
                 <tr><td>Aug 17 16:20</td><td>Mr Wu</td><td>Tema → Spintex</td>
                   <td className="somo-price-cell">GHS 54.00</td>
                   <td><span className="somo-badge b-delivered">Delivered</span></td>
-                  <td><button className="somo-notify-btn">🔔 Notify</button></td></tr>
+                  <td><button className="somo-notify-btn"><Bell aria-hidden="true" size={14} /><span>Notify</span></button></td></tr>
               </tbody>
             </table>
-          </div>
+          </ScrollableTable>
         </div>
 
         <div className="somo-card">

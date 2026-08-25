@@ -7,6 +7,8 @@ import { fmtDateTime, fmtMoney, shortId, statusBadgeClass } from '@/lib/format';
 import { useToast } from '@/components/Toast';
 import { StatTile } from '@/components/StatTile';
 import { Modal } from '@/components/Modal';
+import { ScrollableTable } from '@/components/ScrollableTable';
+import { ProgressiveRows } from '@/components/ProgressiveRows';
 import { SettleModal, type SettleParty } from '@/components/ledger/SettleModal';
 import { RANGES, filterByRange, type RangeKey } from '@/lib/analytics';
 import {
@@ -476,7 +478,7 @@ export function LedgerPane({
                 <span className="n">—</span> Rider float
                 <span className="tag-note">cash in hand, not yet remitted</span>
               </h3>
-              <div className="somo-table-wrap short">
+              <ScrollableTable label="Rider float" short>
                 <table className="somo-table somo-mini-table">
                   <thead>
                     <tr>
@@ -553,7 +555,7 @@ export function LedgerPane({
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </ScrollableTable>
               <div className="somo-note">
                 What each rider is carrying: the deliveries they have handed over, less what they
                 have remitted. <strong>Held for</strong> runs from the handover of the oldest
@@ -570,7 +572,7 @@ export function LedgerPane({
                 <span className="n">—</span> Merchant positions
                 <span className="tag-note">both directions</span>
               </h3>
-              <div className="somo-table-wrap short">
+              <ScrollableTable label="Merchant positions" short>
                 <table className="somo-table somo-mini-table">
                   <thead>
                     <tr>
@@ -614,7 +616,7 @@ export function LedgerPane({
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </ScrollableTable>
               <div className="somo-note">
                 Net is what would change hands if everything settled today: fees the merchant owes
                 us, less the cash-on-delivery takings owed to them. <strong>Ready</strong> is the
@@ -692,7 +694,7 @@ export function LedgerPane({
               : 'No delivery matches this period, merchant and filter. Widen the period or choose Everything.'}
           </div>
         ) : (
-          <div className="somo-table-wrap">
+          <ScrollableTable label="Ledger obligations">
             <table className="somo-table">
               <thead>
                 <tr>
@@ -719,7 +721,8 @@ export function LedgerPane({
                 </tr>
               </thead>
               <tbody>
-                {visible.map((e: LedgerEntry) => {
+                <ProgressiveRows colSpan={columnCount} initial={100} step={100}>
+                  {visible.map((e: LedgerEntry) => {
                   const r = e.delivery;
                   return (
                     <tr key={r.id}>
@@ -806,7 +809,8 @@ export function LedgerPane({
                       </td>
                     </tr>
                   );
-                })}
+                  })}
+                </ProgressiveRows>
 
                 {visible.length === 0 ? (
                   <tr>
@@ -824,7 +828,7 @@ export function LedgerPane({
                 ) : null}
               </tbody>
             </table>
-          </div>
+          </ScrollableTable>
         )}
 
         <div className="somo-note">
@@ -850,7 +854,7 @@ export function LedgerPane({
               : 'No settlements recorded yet.'}
           </div>
         ) : (
-          <div className="somo-table-wrap short">
+          <ScrollableTable label="Settlement history" short>
             <table className="somo-table somo-mini-table">
               <thead>
                 <tr>
@@ -865,7 +869,8 @@ export function LedgerPane({
                 </tr>
               </thead>
               <tbody>
-                {visibleSettlements.map((s) => (
+                <ProgressiveRows colSpan={canRecord ? 8 : 7} initial={100} step={100}>
+                  {visibleSettlements.map((s) => (
                   <tr key={s.id} className={s.voidedAt ? 'somo-voided' : undefined}>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       {fmtDateTime(s.settledAt)}
@@ -937,10 +942,11 @@ export function LedgerPane({
                       </td>
                     )}
                   </tr>
-                ))}
+                  ))}
+                </ProgressiveRows>
               </tbody>
             </table>
-          </div>
+          </ScrollableTable>
         )}
 
         <div className="somo-note">

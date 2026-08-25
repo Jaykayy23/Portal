@@ -15,6 +15,9 @@ import {
 import { FLOAT_DEADLINE_HOURS, type RiderFloat } from '@/lib/ledger';
 import { fmtMoney as money } from '@/lib/format';
 import { amountsDue, cashToCollect } from '@/lib/amounts';
+import { ScrollableTable } from '@/components/ScrollableTable';
+import { ProgressiveRows } from '@/components/ProgressiveRows';
+import { Bell } from 'lucide-react';
 
 /**
  * Most the queue will show at once.
@@ -412,7 +415,7 @@ export function DeliveryLog({
         </button>
       </div>
 
-      <div className="somo-table-wrap">
+      <ScrollableTable label="Delivery log">
         <table className="somo-table">
           <thead>
             <tr>
@@ -441,7 +444,8 @@ export function DeliveryLog({
             </tr>
           </thead>
           <tbody>
-            {visible.map((r) => {
+            <ProgressiveRows colSpan={columnCount} initial={100} step={100}>
+              {visible.map((r) => {
               const step = milestone(r);
               const collect = cashDue(r);
               return (
@@ -585,7 +589,8 @@ export function DeliveryLog({
                   <td>
                     {canManage ? (
                       <button className="somo-notify-btn" onClick={() => setNotify(r)}>
-                        🔔 Notify
+                        <Bell aria-hidden="true" size={14} />
+                        <span>Notify</span>
                       </button>
                     ) : r.status === 'Assigned' ? (
                       <button
@@ -597,7 +602,8 @@ export function DeliveryLog({
                       </button>
                     ) : r.status === 'Picked up' ? (
                       <button className="somo-notify-btn" onClick={() => setNotify(r)}>
-                        Resend to customer
+                        <Bell aria-hidden="true" size={14} />
+                        <span>Resend to customer</span>
                       </button>
                     ) : (
                       <span className="somo-unassigned">—</span>
@@ -605,7 +611,8 @@ export function DeliveryLog({
                   </td>
                 </tr>
               );
-            })}
+              })}
+            </ProgressiveRows>
 
             {visible.length === 0 ? (
               <tr>
@@ -619,7 +626,7 @@ export function DeliveryLog({
             ) : null}
           </tbody>
         </table>
-      </div>
+      </ScrollableTable>
 
       <NotifyModal record={notify} opsPhone={opsPhone} onClose={() => setNotify(null)} />
     </>

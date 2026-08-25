@@ -13,6 +13,7 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const errorId = 'login-error';
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,12 +55,18 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
 
   return (
     <form onSubmit={submit}>
-      <h2>Log in</h2>
+      <h1>Log in</h1>
       <p className="sub-text">
         Use the username and password issued to you. Accounts are issued by your SomoExpress admin
         or, for merchants, by the ops team.
       </p>
-      <div className={`somo-auth-error${error ? ' show' : ''}`}>{error}</div>
+      <div
+        className={`somo-auth-error${error ? ' show' : ''}`}
+        id={errorId}
+        role="alert"
+      >
+        {error}
+      </div>
       <label className="somo-field">
         <span>Username</span>
         <input
@@ -68,6 +75,8 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
           autoComplete="username"
           autoCapitalize="none"
           spellCheck={false}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
@@ -79,6 +88,8 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
           type="password"
           placeholder="Password"
           autoComplete="current-password"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />

@@ -45,12 +45,13 @@ const TABS: Tab[] = [
 export function PortalTabs({ role }: { role: Role }) {
   const pathname = usePathname();
   return (
-    <nav className="somo-tabs">
+    <nav className="somo-tabs" aria-label="Portal sections">
       {TABS.filter((t) => t.roles.includes(role)).map((tab) => (
         <Link
           key={tab.href}
           href={tab.href}
           className={`somo-tab${pathname === tab.href ? ' active' : ''}`}
+          aria-current={pathname === tab.href ? 'page' : undefined}
         >
           {tab.labelByRole?.[role] ?? tab.label}
         </Link>

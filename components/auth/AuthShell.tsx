@@ -9,7 +9,7 @@ export function AuthShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="somo-auth-overlay">
+    <main className="somo-auth-overlay" id="main-content">
       <div className="somo-auth-card">
         <div className="somo-auth-logo">
           <BrandMark logoDataUrl={logoDataUrl} />
@@ -20,6 +20,6 @@ export function AuthShell({
         </div>
         {children}
       </div>
-    </div>
+    </main>
   );
 }

@@ -16,25 +16,32 @@ export function SetupForm() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
+  const [invalid, setInvalid] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const errorId = 'setup-error';
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    setInvalid([]);
     if (!username.trim() || !password) {
       setError('Enter a username and password.');
+      setInvalid(['username', 'password']);
       return;
     }
     if (!phone.trim()) {
       setError('Phone number is required for admin accounts.');
+      setInvalid(['phone']);
       return;
     }
     if (password.length < 8) {
       setError('Choose a password of at least 8 characters.');
+      setInvalid(['password']);
       return;
     }
     if (password !== confirm) {
       setError('Passwords do not match.');
+      setInvalid(['password', 'confirm']);
       return;
     }
     setBusy(true);
@@ -56,6 +63,7 @@ export function SetupForm() {
         // The account exists at this point, so send them to log in rather than
         // leaving them stuck on a screen that will now refuse to run again.
         setError(`Admin account created, but sign-in failed: ${signInError.message}. Please log in.`);
+        setInvalid(['username', 'password']);
         setBusy(false);
         return;
       }
@@ -71,12 +79,18 @@ export function SetupForm() {
 
   return (
     <form onSubmit={submit}>
-      <h2>Create the admin account</h2>
+      <h1>Create the admin account</h1>
       <p className="sub-text">
         No accounts exist yet on this portal. Set up the first admin login — you&rsquo;ll use it to
         create merchant and ops accounts afterward.
       </p>
-      <div className={`somo-auth-error${error ? ' show' : ''}`}>{error}</div>
+      <div
+        className={`somo-auth-error${error ? ' show' : ''}`}
+        id={errorId}
+        role="alert"
+      >
+        {error}
+      </div>
       <label className="somo-field">
         <span>Admin username</span>
         <input
@@ -85,6 +99,8 @@ export function SetupForm() {
           autoComplete="username"
           autoCapitalize="none"
           spellCheck={false}
+          aria-invalid={invalid.includes('username') || undefined}
+          aria-describedby={invalid.includes('username') ? errorId : undefined}
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
@@ -94,6 +110,9 @@ export function SetupForm() {
         <input
           className="somo-input"
           type="tel"
+          autoComplete="tel"
+          aria-invalid={invalid.includes('phone') || undefined}
+          aria-describedby={invalid.includes('phone') ? errorId : undefined}
           placeholder="e.g. 024 000 0000"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
@@ -106,6 +125,8 @@ export function SetupForm() {
           type="password"
           placeholder="Choose a password"
           autoComplete="new-password"
+          aria-invalid={invalid.includes('password') || undefined}
+          aria-describedby={invalid.includes('password') ? errorId : undefined}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
@@ -117,6 +138,8 @@ export function SetupForm() {
           type="password"
           placeholder="Repeat password"
           autoComplete="new-password"
+          aria-invalid={invalid.includes('confirm') || undefined}
+          aria-describedby={invalid.includes('confirm') ? errorId : undefined}
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
         />

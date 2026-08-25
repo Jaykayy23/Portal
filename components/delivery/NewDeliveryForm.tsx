@@ -242,7 +242,9 @@ export function NewDeliveryForm({
               <div className="line">
                 <div
                   className="line-fill"
-                  style={{ width: `${(Math.min(km, ROUTE_BAR_MAX_KM) / ROUTE_BAR_MAX_KM) * 100}%` }}
+                  style={{
+                    transform: `scaleX(${Math.min(km, ROUTE_BAR_MAX_KM) / ROUTE_BAR_MAX_KM})`,
+                  }}
                 />
               </div>
               <div className="dot b" />

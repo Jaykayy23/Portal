@@ -78,8 +78,24 @@ body {
   display: flex;
   flex-direction: column;
 }
+#somo-root:has(> .somo-auth-overlay) {
+  max-width: 520px;
+}
 #somo-root * {
   box-sizing: border-box;
+  scrollbar-color: var(--amber-dim) var(--panel-2);
+  scrollbar-width: thin;
+}
+#somo-root ::selection {
+  background: var(--brand-amber-soft);
+  color: var(--text);
+}
+#somo-root :is(input, textarea) {
+  caret-color: var(--amber);
+}
+#somo-root :is(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--amber) 58%, transparent);
+  outline-offset: 2px;
 }
 #somo-root a {
   color: inherit;
@@ -439,9 +455,11 @@ label.somo-field span {
   left: 0;
   top: 0;
   height: 100%;
-  width: 0%;
+  width: 100%;
   background: linear-gradient(90deg, var(--amber), var(--teal));
-  transition: width 0.4s ease;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .somo-route .dist {
   font-family: var(--font-mono);
@@ -551,7 +569,9 @@ label.somo-field span {
   font-weight: 600;
   opacity: 0;
   pointer-events: none;
-  transition: all 0.3s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 90;
   max-width: 90%;
   text-align: center;
@@ -560,6 +580,20 @@ label.somo-field span {
 .somo-toast.show {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .somo-pane {
+    animation: none;
+  }
+  .somo-route .line-fill {
+    transition: none;
+  }
+  .somo-toast,
+  .somo-toast.show {
+    transform: translateX(-50%);
+    transition: opacity 0.1s linear;
+  }
 }
 
 /* Errors. Red rather than the teal a confirmation gets, so a refused submit is
@@ -582,6 +616,24 @@ label.somo-field span {
   /* Momentum scrolling on the trackpad/touch, and a visible bar on macOS where
      overlay scrollbars otherwise hide until you touch them. */
   overscroll-behavior-x: contain;
+}
+.somo-table-shell {
+  min-width: 0;
+}
+.somo-table-scroll-hint {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.somo-table-wrap:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--amber) 55%, transparent);
+  outline-offset: 3px;
 }
 /* The header has to stay put once the rows scroll under it, or a wide table gives
    you columns of numbers with nothing to say what they are. */
@@ -612,6 +664,11 @@ table.somo-table td {
   padding: 10px;
   border-bottom: 1px solid var(--line);
   vertical-align: middle;
+}
+.somo-progressive-row td {
+  padding-block: 14px;
+  text-align: center;
+  background: var(--panel);
 }
 table.somo-table tr:hover td {
   background: rgb(0 0 0 / 0.02);
@@ -800,11 +857,11 @@ table.somo-table tr:hover td {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: clamp(32px, 7vw, 56px);
   min-height: 640px;
 }
 .somo-auth-card {
-  width: 360px;
+  width: min(100%, 380px);
   max-width: 100%;
 }
 .somo-auth-logo {
@@ -814,11 +871,28 @@ table.somo-table tr:hover td {
   margin-bottom: 26px;
   justify-content: center;
 }
+.somo-auth-card h1,
 .somo-auth-card h2 {
   font-family: var(--font-display);
   font-size: 19px;
   margin: 0 0 4px 0;
   text-align: center;
+}
+.somo-skip-link {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 120;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--text);
+  color: var(--card);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-150%);
+}
+.somo-skip-link:focus {
+  transform: translateY(0);
 }
 .somo-auth-card .sub-text {
   color: var(--somo-muted);
@@ -908,6 +982,10 @@ table.somo-table tr:hover td {
   font-style: italic;
 }
 .somo-notify-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: var(--panel-2);
   border: 1px solid var(--line);
   color: var(--amber);
@@ -920,6 +998,87 @@ table.somo-table tr:hover td {
 }
 .somo-notify-btn:hover {
   border-color: var(--amber-dim);
+}
+
+@media (max-width: 640px) {
+  .somo-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 16px;
+  }
+  .somo-brand,
+  .somo-header-right,
+  .somo-merchant-badge {
+    min-width: 0;
+  }
+  .somo-header-right {
+    width: 100%;
+  }
+  .somo-merchant-badge {
+    width: 100%;
+    justify-content: space-between;
+    border-radius: 10px;
+    padding-inline-start: 12px;
+  }
+  .somo-merchant-badge > span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .somo-tabs {
+    padding-inline: 12px;
+    scrollbar-width: thin;
+  }
+  .somo-body {
+    padding: 16px;
+  }
+  .somo-table-scroll-hint {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+    margin: 0 0 8px;
+    color: var(--somo-muted);
+    font-size: 12px;
+  }
+  .somo-tab,
+  .somo-mini-btn,
+  .somo-notify-btn,
+  .somo-btn.small,
+  .somo-merchant-badge button,
+  .somo-notify-contact .btns a,
+  .somo-input,
+  .somo-select {
+    min-height: 44px;
+  }
+  .somo-input,
+  .somo-select {
+    font-size: 16px;
+  }
+  .somo-notify-contact .btns a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+@media (pointer: coarse) {
+  .somo-tab,
+  .somo-mini-btn,
+  .somo-notify-btn,
+  .somo-btn.small,
+  .somo-merchant-badge button,
+  .somo-input,
+  .somo-select {
+    min-height: 44px;
+  }
+  .somo-tab {
+    display: flex;
+    align-items: center;
+  }
 }
 
 /* The rider's completion link, shown inside their block in the Notify modal so
@@ -1506,7 +1665,6 @@ body:has(.somo-link-page) {
   gap: 3px;
   padding: 12px 14px;
   border: 1px solid var(--line);
-  border-left-width: 3px;
   border-radius: 10px;
   background: var(--panel-2);
 }
@@ -1528,40 +1686,21 @@ body:has(.somo-link-page) {
   line-height: 1.45;
   color: var(--somo-muted);
 }
-/* The left border carries the tone. Every tile also says which way it points in
-   words, so this is a way to find one, never the only way to read it. */
-.somo-kpi.due {
-  border-left-color: var(--amber);
-}
+/* State is carried by the labelled value, not an extra decorative edge. */
 .somo-kpi.due .v {
   color: var(--brand-amber-display);
-}
-.somo-kpi.owed {
-  border-left-color: var(--brand-ops);
 }
 .somo-kpi.owed .v {
   color: var(--brand-ops);
 }
-.somo-kpi.good {
-  border-left-color: var(--teal);
-}
 .somo-kpi.good .v {
   color: var(--teal);
-}
-.somo-kpi.bad {
-  border-left-color: var(--destructive-text);
 }
 .somo-kpi.bad .v {
   color: var(--destructive-text);
 }
-.somo-kpi.flight {
-  border-left-color: var(--line);
-}
 .somo-kpi.flight .v {
   color: var(--somo-muted);
-}
-.somo-kpi.info {
-  border-left-color: var(--somo-muted);
 }
 
 /* Two cards side by side on a wide screen, stacked on a narrow one. */
@@ -1608,7 +1747,7 @@ body:has(.somo-link-page) {
   gap: 2px;
   padding: 5px 8px;
   border-radius: 7px;
-  border-left: 3px solid var(--line);
+  border: 1px solid var(--line);
   background: var(--panel-2);
   min-width: 150px;
 }
@@ -1622,21 +1761,18 @@ body:has(.somo-link-page) {
   line-height: 1.35;
 }
 .somo-holder-cell.due {
-  border-left-color: var(--amber);
   background: var(--brand-amber-soft);
 }
 .somo-holder-cell.due .h {
   color: var(--amber);
 }
 .somo-holder-cell.owed {
-  border-left-color: var(--brand-ops);
   background: var(--brand-ops-soft);
 }
 .somo-holder-cell.owed .h {
   color: var(--brand-ops);
 }
 .somo-holder-cell.settled {
-  border-left-color: var(--teal);
   background: var(--brand-teal-soft);
 }
 .somo-holder-cell.settled .h {

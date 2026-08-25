@@ -27,6 +27,9 @@ export default async function PortalLayout({ children }: { children: React.React
 
   return (
     <MapsProvider mapsApiKey={mapsApiKey}>
+      <a className="somo-skip-link" href="#main-content">
+        Skip to content
+      </a>
       <header className="somo-header">
         <div className="somo-brand">
           <BrandMark logoDataUrl={logoDataUrl} />
@@ -46,9 +49,9 @@ export default async function PortalLayout({ children }: { children: React.React
 
       <PortalTabs role={user.role} />
 
-      <div className="somo-body">
+      <main className="somo-body" id="main-content" tabIndex={-1}>
         <div className="somo-pane">{children}</div>
-      </div>
+      </main>
     </MapsProvider>
   );
 }
