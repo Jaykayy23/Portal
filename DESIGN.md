@@ -71,7 +71,7 @@ rounded:
   logo: "9px"
   tile: "10px"
   card: "12px"
-  shell: "14px"
+  panel: "14px"
   page-card: "16px"
   pill: "999px"
 spacing:
@@ -205,19 +205,20 @@ counterweight is a warm ochre, and that exists for exactly one job — the ledge
 money-in / money-out pairs read as warm against cool, because two blues at the
 same hue would make the product's most important distinction invisible.
 
-Depth is almost entirely tonal. The whole product lives inside a single lifted
-white card floating on a grey ground; inside that card, surfaces separate by 1px
-rule and by recession — inputs and tiles drop to the grey, cards stay white. The
-system is flat at rest, and shadow is available only as a response to state.
+Depth is almost entirely tonal. The product is three lifted white panels — header,
+nav, content — floating on a grey ground; inside a panel, surfaces separate by 1px
+rule and by recession, with inputs and tiles dropping to the grey while cards stay
+white. The system is flat at rest, and shadow is available only as a response to
+state. The nav panel holds still while the content scrolls past it.
 
 **Key Characteristics:**
 
-- One shell, 1100px max, lifted off a grey ground; nothing else floats at rest.
+- Three lifted panels in a 1100px transparent frame — header, nav, content — at an 18px gap.
 - Hairline rules (1px `rule-grey`) do the work borders and shadows would do elsewhere.
 - Tabular figures portal-wide (`font-variant-numeric: tabular-nums`) — columns of money never jitter.
 - Uppercase micro-labels (11px, +0.5px) above every value; values themselves are never uppercase.
 - One navy accent at one value (11.82:1 on white), plus a single warm counterweight for money-out.
-- Section nav is a left sidebar over 900px and a horizontal strip below it.
+- Section nav is a sticky left sidebar over 900px and a horizontal strip below it.
 - Light-only, deliberately. Every ratio in the palette is verified against white.
 
 ## Colors
@@ -270,16 +271,16 @@ chosen by contrast arithmetic rather than taste, and the ratios are written into
 - **Muted Ink** (`#707070`): labels, sub-lines, placeholders, inactive nav items.
   Deliberately darker than shadcn's `#737373`, which clears 4.5:1 on white but
   not on the recessed input grey where most muted labels actually sit.
-- **Ledger White** (`oklch(1 0 0)`): the shell, cards, the sidebar, and the sticky
+- **Ledger White** (`oklch(1 0 0)`): all three panels, cards, and the sticky
   table header (opaque, because rows pass underneath it).
-- **Ground Grey** (`oklch(0.97 0 0)`): the page behind the shell, and every recessed
+- **Ground Grey** (`oklch(0.97 0 0)`): the page behind the panels, and every recessed
   surface inside it — inputs, selects, stat tiles, the price box, rider and account
   cards, and the nav item's hover. One token doing both jobs is what makes recession
   read as "inside".
 - **Rule Grey** (`oklch(0.922 0 0)`): every hairline, every border, every table rule,
   and the sidebar's right edge.
 - **Scrim** (`rgb(0 0 0 / 0.45)`): the modal backdrop, and the only thing in the
-  system that sits above the shell.
+  system that sits above the panels.
 
 ### Alert
 
@@ -348,7 +349,7 @@ size, weight, and tracking rather than by contrast of family.
 
 ### Named Rules
 
-**The Tabular Rule.** `font-variant-numeric: tabular-nums` is set once on the shell
+**The Tabular Rule.** `font-variant-numeric: tabular-nums` is set once on the frame
 and inherited everywhere. Inter's proportional digits would make prices, distances,
 and IDs jitter between rows, and a column of money that shifts as it scrolls is
 harder to audit. Never override it.
@@ -366,18 +367,29 @@ label/value pair is the atom this whole system is built from.
 
 ## Layout
 
-The entire product is one shell: a `1100px` max-width card, `min-height 640px`,
-centred on the grey ground with `24px 12px` of breathing room, `border-radius 14px`.
-The auth overlay narrows the same shell to `520px` rather than introducing a second
+The entire product sits in one frame: `1100px` max-width, `min-height 640px`,
+centred on the grey ground with `24px 12px` of breathing room.
+The auth overlay narrows the same frame to `520px` rather than introducing a second
 container.
 
-Inside, the shell is a header band (`20px 26px`) above a row: a `200px` nav sidebar
-beside the content body (`26px`), separated by hairlines. The body carries
+Inside, the frame is transparent and holds **three separate lifted panels** at an
+`18px` gap: a full-width header, then a row of a `200px` nav sidebar beside the
+content body (`26px`). The frame itself carries no background, border, radius, or
+shadow — and deliberately no `overflow: hidden`, because that would make it the
+scrollport and the sidebar would have nothing to stick to. The body carries
 `min-width: 0` so the delivery log's `700px`-min-width table shrinks inside the flex
-row instead of pushing the shell past its frame. Below **900px** that row collapses
-to a stacked block and the nav returns to a horizontal strip above the content, so
-the layout is three bands again at the sizes where content width matters more than
-persistent navigation.
+row instead of pushing the panels past the frame, and `align-self: stretch` so it
+fills the row while the nav hugs its items.
+
+**The sidebar is sticky** at `top: 16px`, with a `calc(100dvh - 32px)` ceiling so a
+short viewport scrolls the nav itself rather than running it off the screen. The
+header scrolls away; the nav does not.
+
+Below **900px** the row becomes a column, the nav goes back to a horizontal strip,
+and nothing sticks — a nav pinned above the content it is scrolling over would eat a
+third of a phone screen. The row also switches to `align-items: stretch` there, or
+the nav card would shrink to the width of its own tabs and leave three stacked
+panels at two different widths. Gaps tighten to `12px` under **640px**.
 
 Content grids are explicit and few:
 
@@ -414,21 +426,27 @@ the box, and a taller cap pushes its own scrollbar back below the fold.
 
 ### Named Rules
 
-**The One Shell Rule.** There is exactly one container in this product. Content never
-touches the viewport edge, and nothing is ever presented outside the shell — the one
+**The Three-Panel Rule.** The product is a `1100px` transparent frame holding three
+lifted panels — header, nav, content — and nothing else at the top level. Content
+never touches the viewport edge and nothing is presented outside the frame; the one
 exception is the public link page under 640px, which becomes the page on purpose.
+The auth screens are the one place the frame is itself a card, because they have no
+nav and no content panel to hold.
 
 ## Elevation & Depth
 
-Depth is tonal first. The only standing shadow in the system belongs to the shell:
+Depth is tonal first. Exactly one shadow value exists, and it belongs to the three
+top-level panels:
 
 ```css
 box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 28px rgb(0 0 0 / 0.06);
 ```
 
-A tight contact shadow plus a wide soft one, both very low opacity — enough to
-separate the card from the grey ground without reading as a floating panel.
-Inside the shell, everything is flat: cards are white with a 1px rule, inputs and
+A tight contact shadow plus a wide soft one, both very low opacity — enough to lift
+each panel off the grey ground without reading as floating. All three carry the same
+value so they read as one family rather than three unrelated boxes.
+
+Inside a panel, everything is flat: cards are white with a 1px rule, inputs and
 tiles recede to the grey, and the sticky table header is opaque white rather than
 elevated. Layering, not lifting.
 
@@ -440,10 +458,11 @@ is a shadow that is simply there at rest.
 
 ### Shadow Vocabulary
 
-- **Shell lift** (`0 1px 2px rgb(0 0 0 / 0.04), 0 8px 28px rgb(0 0 0 / 0.06)`): the
-  one standing elevation. Reserved for the shell; do not reuse it on a card.
-- **State lift** (new work): keep it under the shell's total weight and pair it with
-  a colour or border change, so it reads as a response rather than as decoration.
+- **Panel lift** (`0 1px 2px rgb(0 0 0 / 0.04), 0 8px 28px rgb(0 0 0 / 0.06)`): the
+  one standing elevation, carried by the header, the nav and the content panel.
+  Do not reuse it on a card inside one of them.
+- **State lift** (new work): keep it under the panel lift's total weight and pair it
+  with a colour or border change, so it reads as a response rather than decoration.
 
 ### Named Rules
 
@@ -476,7 +495,7 @@ being drawn rather than a free choice of softness.
 - **10px** — recessed tiles: stat tiles, the price box, rider and account cards,
   the confirm summary, and the account badge in its collapsed mobile form.
 - **12px** — cards.
-- **14px** — the shell.
+- **14px** — the three top-level panels: header, nav, content.
 - **16px** — the public link card, the one container that is a whole page rather
   than a card inside one.
 - **999px** — pills: status badges, role tags, the account badge, its inner button.
@@ -538,8 +557,8 @@ page — a copyable link, a tear-off total. Solid everywhere else.
 ### Cards / Containers
 
 - **Corner:** `12px`.
-- **Background:** Ledger White on the shell's white — separation comes from the
-  `1px` Rule Grey border, not from tone.
+- **Background:** Ledger White on the content panel's white — separation comes from
+  the `1px` Rule Grey border, not from tone.
 - **Shadow:** none. See Elevation.
 - **Padding:** `20px`. Sibling cards stack at `18px`.
 - **Heading:** 600/14px +0.2px, `16px` bottom margin, with an optional navy ordinal
@@ -553,17 +572,17 @@ The section nav has two forms, and the same markup produces both. Every item is 
 real route link either way, so panes are never hidden — the `somoFade` animation
 just softens the change.
 
-**Sidebar (over 900px).** A `200px` column on the left of the shell, white with a
-`1px` Rule Grey right edge, `14px 12px` of padding and `2px` between items. Each
-item is `9px 12px` at 13.5px/500 with an `8px` radius. Inactive is Muted Ink; hover
-takes Ink text on Ground Grey; active is Waybill Navy text on Waybill Navy Soft at
-600 weight.
+**Sidebar (over 900px).** Its own `200px` lifted panel on the left of the frame,
+`12px` of padding and `2px` between items. Each item is `9px 12px` at 13.5px/500
+with an `8px` radius. Inactive is Muted Ink; hover takes Ink text on Ground Grey;
+active is Waybill Navy text on Waybill Navy Soft at 600 weight. **Sticky** at
+`top: 16px`, so it stays where the eye left it on a long log or ledger.
 
-**Strip (900px and under).** The same nav becomes the horizontally scrolling row
-above the content it shipped with: `4px` gaps, `13px 16px` per item, no radius, no
-fill, and a `2px` navy bottom border marking the active one. The sidebar's `200px`
-is worth more as content width at that size, which is also where the two-column
-content grids collapse.
+**Strip (900px and under).** The same panel becomes a horizontally scrolling row
+above the content, `8px` padding and `4px` gaps, stretched to the full frame width
+so it lines up with the header and content panels. Nothing sticks. The sidebar's
+`200px` is worth more as content width at that size, which is also where the
+two-column content grids collapse.
 
 **Order.** Dashboard, New delivery, Deliveries, Ledger, Riders, Pricing, Users,
 Settings. Dashboard leads because it answers "where do things stand"; the next two
@@ -575,10 +594,11 @@ ledger", ops sees "Merchants" for Users.
 
 ### Named Rules
 
-**The Selected-Surface Rule.** A selected nav item is a tinted surface, not an
-underline — the same soft-tint-plus-accent pairing the status badges and ledger
-holder cells use. The `2px` underline is a horizontal-strip idiom and means nothing
-in a column, so it exists only in the strip form.
+**The Selected-Surface Rule.** A selected nav item is a tinted surface in both
+forms — the same soft-tint-plus-accent pairing the status badges and ledger holder
+cells use. It used to be a `2px` underline in strip form; once the strip became its
+own bordered panel that underline sat on the panel's bottom edge and read as a flaw
+in the border, so there is no underline anywhere now.
 
 ### Badges and Tags
 

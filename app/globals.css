@@ -64,24 +64,32 @@ body {
   position: relative;
   width: 100%;
   max-width: 1100px;
-  background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
   /* Inter's proportional digits would make the mono-token numerics (prices,
      distances, IDs) jitter, so lock figures to fixed width portal-wide. */
   font-variant-numeric: tabular-nums;
+  min-height: 640px;
+  display: flex;
+  flex-direction: column;
+  /* This is a layout frame now, not a card. The header, the nav and the content
+     are each their own lifted panel — see the panel group below — which is what
+     lets the nav stay put while the content scrolls past it. Deliberately no
+     `overflow: hidden` here: it would make this the scrollport and `position:
+     sticky` on the nav would have nothing to stick to. */
+  gap: 18px;
+}
+/* The auth screens are a single centred card with no nav and no content panel,
+   so the frame becomes the card there. */
+#somo-root:has(> .somo-auth-overlay) {
+  max-width: 520px;
+  background: var(--bg);
+  border: 1px solid var(--line);
   border-radius: 14px;
   overflow: hidden;
-  min-height: 640px;
   box-shadow:
     0 1px 2px rgb(0 0 0 / 0.04),
     0 8px 28px rgb(0 0 0 / 0.06);
-  border: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-}
-#somo-root:has(> .somo-auth-overlay) {
-  max-width: 520px;
 }
 #somo-root * {
   box-sizing: border-box;
@@ -114,13 +122,26 @@ body {
   color: var(--teal);
 }
 
+/* The three top-level panels. They were one card divided by hairlines; they are
+   separate lifted cards now, which is what gives the nav its own ground and lets
+   it hold still while the content scrolls. Same lift on all three so they read
+   as one family rather than three unrelated boxes. */
+.somo-header,
+.somo-shell > .somo-tabs,
+.somo-shell > .somo-body {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 8px 28px rgb(0 0 0 / 0.06);
+}
+
 .somo-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 20px 26px;
-  border-bottom: 1px solid var(--line);
-  background: var(--card);
   gap: 12px;
 }
 .somo-brand {
@@ -234,6 +255,11 @@ body {
 .somo-shell {
   display: flex;
   flex: 1;
+  gap: 18px;
+  /* flex-start, so the nav card is only as tall as its items and has somewhere
+     to travel when the row is taller than it. Without this it would stretch to
+     the content's full height and `position: sticky` would never fire. */
+  align-items: flex-start;
   min-height: 0;
 }
 
@@ -242,9 +268,15 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 14px 12px;
-  border-right: 1px solid var(--line);
-  background: var(--card);
+  padding: 12px;
+  /* Follows the page rather than the content: on a long log or ledger the nav
+     stays where the eye left it instead of scrolling away. 16px matches the
+     breathing room the body already keeps above the shell. */
+  position: sticky;
+  top: 16px;
+  /* Guard for a short viewport or a future longer nav — it scrolls itself rather
+     than running off the bottom of the screen. */
+  max-height: calc(100dvh - 32px);
   overflow-y: auto;
 }
 .somo-tab {
@@ -263,9 +295,10 @@ body {
   color: var(--text);
   background: var(--panel-2);
 }
-/* A 2px underline is a horizontal-strip idiom and reads as nothing in a column.
-   The selected row is a tinted surface instead — the same soft-tint-plus-accent
-   pairing the status badges and ledger holder cells already use. */
+/* The selected item is a tinted surface, in both the sidebar and the strip — the
+   same soft-tint-plus-accent pairing the status badges and ledger holder cells
+   use. The 2px underline it used to carry in strip form is gone: sitting on the
+   bottom edge of a bordered card, it read as a flaw in the border. */
 .somo-tab.active {
   color: var(--accent);
   background: var(--brand-navy-soft);
@@ -275,6 +308,9 @@ body {
 .somo-body {
   padding: 26px;
   flex: 1;
+  /* The nav hugs its content; the content panel fills the row, so a short page
+     still reaches the frame's 640px floor instead of leaving a ragged edge. */
+  align-self: stretch;
   /* Without this the log's 700px-min-width table would refuse to shrink and push
      the whole shell wider than its 1100px frame. */
   min-width: 0;
@@ -942,8 +978,12 @@ table.somo-table tr:hover td {
   margin: 0 0 4px 0;
   text-align: center;
 }
+/* Fixed, not absolute. It used to be parked at translateY(-150%) inside the
+   shell and kept out of sight by the shell's `overflow: hidden`; the shell no
+   longer clips anything, so it now hides above the viewport instead and slides
+   to the top-left corner on focus. */
 .somo-skip-link {
-  position: absolute;
+  position: fixed;
   top: 8px;
   left: 8px;
   z-index: 120;
@@ -953,7 +993,7 @@ table.somo-table tr:hover td {
   color: var(--card);
   font-weight: 600;
   text-decoration: none;
-  transform: translateY(-150%);
+  transform: translateY(-200%);
 }
 .somo-skip-link:focus {
   transform: translateY(0);
@@ -1096,6 +1136,12 @@ table.somo-table tr:hover td {
   }
   .somo-body {
     padding: 16px;
+  }
+  /* Three stacked panels cost vertical room a phone does not have to spare, so
+     the gaps between them tighten with everything else. */
+  #somo-root,
+  .somo-shell {
+    gap: 12px;
   }
   .somo-table-scroll-hint {
     position: static;
@@ -1605,32 +1651,31 @@ body:has(.somo-link-page) {
    content — the layout this portal shipped with, kept for exactly the screens it
    was right for. */
 @media (max-width: 900px) {
+  /* Still three panels, stacked instead of side by side. Nothing sticks: a nav
+     card pinned above the content it is scrolling over would eat a third of a
+     phone screen. */
   .somo-shell {
-    display: block;
+    flex-direction: column;
+    /* No `gap` here on purpose: the base rule already sets 18px, and restating it
+       in this block would sit after the 640px rule that tightens both gaps to
+       12px and quietly win. */
+    /* flex-start is there so the sidebar can be shorter than the content. Once
+       this is a column it would instead shrink the nav card to the width of its
+       tabs, leaving three stacked panels of two different widths. */
+    align-items: stretch;
   }
   .somo-tabs {
+    position: static;
     flex: none;
     flex-direction: row;
     gap: 4px;
-    padding: 0 26px;
-    border-right: none;
-    border-bottom: 1px solid var(--line);
+    padding: 8px;
+    max-height: none;
     overflow-x: auto;
     overflow-y: visible;
   }
   .somo-tab {
-    padding: 13px 16px;
-    border-radius: 0;
-    border-bottom: 2px solid transparent;
     white-space: nowrap;
-  }
-  .somo-tab:hover {
-    background: none;
-  }
-  .somo-tab.active {
-    background: none;
-    border-bottom-color: var(--accent);
-    font-weight: 500;
   }
 }
 

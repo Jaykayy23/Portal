@@ -14,6 +14,13 @@ export default function ThemePreview() {
 
   return (
     <>
+      {/* Chrome the portal layout ships and this page did not cover. It is fixed
+          rather than absolute: the frame stopped clipping anything when the
+          header, nav and content became separate cards, so it parks above the
+          viewport instead of behind the shell. Tab to it. */}
+      <a className="somo-skip-link" href="#main-content">
+        Skip to content
+      </a>
       <header className="somo-header">
         <div className="somo-brand">
           <BrandMark />
@@ -45,7 +52,7 @@ export default function ThemePreview() {
         <span className="somo-tab">Settings</span>
       </nav>
 
-      <div className="somo-body">
+      <main className="somo-body" id="main-content" tabIndex={-1}>
         <div className="somo-grid">
           <div className="somo-card">
             <h3><span className="n">01</span> Trip details</h3>
@@ -230,7 +237,7 @@ export default function ThemePreview() {
               <span className="v note">On the merchant — do not collect</span></div>
           </div>
         </div>
-      </div>
+      </main>
       </div>
     </>
   );
