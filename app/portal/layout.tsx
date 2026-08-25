@@ -35,7 +35,7 @@ export default async function PortalLayout({ children }: { children: React.React
           <BrandMark logoDataUrl={logoDataUrl} />
           <div>
             <div className="somo-title">SomoExpress</div>
-            <div className="somo-sub">Merchant delivery portal · interim</div>
+            <div className="somo-sub">Merchant delivery portal</div>
           </div>
         </div>
         <div className="somo-header-right">
@@ -47,11 +47,15 @@ export default async function PortalLayout({ children }: { children: React.React
         </div>
       </header>
 
-      <PortalTabs role={user.role} />
+      {/* Nav beside the content, not above it. The row collapses back to a
+          stacked block under 900px, where the strip is the better layout. */}
+      <div className="somo-shell">
+        <PortalTabs role={user.role} />
 
-      <main className="somo-body" id="main-content" tabIndex={-1}>
-        <div className="somo-pane">{children}</div>
-      </main>
+        <main className="somo-body" id="main-content" tabIndex={-1}>
+          <div className="somo-pane">{children}</div>
+        </main>
+      </div>
     </MapsProvider>
   );
 }

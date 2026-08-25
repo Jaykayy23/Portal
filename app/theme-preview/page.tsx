@@ -19,7 +19,7 @@ export default function ThemePreview() {
           <BrandMark />
           <div>
             <div className="somo-title">SomoExpress</div>
-            <div className="somo-sub">Merchant delivery portal · interim</div>
+            <div className="somo-sub">Merchant delivery portal</div>
           </div>
         </div>
         <div className="somo-header-right">
@@ -31,11 +31,18 @@ export default function ThemePreview() {
         </div>
       </header>
 
+      {/* The admin's full nav, in shipping order. A sidebar over 900px, the
+          horizontal strip below it — narrow the window to review both. */}
+      <div className="somo-shell">
       <nav className="somo-tabs">
+        <span className="somo-tab">Dashboard</span>
         <span className="somo-tab">New delivery</span>
         <span className="somo-tab active">Deliveries</span>
+        <span className="somo-tab">Ledger</span>
         <span className="somo-tab">Riders</span>
-        <span className="somo-tab">Pricing settings</span>
+        <span className="somo-tab">Pricing</span>
+        <span className="somo-tab">Users</span>
+        <span className="somo-tab">Settings</span>
       </nav>
 
       <div className="somo-body">
@@ -223,6 +230,7 @@ export default function ThemePreview() {
               <span className="v note">On the merchant — do not collect</span></div>
           </div>
         </div>
+      </div>
       </div>
     </>
   );

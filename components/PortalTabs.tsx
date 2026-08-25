@@ -12,7 +12,16 @@ interface Tab {
   labelByRole?: Partial<Record<Role, string>>;
 }
 
+/**
+ * Nav order, top to bottom.
+ *
+ * Dashboard first because it is the "where do things stand" screen somebody opens
+ * the portal to see, then the two that carry the day's work — filing a request and
+ * working the queue. Everything after that is reference or setup, in the order it
+ * is reached for.
+ */
 const TABS: Tab[] = [
+  { href: '/portal/dashboard', label: 'Dashboard', roles: ['admin', 'ops', 'merchant', 'finance'] },
   { href: '/portal/new', label: 'New delivery', roles: ['admin', 'ops', 'merchant'] },
   { href: '/portal/log', label: 'Deliveries', roles: ['admin', 'ops', 'merchant'] },
   {
@@ -23,15 +32,14 @@ const TABS: Tab[] = [
     // on the tab saves them wondering what they are about to see.
     labelByRole: { merchant: 'My ledger' },
   },
-  { href: '/portal/dashboard', label: 'Dashboard', roles: ['admin', 'ops', 'merchant', 'finance'] },
   { href: '/portal/riders', label: 'Riders', roles: ['admin', 'ops'] },
-  { href: '/portal/pricing', label: 'Pricing settings', roles: ['admin'] },
+  { href: '/portal/pricing', label: 'Pricing', roles: ['admin'] },
   {
     href: '/portal/accounts',
-    label: 'Accounts',
+    label: 'Users',
     roles: ['admin', 'ops'],
-    // Ops only ever sees merchants there, so naming it 'Accounts' would promise
-    // more than the pane delivers.
+    // Ops only ever sees merchants there, so naming it 'Users' would promise more
+    // than the pane delivers.
     labelByRole: { ops: 'Merchants' },
   },
   { href: '/portal/settings', label: 'Settings', roles: ['admin'] },

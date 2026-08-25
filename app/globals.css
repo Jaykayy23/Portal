@@ -40,11 +40,13 @@ body {
   --line: var(--border);
   --text: var(--foreground);
   --somo-muted: var(--muted-foreground);
-  /* Two ambers: the darkened one for text and hairlines (it needs 4.5:1 against
-     white), the bright one only for filled surfaces carrying dark text. */
-  --amber: var(--brand-amber-text);
-  --amber-fill: var(--brand-amber);
-  --amber-dim: var(--brand-amber-text);
+  /* All three resolve to the one navy now. They stay as separate names for the
+     same reason the type tokens below do: the stylesheet keeps saying which job
+     it is asking for — text, a filled surface, a hairline — so a future accent
+     that does need different values per job has somewhere to land. */
+  --accent: var(--brand-navy);
+  --accent-fill: var(--brand-navy);
+  --accent-dim: var(--brand-navy);
   --teal: var(--brand-teal);
   --danger: var(--destructive);
   /* The deepened red, not --danger itself: this one fills a surface carrying
@@ -83,18 +85,18 @@ body {
 }
 #somo-root * {
   box-sizing: border-box;
-  scrollbar-color: var(--amber-dim) var(--panel-2);
+  scrollbar-color: var(--accent-dim) var(--panel-2);
   scrollbar-width: thin;
 }
 #somo-root ::selection {
-  background: var(--brand-amber-soft);
+  background: var(--brand-navy-soft);
   color: var(--text);
 }
 #somo-root :is(input, textarea) {
-  caret-color: var(--amber);
+  caret-color: var(--accent);
 }
 #somo-root :is(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--amber) 58%, transparent);
+  outline: 3px solid color-mix(in srgb, var(--accent) 58%, transparent);
   outline-offset: 2px;
 }
 #somo-root a {
@@ -130,19 +132,22 @@ body {
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  background: var(--amber-fill);
+  background: var(--accent-fill);
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-mono);
   font-weight: 700;
-  color: var(--brand-amber-ink);
+  color: var(--brand-navy-ink);
   font-size: 15px;
   flex-shrink: 0;
   overflow: hidden;
 }
-/* A real logo sits on its own ground and must not be cropped; the amber tile
-   is only the fallback treatment for the "SX" wordmark. */
+/* A real logo sits on its own ground and must not be cropped; the navy tile is
+   only the fallback treatment for the "SX" wordmark. BrandMark always sets
+   .has-logo and always renders an <img>, so the inherited white ink above never
+   lands on this white ground — but keep that in mind before rendering text in
+   here. */
 .somo-mark.has-logo {
   background: #ffffff;
 }
@@ -197,8 +202,8 @@ body {
   color: var(--brand-ops);
 }
 .somo-role-tag.admin {
-  background: var(--brand-amber-soft);
-  color: var(--amber);
+  background: var(--brand-navy-soft);
+  color: var(--accent);
 }
 .somo-role-tag.finance {
   background: var(--brand-finance-soft);
@@ -216,45 +221,63 @@ body {
 }
 .somo-merchant-badge button:hover {
   color: var(--text);
-  border-color: var(--amber-dim);
+  border-color: var(--accent-dim);
 }
 .somo-merchant-badge button:disabled {
   opacity: 0.6;
   cursor: progress;
 }
 
-.somo-tabs {
+/* The section nav sits beside the content rather than above it, so this row is
+   what fills the shell under the header. Below 900px it goes back to being a
+   stacked block with the nav as a horizontal strip — see the media query. */
+.somo-shell {
   display: flex;
-  gap: 4px;
-  padding: 0 26px;
-  border-bottom: 1px solid var(--line);
+  flex: 1;
+  min-height: 0;
+}
+
+.somo-tabs {
+  flex: 0 0 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 12px;
+  border-right: 1px solid var(--line);
   background: var(--card);
-  overflow-x: auto;
+  overflow-y: auto;
 }
 .somo-tab {
-  padding: 13px 16px;
+  padding: 9px 12px;
+  border-radius: 8px;
   font-size: 13.5px;
   font-weight: 500;
   color: var(--somo-muted);
   cursor: pointer;
-  border-bottom: 2px solid transparent;
   user-select: none;
   font-family: var(--font-body);
-  white-space: nowrap;
   text-decoration: none;
   display: block;
 }
 .somo-tab:hover {
   color: var(--text);
+  background: var(--panel-2);
 }
+/* A 2px underline is a horizontal-strip idiom and reads as nothing in a column.
+   The selected row is a tinted surface instead — the same soft-tint-plus-accent
+   pairing the status badges and ledger holder cells already use. */
 .somo-tab.active {
-  color: var(--amber);
-  border-bottom-color: var(--amber);
+  color: var(--accent);
+  background: var(--brand-navy-soft);
+  font-weight: 600;
 }
 
 .somo-body {
   padding: 26px;
   flex: 1;
+  /* Without this the log's 700px-min-width table would refuse to shrink and push
+     the whole shell wider than its 1100px frame. */
+  min-width: 0;
 }
 /* Each portal tab is its own route now, so panes are never hidden — the fade
    just softens the transition between routes. */
@@ -305,7 +328,7 @@ body {
   flex-wrap: wrap;
 }
 .somo-card h3 .n {
-  color: var(--amber);
+  color: var(--accent);
   font-family: var(--font-mono);
   font-size: 12px;
 }
@@ -349,7 +372,7 @@ label.somo-field span {
 .somo-input:focus,
 .somo-select:focus {
   outline: none;
-  border-color: var(--amber);
+  border-color: var(--accent);
 }
 .somo-input::placeholder {
   color: var(--somo-muted);
@@ -380,11 +403,11 @@ label.somo-field span {
   color: var(--somo-muted);
 }
 .somo-check.checked {
-  border-color: var(--amber-dim);
+  border-color: var(--accent-dim);
   color: var(--text);
 }
 .somo-check input {
-  accent-color: var(--amber);
+  accent-color: var(--accent);
 }
 
 .somo-inline-btn-row {
@@ -398,7 +421,7 @@ label.somo-field span {
 .somo-mini-btn {
   background: var(--panel-2);
   border: 1px solid var(--line);
-  color: var(--amber);
+  color: var(--accent);
   padding: 0 14px;
   border-radius: 8px;
   cursor: pointer;
@@ -408,7 +431,7 @@ label.somo-field span {
   font-family: var(--font-body);
 }
 .somo-mini-btn:hover {
-  border-color: var(--amber-dim);
+  border-color: var(--accent-dim);
 }
 .somo-mini-btn:disabled {
   opacity: 0.45;
@@ -437,7 +460,7 @@ label.somo-field span {
   flex-shrink: 0;
 }
 .somo-route .dot.a {
-  background: var(--amber);
+  background: var(--accent);
 }
 .somo-route .dot.b {
   background: var(--teal);
@@ -456,7 +479,7 @@ label.somo-field span {
   top: 0;
   height: 100%;
   width: 100%;
-  background: linear-gradient(90deg, var(--amber), var(--teal));
+  background: linear-gradient(90deg, var(--accent), var(--teal));
   transform: scaleX(0);
   transform-origin: left center;
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
@@ -491,7 +514,7 @@ label.somo-field span {
 }
 .somo-price-row.main .v {
   font-size: 24px;
-  color: var(--brand-amber-display);
+  color: var(--brand-navy);
   font-weight: 600;
 }
 .somo-price-row.main .l {
@@ -526,11 +549,24 @@ label.somo-field span {
   font-family: var(--font-body);
   font-weight: 600;
   font-size: 14px;
-  background: var(--amber-fill);
-  color: var(--brand-amber-ink);
+  background: var(--accent-fill);
+  color: var(--brand-navy-ink);
 }
-.somo-btn:hover {
-  filter: brightness(1.06);
+/* The fill is dark now, and `filter: brightness(1.06)` on it is a 1.05:1 step —
+   no hover at all. So the filled button swaps background, and the two outlined
+   variants get the border/tint hover the rest of the portal already uses rather
+   than a brightness filter that was only ever washing out their text. */
+.somo-btn:hover:not(.ghost):not(.decline) {
+  background: var(--brand-navy-hover);
+}
+.somo-btn:active:not(.ghost):not(.decline) {
+  background: var(--brand-navy-press);
+}
+.somo-btn.ghost:hover {
+  border-color: var(--accent-dim);
+}
+.somo-btn.decline:hover {
+  background: var(--destructive-soft);
 }
 .somo-btn:disabled {
   opacity: 0.5;
@@ -632,7 +668,7 @@ label.somo-field span {
   border: 0;
 }
 .somo-table-wrap:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--amber) 55%, transparent);
+  outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
   outline-offset: 3px;
 }
 /* The header has to stay put once the rows scroll under it, or a wide table gives
@@ -678,7 +714,7 @@ table.somo-table tr:hover td {
 }
 .somo-agreed-cell {
   font-family: var(--font-mono);
-  color: var(--amber);
+  color: var(--accent);
 }
 .somo-rider-sub {
   color: var(--somo-muted);
@@ -689,7 +725,7 @@ table.somo-table tr:hover td {
    money in someone's pocket, and it reads as an amount to be accounted for
    rather than as more small print under the payment terms. */
 .somo-collect-note {
-  color: var(--amber);
+  color: var(--accent);
   font-family: var(--font-mono);
   font-size: 11.5px;
   font-weight: 600;
@@ -742,8 +778,8 @@ table.somo-table tr:hover td {
   color: var(--destructive-text);
 }
 .b-assigned {
-  background: var(--brand-amber-soft);
-  color: var(--amber);
+  background: var(--brand-navy-soft);
+  color: var(--accent);
 }
 .b-delivered {
   background: var(--brand-teal-soft);
@@ -959,8 +995,8 @@ table.somo-table tr:hover td {
   color: var(--somo-muted);
 }
 .somo-role-opt.selected {
-  border-color: var(--amber);
-  color: var(--amber);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .somo-notify-contact {
@@ -1016,7 +1052,7 @@ table.somo-table tr:hover td {
   gap: 6px;
   background: var(--panel-2);
   border: 1px solid var(--line);
-  color: var(--amber);
+  color: var(--accent);
   padding: 6px 10px;
   border-radius: 7px;
   font-size: 11.5px;
@@ -1025,7 +1061,7 @@ table.somo-table tr:hover td {
   white-space: nowrap;
 }
 .somo-notify-btn:hover {
-  border-color: var(--amber-dim);
+  border-color: var(--accent-dim);
 }
 
 @media (max-width: 640px) {
@@ -1139,8 +1175,8 @@ table.somo-table tr:hover td {
   cursor: pointer;
 }
 .somo-notify-link .label button:hover {
-  border-color: var(--amber-dim);
-  color: var(--amber);
+  border-color: var(--accent-dim);
+  color: var(--accent);
 }
 /* The token makes this far wider than the modal; wrapping anywhere is right for
    a value nobody reads, only copies. */
@@ -1154,8 +1190,8 @@ table.somo-table tr:hover td {
 /* The attention queue above the delivery table. Derived from status, so a row
    leaves it as soon as whoever it was waiting on acts. */
 .somo-queue {
-  border: 1px solid var(--brand-amber-line, var(--line));
-  background: var(--brand-amber-soft);
+  border: 1px solid var(--brand-navy-line, var(--line));
+  background: var(--brand-navy-soft);
   border-radius: 12px;
   padding: 12px 14px;
   margin-bottom: 16px;
@@ -1166,12 +1202,12 @@ table.somo-table tr:hover td {
   gap: 8px;
   font-family: var(--font-display);
   font-size: 13px;
-  color: var(--amber);
+  color: var(--accent);
   margin-bottom: 8px;
 }
 .somo-queue-head .count {
-  background: var(--amber-fill);
-  color: var(--brand-amber-ink);
+  background: var(--accent-fill);
+  color: var(--brand-navy-ink);
   border-radius: 999px;
   font-family: var(--font-mono);
   font-size: 10.5px;
@@ -1389,8 +1425,8 @@ body:has(.somo-link-page) {
    details: this is the one thing on the page somebody has to act on before
    tapping, so it should not read as more reference information. */
 .somo-confirm-due {
-  background: var(--brand-amber-soft);
-  border: 1px solid var(--brand-amber-line, var(--line));
+  background: var(--brand-navy-soft);
+  border: 1px solid var(--brand-navy-line, var(--line));
   border-radius: 10px;
   padding: clamp(12px, 3vw, 16px);
   margin-top: 16px;
@@ -1400,7 +1436,7 @@ body:has(.somo-link-page) {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--amber);
+  color: var(--accent);
   margin-bottom: 8px;
 }
 .somo-confirm-due .due-row {
@@ -1415,7 +1451,7 @@ body:has(.somo-link-page) {
   font-weight: 600;
 }
 .somo-confirm-due .due-row.total {
-  border-top: 1px solid var(--brand-amber-line, var(--line));
+  border-top: 1px solid var(--brand-navy-line, var(--line));
   margin-top: 4px;
   padding-top: 8px;
 }
@@ -1516,7 +1552,7 @@ body:has(.somo-link-page) {
   justify-content: center;
   font-family: var(--font-mono);
   font-weight: 700;
-  color: var(--amber);
+  color: var(--accent);
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -1560,6 +1596,41 @@ body:has(.somo-link-page) {
 @media (max-width: 900px) {
   .somo-settings-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Under 900px a 200px sidebar costs more than it gives: it is where the
+   two-column content grids already collapse, and the delivery table needs the
+   width back. The nav returns to the horizontal scrolling strip above the
+   content — the layout this portal shipped with, kept for exactly the screens it
+   was right for. */
+@media (max-width: 900px) {
+  .somo-shell {
+    display: block;
+  }
+  .somo-tabs {
+    flex: none;
+    flex-direction: row;
+    gap: 4px;
+    padding: 0 26px;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+  .somo-tab {
+    padding: 13px 16px;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+  }
+  .somo-tab:hover {
+    background: none;
+  }
+  .somo-tab.active {
+    background: none;
+    border-bottom-color: var(--accent);
+    font-weight: 500;
   }
 }
 
@@ -1894,10 +1965,12 @@ body:has(.somo-link-page) {
 }
 /* State is carried by the labelled value, not an extra decorative edge. */
 .somo-kpi.due .v {
-  color: var(--brand-amber-display);
+  color: var(--brand-navy);
 }
+/* Money out is the warm one. --brand-ops would put it 2.7° of hue from the navy
+   that marks money in, and this pair is read side by side. */
 .somo-kpi.owed .v {
-  color: var(--brand-ops);
+  color: var(--brand-out);
 }
 .somo-kpi.good .v {
   color: var(--teal);
@@ -1967,16 +2040,16 @@ body:has(.somo-link-page) {
   line-height: 1.35;
 }
 .somo-holder-cell.due {
-  background: var(--brand-amber-soft);
+  background: var(--brand-navy-soft);
 }
 .somo-holder-cell.due .h {
-  color: var(--amber);
+  color: var(--accent);
 }
 .somo-holder-cell.owed {
-  background: var(--brand-ops-soft);
+  background: var(--brand-out-soft);
 }
 .somo-holder-cell.owed .h {
-  color: var(--brand-ops);
+  color: var(--brand-out);
 }
 .somo-holder-cell.settled {
   background: var(--brand-teal-soft);
@@ -2007,10 +2080,10 @@ table.somo-table.somo-mini-table th {
   max-height: 42vh;
 }
 .net-in {
-  color: var(--brand-amber-display);
+  color: var(--brand-navy);
 }
 .net-out {
-  color: var(--brand-ops);
+  color: var(--brand-out);
 }
 
 .somo-empty.small {
@@ -2047,7 +2120,7 @@ table.somo-table.somo-mini-table th {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: var(--amber-fill);
+  background: var(--accent-fill);
   /* A zero-count row still shows a hairline, so an empty category reads as
      "none" rather than as a missing row. */
   min-width: 2px;
@@ -2091,8 +2164,8 @@ table.somo-table.somo-mini-table th {
   display: block;
   width: 100%;
   border-radius: 3px 3px 0 0;
-  background: var(--brand-amber-soft);
-  border: 1px solid var(--brand-amber-line, var(--line));
+  background: var(--brand-navy-soft);
+  border: 1px solid var(--brand-navy-line, var(--line));
   border-bottom: none;
   /* A day with one delivery must still be visible next to a day with forty. */
   min-height: 2px;
@@ -2130,8 +2203,8 @@ table.somo-table.somo-mini-table th {
   border-radius: 3px;
 }
 .somo-chart-key .swatch.filed {
-  background: var(--brand-amber-soft);
-  border: 1px solid var(--brand-amber-line, var(--line));
+  background: var(--brand-navy-soft);
+  border: 1px solid var(--brand-navy-line, var(--line));
 }
 .somo-chart-key .swatch.done {
   background: var(--teal);
@@ -2227,16 +2300,16 @@ table.somo-table.somo-mini-table th {
   border-radius: 999px;
 }
 .somo-leg-tag.in {
-  background: var(--brand-amber-soft);
-  color: var(--amber);
+  background: var(--brand-navy-soft);
+  color: var(--accent);
 }
 .somo-leg-tag.out {
-  background: var(--brand-ops-soft);
-  color: var(--brand-ops);
+  background: var(--brand-out-soft);
+  color: var(--brand-out);
 }
 .somo-settle-totals {
-  background: var(--brand-amber-soft);
-  border: 1px solid var(--brand-amber-line, var(--line));
+  background: var(--brand-navy-soft);
+  border: 1px solid var(--brand-navy-line, var(--line));
   border-radius: 10px;
   padding: 12px 14px;
   margin-bottom: 14px;
@@ -2444,20 +2517,30 @@ tr.somo-overdue-row td {
   /* --- SomoExpress brand --------------------------------------------------
      shadcn's neutral base is monochrome; these carry the product's identity on
      top of it. Contrast ratios are against the surface each one sits on. */
-  --brand-amber: #f5a524; /* filled surfaces only */
-  --brand-amber-ink: #241a02; /* text on an amber fill — 8.4:1 */
-  /* Bright amber cannot reach 4.5:1 on white, so small text uses a deepened
-     ochre. Verified 5.6:1 on white and 5.1:1 on --brand-amber-soft. */
-  --brand-amber-text: #965a00;
-  /* Reserved for the 24px/600 recommended price. At that size WCAG's large-text
-     bar is 3:1, which this clears at 3.9:1, so the headline figure stays vivid. */
-  --brand-amber-display: #b87200;
-  --brand-amber-soft: #fdf3e0; /* tinted badge background */
+  /* One navy does every job the amber needed four values for. At 11.82:1 on white
+     it carries text at any size, fills a surface, and marks a hairline — so the
+     old fill/text/display split is gone rather than recoloured. */
+  --brand-navy: #26336D; /* on white — 11.82:1 */
+  --brand-navy-ink: #ffffff; /* text on a navy fill — 11.82:1 */
+  /* A dark fill cannot be hovered with `filter: brightness()`: 1.06 on this navy
+     is a 1.05:1 step, which is nothing. So the filled button swaps background
+     instead, and these are the two ends of that swap. */
+  --brand-navy-hover: #304088; /* white on it — 9.48:1 */
+  --brand-navy-press: #212d60; /* white on it — 13.05:1 */
+  --brand-navy-soft: #e8ecf8; /* tinted badge background; navy on it — 10.0:1 */
   --brand-teal: #0e7c6b; /* on white — 4.9:1 */
   --brand-teal-soft: #e6f4f1;
   --brand-teal-line: #c3e3dc;
   --brand-ops: #3b5bdb; /* on white — 5.9:1 */
   --brand-ops-soft: #e8ecfb;
+  /* Money leaving us, in the ledger's in/out pairs. This was the brand amber, and
+     it stays in the palette for exactly one reason: the navy accent marks money
+     coming *in*, and --brand-ops sits 2.7° away from it in hue, so an in/out pair
+     drawn in those two would be two near-identical blues. Warm against cool is
+     what makes that pair readable at a glance. Verified 5.6:1 on white and 5.1:1
+     on its own soft background. */
+  --brand-out: #965a00;
+  --brand-out-soft: #fdf3e0;
   /* Finance needed a fourth role colour, and the three in use are all warm or
      green. Verified 7.1:1 on white and 6.3:1 on its own soft background. */
   --brand-finance: #5f3dc4;
@@ -2470,11 +2553,11 @@ tr.somo-overdue-row td {
      on the recessed input grey, where most muted labels actually sit. */
   --muted-foreground: #707070;
 
-  /* Primary is the brand amber rather than shadcn's near-black, so any shadcn
+  /* Primary is the brand navy rather than shadcn's near-black, so any shadcn
      component added later picks up the same accent as the .somo-* layer. */
-  --primary: var(--brand-amber);
-  --primary-foreground: var(--brand-amber-ink);
-  --ring: var(--brand-amber-text);
+  --primary: var(--brand-navy);
+  --primary-foreground: var(--brand-navy-ink);
+  --ring: var(--brand-navy);
 }
 
 .dark {
