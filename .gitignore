@@ -15,3 +15,6 @@ next-env.d.ts
 *.log
 .DS_Store
 check-write-path.mjs
+
+# Impeccable design-skill working dir (live-session state, local config)
+.impeccable/

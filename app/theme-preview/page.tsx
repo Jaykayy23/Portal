@@ -7,7 +7,7 @@
 import { notFound } from 'next/navigation';
 import { BrandMark } from '@/components/BrandMark';
 import { ScrollableTable } from '@/components/ScrollableTable';
-import { Bell } from 'lucide-react';
+import { Bell, Download, Minimize2, RefreshCw } from 'lucide-react';
 
 export default function ThemePreview() {
   if (process.env.NODE_ENV === 'production') notFound();
@@ -73,26 +73,107 @@ export default function ThemePreview() {
 
         <div className="somo-card">
           <h3><span className="n">—</span> All deliveries<span className="tag-note">admin view</span></h3>
-          <ScrollableTable label="Delivery preview">
+          {/* The log's attention panel and toolbar, which both stack under 640px:
+              the queue row puts its button under the sentence instead of beside
+              it, and the search takes a row of its own with the three actions
+              sharing the next. */}
+          <div className="somo-queue">
+            <div className="somo-queue-head">
+              Needs attention <span className="count">2</span>
+            </div>
+            <div className="somo-queue-row">
+              <div className="what">
+                <span className="act">Assign a rider</span>
+                <span className="sub">Jumia · Osu, Oxford Street → East Legon, Boundary Road</span>
+              </div>
+              <button className="somo-notify-btn">Open alerts</button>
+            </div>
+            <div className="somo-queue-row">
+              <div className="what">
+                <span className="act">Send the rider their completion link</span>
+                <span className="sub">Mr Wu · Accra Mall → Tema Community 1</span>
+              </div>
+              <button className="somo-notify-btn">Open alerts</button>
+            </div>
+          </div>
+
+          <div className="somo-table-actions">
+            <div className="somo-table-search">
+              <input
+                className="somo-input"
+                type="search"
+                placeholder="Search order #, customer, address, rider…"
+                aria-label="Search deliveries"
+              />
+            </div>
+            <button className="somo-btn ghost small">
+              <Minimize2 aria-hidden="true" size={13} />
+              <span>Compact</span>
+            </button>
+            <button className="somo-btn ghost small">
+              <RefreshCw aria-hidden="true" size={13} />
+              <span>Refresh</span>
+            </button>
+            <button className="somo-btn ghost small">
+              <Download aria-hidden="true" size={13} />
+              <span>Export to Excel</span>
+            </button>
+          </div>
+
+          {/* Mirrors the real log's cell structure — `stacks` plus a data-label on
+              every <td> — so this page also reviews the phone treatment, where the
+              table becomes one card per delivery. Narrow the window past 640px to
+              see it. */}
+          <ScrollableTable label="Delivery preview" stacks>
             <table className="somo-table">
-              <thead><tr><th>Date</th><th>Customer</th><th>Route</th><th>Recommended</th><th>Status</th><th>Alerts</th></tr></thead>
+              <thead><tr><th>Date</th><th>Order</th><th>Customer</th><th>Route</th><th>Price</th><th>Payment</th><th>Status</th><th>Rider</th><th>Alerts</th></tr></thead>
               <tbody>
-                <tr><td>Aug 18 11:36</td><td>Jumia</td><td>Osu → East Legon</td>
-                  <td className="somo-price-cell">GHS 67.00</td>
-                  <td><span className="somo-badge b-requested">Requested</span></td>
-                  <td><button className="somo-notify-btn"><Bell aria-hidden="true" size={14} /><span>Notify</span></button></td></tr>
-                <tr><td>Aug 18 11:31</td><td>Mr Wu</td><td>Accra Mall → Tema</td>
-                  <td className="somo-price-cell">GHS 112.00</td>
-                  <td><span className="somo-badge b-approval">Declined</span></td>
-                  <td><button className="somo-notify-btn"><Bell aria-hidden="true" size={14} /><span>Notify</span></button></td></tr>
-                <tr><td>Aug 18 10:02</td><td>Jumia</td><td>Osu → Airport</td>
-                  <td className="somo-price-cell">GHS 77.00</td>
-                  <td><span className="somo-badge b-assigned">Assigned</span></td>
-                  <td><button className="somo-notify-btn"><Bell aria-hidden="true" size={14} /><span>Notify</span></button></td></tr>
-                <tr><td>Aug 17 16:20</td><td>Mr Wu</td><td>Tema → Spintex</td>
-                  <td className="somo-price-cell">GHS 54.00</td>
-                  <td><span className="somo-badge b-delivered">Delivered</span></td>
-                  <td><button className="somo-notify-btn"><Bell aria-hidden="true" size={14} /><span>Notify</span></button></td></tr>
+                <tr>
+                  <td className="somo-date-cell" data-label="Date">Aug 18 11:36</td>
+                  <td className="somo-order-cell" data-label="Order">#4F2A9C</td>
+                  <td data-label="Customer">Jumia</td>
+                  <td data-label="Route">Osu → East Legon<br />
+                    <span className="somo-rider-sub">Ama Serwaa · 024 111 2222</span></td>
+                  <td className="somo-agreed-cell" data-label="Price">GHS 67.00</td>
+                  <td className="somo-payment-cell" data-label="Payment">
+                    <span className="somo-badge b-approval">COD</span><br />
+                    <span className="somo-rider-sub">customer pays fee</span><br />
+                    <span className="somo-collect-note">collect GHS 217.00</span></td>
+                  <td data-label="Status"><span className="somo-badge b-requested">Requested</span></td>
+                  <td data-label="Rider"><span className="somo-unassigned">Not yet assigned</span></td>
+                  <td className="somo-action-cell" data-label="Alerts">
+                    <button className="somo-notify-btn"><Bell aria-hidden="true" size={14} /><span>Notify</span></button></td></tr>
+                <tr>
+                  <td className="somo-date-cell" data-label="Date">Aug 18 11:31</td>
+                  <td className="somo-order-cell" data-label="Order">#B7E014</td>
+                  <td data-label="Customer">Mr Wu</td>
+                  <td data-label="Route">Accra Mall → Tema</td>
+                  <td className="somo-agreed-cell" data-label="Price">GHS 112.00</td>
+                  <td className="somo-payment-cell" data-label="Payment">
+                    <span className="somo-badge b-delivered">Prepaid</span><br />
+                    <span className="somo-rider-sub">merchant pays fee</span></td>
+                  <td data-label="Status"><span className="somo-badge b-approval">Declined</span></td>
+                  <td data-label="Rider">Kwame Mensah<br />
+                    <span className="somo-rider-sub">024 777 8888 · Boxer GR 4821</span></td>
+                  <td className="somo-action-cell" data-label="Alerts">
+                    <button className="somo-notify-btn"><Bell aria-hidden="true" size={14} /><span>Notify</span></button></td></tr>
+                <tr>
+                  <td className="somo-date-cell" data-label="Date">Aug 17 16:20</td>
+                  <td className="somo-order-cell" data-label="Order">#19D5F0</td>
+                  <td data-label="Customer">Mr Wu</td>
+                  <td data-label="Route">Tema → Spintex</td>
+                  <td className="somo-agreed-cell" data-label="Price">GHS 54.00</td>
+                  <td className="somo-payment-cell" data-label="Payment">
+                    <span className="somo-badge b-delivered">Prepaid</span><br />
+                    <span className="somo-rider-sub">merchant pays fee</span></td>
+                  <td data-label="Status"><span className="somo-badge b-delivered">Delivered</span>
+                    <div className="somo-confirmed-note">✓ delivered — customer confirmed Aug 17 17:04</div></td>
+                  <td data-label="Rider">Kwame Mensah<br />
+                    <span className="somo-rider-sub">024 777 8888 · Boxer GR 4821</span></td>
+                  {/* Nothing left to do on this one: the stacked layout drops the
+                      cell rather than showing an em dash where a button would be. */}
+                  <td className="somo-action-cell" data-label="Alerts">
+                    <span className="somo-unassigned">—</span></td></tr>
               </tbody>
             </table>
           </ScrollableTable>

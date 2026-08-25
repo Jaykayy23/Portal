@@ -17,7 +17,17 @@ import { fmtMoney as money } from '@/lib/format';
 import { amountsDue, cashToCollect } from '@/lib/amounts';
 import { ScrollableTable } from '@/components/ScrollableTable';
 import { ProgressiveRows } from '@/components/ProgressiveRows';
-import { Bell } from 'lucide-react';
+import { Bell, Download, Maximize2, Minimize2, RefreshCw } from 'lucide-react';
+
+/**
+ * Below this the table stops being a table.
+ *
+ * Fifteen columns cannot be made to work on a phone by shrinking them, and this
+ * screen is one a merchant opens on one — so each row becomes a card of
+ * label/value pairs instead. Matched to the 640px breakpoint the rest of the
+ * stylesheet already uses for the same decision.
+ */
+const STACK_QUERY = '(max-width: 640px)';
 
 /**
  * Most the queue will show at once.
@@ -180,11 +190,33 @@ export function DeliveryLog({
    */
   const [compact, setCompact] = useState(false);
 
+  /**
+   * Is the table currently stacked into cards?
+   *
+   * The stacking itself is the stylesheet's job. This exists only for the one
+   * thing CSS cannot reach: the word "columns", which describes nothing once
+   * each row is a card.
+   */
+  const [narrow, setNarrow] = useState(false);
+
   // Read after mount, never during render: the server has no localStorage, and
   // reading it in useState would make the first client render disagree with the
   // server's and throw a hydration error.
   useEffect(() => {
     setCompact(window.localStorage.getItem(COMPACT_KEY) === '1');
+  }, []);
+
+  // Same reason, plus one more: the server has no viewport either. Both start
+  // false so the first client render matches the server's, then correct
+  // themselves after mount.
+  useEffect(() => {
+    const mq = window.matchMedia(STACK_QUERY);
+    const sync = () => setNarrow(mq.matches);
+    sync();
+    // A phone rotating into landscape crosses this boundary, and so does anyone
+    // dragging a desktop window narrow.
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
   }, []);
 
   function toggleCompact() {
@@ -386,10 +418,18 @@ export function DeliveryLog({
           title={
             compact
               ? 'Show distance, time, type, item, value and recommended price'
-              : 'Hide the detail columns so the table fits without scrolling sideways'
+              : narrow
+                ? 'Hide the detail fields so each card is a few lines instead of a screenful'
+                : 'Hide the detail columns so the table fits without scrolling sideways'
           }
         >
-          {compact ? '⤢ All columns' : '⤡ Compact'}
+          {compact ? (
+            <Maximize2 aria-hidden="true" size={13} />
+          ) : (
+            <Minimize2 aria-hidden="true" size={13} />
+          )}
+          {/* "Columns" describes nothing once each row is a card. */}
+          <span>{compact ? (narrow ? 'All fields' : 'All columns') : 'Compact'}</span>
         </button>
         <button
           type="button"
@@ -398,7 +438,8 @@ export function DeliveryLog({
           disabled={refreshing}
           title="Riders and customers update these from their phones — this checks for changes now"
         >
-          {refreshing ? 'Refreshing…' : '↻ Refresh'}
+          <RefreshCw aria-hidden="true" size={13} className={refreshing ? 'somo-spin' : undefined} />
+          <span>{refreshing ? 'Refreshing…' : 'Refresh'}</span>
         </button>
         <button
           type="button"
@@ -411,11 +452,12 @@ export function DeliveryLog({
               : 'Download your delivery history as an Excel file'
           }
         >
-          {exporting ? 'Preparing…' : 'Export to Excel'}
+          <Download aria-hidden="true" size={13} />
+          <span>{exporting ? 'Preparing…' : 'Export to Excel'}</span>
         </button>
       </div>
 
-      <ScrollableTable label="Delivery log">
+      <ScrollableTable label="Delivery log" stacks>
         <table className="somo-table">
           <thead>
             <tr>
@@ -448,20 +490,24 @@ export function DeliveryLog({
               {visible.map((r) => {
               const step = milestone(r);
               const collect = cashDue(r);
+              // Every cell carries a data-label so the stylesheet can label it
+              // once the table stacks into cards under 640px — the thead that
+              // normally names the column is not rendered there. Keep these in
+              // step with the th text above.
               return (
                 <tr key={r.id}>
                   {/* --somo-muted, not --muted: the latter is shadcn's muted
                       *background*, which rendered this date as pale grey on white
                       and all but invisible. */}
-                  <td style={{ color: 'var(--somo-muted)', whiteSpace: 'nowrap' }}>
+                  <td className="somo-date-cell" data-label="Date">
                     {fmtDateTime(r.date)}
                   </td>
                   {/* The full uuid on hover, for anyone who needs to paste one. */}
-                  <td className="somo-order-cell" title={r.id}>
+                  <td className="somo-order-cell" data-label="Order" title={r.id}>
                     #{shortId(r.id)}
                   </td>
-                  {canManage && <td>{r.customer}</td>}
-                  <td>
+                  {canManage && <td data-label="Customer">{r.customer}</td>}
+                  <td data-label="Route">
                     {r.pickup} → {r.dropoff}
                     {/* Sits under the route rather than in its own column: it is
                         who is waiting at that drop-off, and the table is wide
@@ -477,19 +523,25 @@ export function DeliveryLog({
                   </td>
                   {!compact && (
                     <>
-                      <td className="somo-price-cell">{r.distance.toFixed(1)} km</td>
-                      <td className="somo-price-cell">
+                      <td className="somo-price-cell" data-label="Distance">
+                        {r.distance.toFixed(1)} km
+                      </td>
+                      <td className="somo-price-cell" data-label="Time">
                         {r.durationMin > 0 ? `${r.durationMin.toFixed(0)} min` : '—'}
                       </td>
-                      <td>{r.type}</td>
+                      <td data-label="Type">{r.type}</td>
                       {/* Blank for rows filed before item categories existed. */}
-                      <td>{r.itemCategory || '—'}</td>
-                      <td className="somo-price-cell">GHS {(r.declaredValue || 0).toFixed(0)}</td>
+                      <td data-label="Item">{r.itemCategory || '—'}</td>
+                      <td className="somo-price-cell" data-label="Value">
+                        GHS {(r.declaredValue || 0).toFixed(0)}
+                      </td>
                     </>
                   )}
-                  <td className="somo-agreed-cell">{fmtMoney(r.price)}</td>
+                  <td className="somo-agreed-cell" data-label="Price">
+                    {fmtMoney(r.price)}
+                  </td>
 
-                  <td style={{ whiteSpace: 'nowrap' }}>
+                  <td className="somo-payment-cell" data-label="Payment">
                     {r.itemPayment ? (
                       <>
                         {r.itemPayment === 'Cash on delivery' ? (
@@ -517,7 +569,7 @@ export function DeliveryLog({
                     )}
                   </td>
 
-                  <td>
+                  <td data-label="Status">
                     {canManage ? (
                       <select
                         className="somo-status-select"
@@ -545,7 +597,7 @@ export function DeliveryLog({
                     ) : null}
                   </td>
 
-                  <td>
+                  <td data-label="Rider">
                     {canManage ? (
                       <select
                         className="somo-status-select"
@@ -586,7 +638,7 @@ export function DeliveryLog({
                     )}
                   </td>
 
-                  <td>
+                  <td className="somo-action-cell" data-label={canManage ? 'Alerts' : 'Action'}>
                     {canManage ? (
                       <button className="somo-notify-btn" onClick={() => setNotify(r)}>
                         <Bell aria-hidden="true" size={14} />

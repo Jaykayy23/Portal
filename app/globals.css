@@ -697,6 +697,34 @@ table.somo-table tr:hover td {
 .somo-unassigned {
   color: var(--somo-muted);
 }
+/* Was an inline style on the <td>. It had to become a class so the stacked-card
+   rules below can let it wrap — an inline white-space beats any media query.
+   --somo-muted, not --muted: the latter is shadcn's muted *background*, which
+   rendered this date as pale grey on white and all but invisible. */
+.somo-date-cell {
+  color: var(--somo-muted);
+  white-space: nowrap;
+}
+/* Same reason: three stacked lines that must not break mid-phrase in a column,
+   and must be free to wrap in a card. */
+.somo-payment-cell {
+  white-space: nowrap;
+}
+/* The refresh icon turns while the refresh is in flight, so the button says it is
+   working without the label having to change length. */
+.somo-spin {
+  animation: somoSpin 0.9s linear infinite;
+}
+@keyframes somoSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .somo-spin {
+    animation: none;
+  }
+}
 .somo-badge {
   display: inline-block;
   padding: 3px 9px;
@@ -1603,6 +1631,184 @@ body:has(.somo-link-page) {
   justify-content: flex-end;
   gap: 8px;
   margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.somo-table-actions .somo-btn.small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* --- the delivery log on a phone ----------------------------------------- */
+/* Fifteen columns cannot be made to work at 375px by shrinking them, and this is
+   a screen merchants open on a phone between other work. So under 640px each row
+   stops being a row and becomes a card of label/value pairs — the same atom the
+   rest of the portal is built from, stacked instead of ruled. The column names
+   move into the cells as ::before labels, which is why every <td> in
+   DeliveryLog.tsx carries a data-label.
+
+   Scoped to .stacked so the ledger, riders, accounts and settlement tables keep
+   their sideways scroll and their visible swipe hint. */
+@media (max-width: 640px) {
+  /* The 60vh cap exists to keep a dragged table's scrollbar on screen. A stacked
+     list has no sideways axis, and capping it means scrolling a list inside a
+     page that is already scrolling. */
+  .somo-table-wrap.stacked {
+    max-height: none;
+    overflow: visible;
+  }
+  /* "Swipe sideways to see every column" is the wrong instruction for a card, and
+     hiding it takes the description out of the accessibility tree with it — which
+     is the point, since aria-describedby still names it. */
+  .somo-table-shell:has(> .somo-table-wrap.stacked) > .somo-table-scroll-hint {
+    display: none;
+  }
+  .somo-table-wrap.stacked table.somo-table {
+    display: block;
+    min-width: 0;
+  }
+  .somo-table-wrap.stacked thead {
+    display: none;
+  }
+  .somo-table-wrap.stacked tbody {
+    display: block;
+  }
+  /* One delivery, one card. The card rung of the radius ladder, on the panel
+     white, so a run of them reads as a list of records. */
+  .somo-table-wrap.stacked tbody tr {
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .somo-table-wrap.stacked tbody tr + tr {
+    margin-top: 10px;
+  }
+  /* Hover cannot happen on the device this layout is for, and the tint read as a
+     selected card when it did fire. */
+  .somo-table-wrap.stacked tbody tr:hover td {
+    background: none;
+  }
+  /* The label/value atom. 74px is what leaves a route and a recipient name room
+     to breathe at 375px; the value column takes everything else. */
+  .somo-table-wrap.stacked td {
+    display: grid;
+    grid-template-columns: 74px minmax(0, 1fr);
+    align-items: baseline;
+    gap: 10px;
+    padding: 5px 0;
+    border-bottom: none;
+    white-space: normal;
+  }
+  .somo-table-wrap.stacked td::before {
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--somo-muted);
+  }
+  /* The order number is the card's heading — it is what people read to each other
+     on the phone — and the date is its caption. Neither needs a word in front of
+     it, and they are hoisted above the cells the markup happens to emit first. */
+  .somo-table-wrap.stacked td.somo-order-cell {
+    order: -2;
+    display: block;
+    padding-top: 0;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .somo-table-wrap.stacked td.somo-date-cell {
+    order: -1;
+    display: block;
+    padding-top: 0;
+    padding-bottom: 10px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+    font-size: 11.5px;
+    white-space: normal;
+  }
+  .somo-table-wrap.stacked td.somo-order-cell::before,
+  .somo-table-wrap.stacked td.somo-date-cell::before,
+  .somo-table-wrap.stacked td.somo-action-cell::before {
+    content: none;
+  }
+  /* The one thing to tap, full width at the bottom of the card where a thumb
+     already is. */
+  .somo-table-wrap.stacked td.somo-action-cell {
+    display: block;
+    margin-top: 10px;
+    padding: 0;
+  }
+  .somo-table-wrap.stacked td.somo-action-cell .somo-notify-btn {
+    width: 100%;
+  }
+  /* A row with nothing to do drops the cell rather than showing an em dash where
+     the button would be. */
+  .somo-table-wrap.stacked td.somo-action-cell:has(> .somo-unassigned) {
+    display: none;
+  }
+  /* A 44px control in a 74px-labelled row is a stub; give the ops selects the
+     whole value column. */
+  .somo-table-wrap.stacked .somo-status-select {
+    width: 100%;
+  }
+  /* Both hold one line inside a narrow column. In a card they have the width, so
+     let them use it instead of overflowing. */
+  .somo-table-wrap.stacked .somo-confirmed-note,
+  .somo-table-wrap.stacked .somo-collect-note {
+    white-space: normal;
+  }
+  /* The two full-width rows — "nothing matches" and the show-more button — carry
+     no data-label, so they must not get the label column either. */
+  .somo-table-wrap.stacked td:not([data-label]) {
+    display: block;
+    padding: 0;
+  }
+  .somo-table-wrap.stacked tr.somo-progressive-row {
+    background: none;
+    border: none;
+    padding: 0;
+  }
+  .somo-table-wrap.stacked .somo-progressive-row td {
+    background: none;
+    padding-block: 4px;
+  }
+
+  /* The toolbar: search gets its own row at full width, the three actions share
+     the next one. */
+  .somo-table-search {
+    flex: 1 1 100%;
+    max-width: none;
+    margin-right: 0;
+  }
+  /* Restated at this specificity on purpose. The blanket `.somo-input` rule above
+     sets 16px so iOS does not zoom the page on focus, but `.somo-table-search
+     .somo-input` carries a second class and was quietly winning with 12.5px —
+     which is exactly the field a merchant taps first on a phone. */
+  .somo-table-search .somo-input {
+    font-size: 16px;
+  }
+  .somo-table-actions .somo-btn.small {
+    flex: 1 1 auto;
+  }
+
+  /* The attention queue stacks for the same reason the table does: an action
+     sentence and a button side by side at 375px leaves neither enough room. With
+     the row stacked there is space for the route to wrap rather than truncate. */
+  .somo-queue-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .somo-queue-row .sub {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
 }
 
 /* One editable value plus its remove button — the item category rows. */
