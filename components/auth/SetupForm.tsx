@@ -70,7 +70,7 @@ export function SetupForm() {
       }
 
       toast('Admin account created');
-      router.replace('/portal/new');
+      router.replace('/portal');
       router.refresh();
     } catch (e) {
       setError(errMessage(e));

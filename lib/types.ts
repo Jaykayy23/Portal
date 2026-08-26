@@ -384,10 +384,10 @@ export function canRecordSettlements(user: Pick<SessionUser, 'role'> | null): bo
 }
 
 /**
- * Finance has one screen pair — the ledger and the dashboard — and no business
- * on the request or fulfilment tabs. Used to send them somewhere useful rather
- * than to a page whose every control would be inert.
+ * Where signing in lands: the dashboard, which is the "where do things stand"
+ * screen somebody opens the portal to see, and the one tab every role has. It
+ * asserts nothing a seat cannot back up — what it can say is decided by which
+ * rows the caller can read, and that is decided in Postgres — so unlike the New
+ * delivery form it is never a page whose every control is inert.
  */
-export function landingPathFor(user: Pick<SessionUser, 'role'> | null): string {
-  return user?.role === 'finance' ? '/portal/ledger' : '/portal/new';
-}
+export const LANDING_PATH = '/portal/dashboard';
