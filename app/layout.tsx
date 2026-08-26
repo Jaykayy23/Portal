@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Analytics } from '@vercel/analytics/next';
 import { ToastProvider } from '@/components/Toast';
 import './globals.css';
 import localFont from 'next/font/local';
@@ -42,6 +43,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div id="somo-root">
           <ToastProvider>{children}</ToastProvider>
         </div>
+        {/* Page-view beacons, posted to /_vercel/insights/view. That endpoint is
+            served by Vercel's edge and by nothing else, so on the Docker/Nginx
+            deployment in README §5 these requests 404 and no data is recorded —
+            this reports only if the portal is hosted on Vercel. Outside the
+            design-token root because it renders nothing. */}
+        <Analytics />
       </body>
     </html>
   );
