@@ -152,10 +152,10 @@ body:has(.somo-header) {
 }
 /* The rule above wins on ID specificity over the class-based link colours in the
    notify modal, so re-assert those at matching specificity. */
-#somo-root .somo-notify-contact .btns a.wa {
+#somo-root .somo-notify-contact .btns :is(a, button).wa {
   color: var(--teal);
 }
-#somo-root .somo-notify-contact .btns a.sms {
+#somo-root .somo-notify-contact .btns :is(a, button).sms {
   color: var(--text);
 }
 #somo-root .somo-maps-hint a {
@@ -1189,24 +1189,39 @@ table.somo-table tr:hover td {
   display: flex;
   gap: 8px;
 }
-.somo-notify-contact .btns a {
+/* One row of three at most: the portal's own send, then the two deep links. The
+   button and the anchors are styled together because they are the same control
+   to whoever is looking at them — only the mechanism behind them differs. */
+.somo-notify-contact .btns :is(a, button) {
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   text-align: center;
   padding: 8px;
   border-radius: 7px;
   font-size: 12px;
   font-weight: 600;
   text-decoration: none;
+  font-family: var(--font-body);
+  cursor: pointer;
 }
-.somo-notify-contact .btns a.wa {
+.somo-notify-contact .btns :is(a, button).wa {
   background: var(--brand-teal-soft);
   color: var(--teal);
   border: 1px solid var(--brand-teal-line);
 }
-.somo-notify-contact .btns a.sms {
+.somo-notify-contact .btns :is(a, button).sms {
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--line);
+}
+/* Mid-send. Not hidden, so the row does not reflow under a thumb that is still
+   resting on it. */
+.somo-notify-contact .btns button:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
 .somo-notify-contact .unavailable {
   font-size: 11.5px;
@@ -1298,7 +1313,7 @@ table.somo-table tr:hover td {
   .somo-notify-btn,
   .somo-btn.small,
   .somo-merchant-badge button,
-  .somo-notify-contact .btns a,
+  .somo-notify-contact .btns :is(a, button),
   .somo-attention-strip,
   .somo-input,
   .somo-select {
@@ -1308,7 +1323,7 @@ table.somo-table tr:hover td {
   .somo-select {
     font-size: 16px;
   }
-  .somo-notify-contact .btns a {
+  .somo-notify-contact .btns :is(a, button) {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1686,6 +1701,14 @@ table.somo-table tr:hover td {
   letter-spacing: 0.4px;
   text-transform: uppercase;
   white-space: nowrap;
+}
+/* Both outcome notes are used in two places: above the send row (the link box's
+   error) and below it (what became of a send). A top margin when they follow the
+   row keeps them off the buttons without double-spacing the other case. */
+.somo-notify-contact .btns + .somo-notify-confirmed,
+.somo-notify-contact .btns + .somo-notify-link-error {
+  margin-top: 10px;
+  margin-bottom: 0;
 }
 .somo-notify-confirmed {
   background: var(--brand-teal-soft);

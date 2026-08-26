@@ -7,6 +7,7 @@ import { api, errMessage } from '@/lib/api';
 import { useToast } from '@/components/Toast';
 import { InfoHint } from '@/components/InfoHint';
 import { Spinner } from '@/components/Spinner';
+import { SmsSettingsCard } from '@/components/settings/SmsSettingsCard';
 import type { AppSettings, DeliveryOptions, MaskedSecret } from '@/lib/types';
 
 const MAX_LOGO_BYTES = 900 * 1024;
@@ -348,8 +349,9 @@ export function SettingsPane({
               HTTP referrer in the Google Cloud Console.
             </p>
             <p>
-              The WhatsApp and SMS keys are stored ready for a provider integration that is not
-              wired up yet. Alerts go out today through the one-tap links on the delivery
+              Twilio has its own card — SMS is wired up, so its credentials need somewhere they
+              can be checked and switched on. The keys here are stored for integrations that are
+              not: WhatsApp alerts still go out through the one-tap links on the delivery
               log&rsquo;s <strong>Notify</strong> button.
             </p>
           </InfoHint>
@@ -375,8 +377,8 @@ export function SettingsPane({
           onToggleClear={() => toggleClear('whatsapp')}
         />
         <SecretField
-          label="SMS API key"
-          hint="e.g. Twilio / Africa's Talking API key"
+          label="SMS API key — another provider"
+          hint="e.g. Africa's Talking. Twilio goes in its own card."
           secret={settings.smsApiKey}
           value={smsApiKey}
           onChange={setSmsApiKey}
@@ -430,6 +432,8 @@ export function SettingsPane({
           {busy === 'keys' ? 'Saving…' : 'Save API keys'}
         </button>
       </form>
+
+      <SmsSettingsCard twilio={settings.twilio} />
     </div>
   );
 }

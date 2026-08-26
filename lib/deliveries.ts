@@ -356,6 +356,18 @@ export async function confirmPickup(deliveryId: string): Promise<DeliveryWithMer
   return { ...delivery, merchantPhone: merchant?.phone ?? '' };
 }
 
+/**
+ * One delivery, as the caller's own session is allowed to see it.
+ *
+ * The RLS SELECT policies are the authorisation, exactly as in listDeliveriesFor:
+ * a merchant asking about somebody else's order gets no row, and "not yours" and
+ * "does not exist" are deliberately the same answer. That is what lets the notify
+ * route load a delivery without a visibility check of its own.
+ */
+export async function getDeliveryFor(id: string): Promise<DeliveryWithMerchant> {
+  return readDelivery(await createSupabaseServerClient(), id);
+}
+
 /** One delivery plus the merchant phone, as the patch and pickup paths return it. */
 async function readDelivery(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,

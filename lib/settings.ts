@@ -17,6 +17,7 @@ import { cache } from 'react';
 import { createSupabaseServerClient } from './supabase/server';
 import { createAdminClient } from './supabase/admin';
 import { DEFAULT_SURCHARGES } from './pricing';
+import { twilioConfigProblem } from './twilioConfig';
 import type {
   AppSettings,
   DeliveryOptions,
@@ -211,6 +212,21 @@ export async function getAppSettingsAsAdmin(): Promise<AppSettings> {
       name: k.name,
       ...maskSecret(k.value),
     })),
+    twilio: {
+      // Same reasoning as per_min in toPricingParams(): an app deployed ahead of
+      // the Twilio migration has none of these columns, and `select('*')` reports
+      // that as undefined rather than as an error. Coalescing means Settings
+      // renders an unconfigured card until `db push` runs, instead of throwing on
+      // the first .trim() of a column that is not there yet.
+      enabled: settings.twilio_enabled ?? false,
+      // The identifiers go back in full — see the note on TwilioSettings for why
+      // masking them would cost an admin more than it protects.
+      accountSid: settings.twilio_account_sid ?? '',
+      apiKeySid: settings.twilio_api_key_sid ?? '',
+      authSecret: maskSecret(settings.twilio_auth_secret),
+      fromNumber: settings.twilio_from_number ?? '',
+      messagingServiceSid: settings.twilio_messaging_service_sid ?? '',
+    },
     logoDataUrl,
   };
 }
@@ -317,5 +333,94 @@ export async function saveApiKeysAsAdmin(patch: SaveApiKeysInput): Promise<AppSe
     const { error } = await admin.from('app_settings').update(update).eq('id', 1);
     if (error) throw new SettingsError(error.message);
   }
+  return getAppSettingsAsAdmin();
+}
+
+// --- Twilio SMS --------------------------------------------------------------
+
+/**
+ * A write to the SMS configuration.
+ *
+ * Note that the secret and the identifiers take opposite conventions for a blank
+ * string, and the reason is the same reason in both directions:
+ *
+ *   authSecret  '' means "leave it alone", because the browser was never given
+ *               the value and so cannot be echoing it back. null clears it.
+ *   everything  '' means "clear it", because the browser *was* given the value.
+ *   else        A blank Account SID box is an admin emptying it, not a browser
+ *               with nothing to say.
+ *
+ * The asymmetry is what makes each field's blank unambiguous. It is also exactly
+ * the kind of thing that reads as a bug six months from now, hence this note.
+ */
+export interface SaveTwilioInput {
+  enabled?: boolean;
+  accountSid?: string;
+  apiKeySid?: string;
+  authSecret?: SecretPatch;
+  fromNumber?: string;
+  messagingServiceSid?: string;
+}
+
+/**
+ * Writes the SMS configuration. Callers MUST have confirmed admin.
+ *
+ * The whole patch is validated against the *merged* result rather than against
+ * what arrived, because every interesting rule spans fields: whether a secret is
+ * required depends on `enabled`, and what the secret is called depends on
+ * whether an API Key SID is set. A patch that only turns `enabled` on carries
+ * none of that context, so the stored row is read first and the two are merged
+ * before anything is checked.
+ *
+ * Refusing is deliberate where a kinder-looking option exists. Clearing the
+ * secret while sending is on could quietly switch sending off instead — but an
+ * integration that turns itself off is an integration nobody notices has stopped,
+ * and the failure mode is a rider who was never told about a job. The database
+ * says the same thing in app_settings_twilio_ready, which is the copy of this
+ * rule that cannot be bypassed.
+ */
+export async function saveTwilioSettingsAsAdmin(patch: SaveTwilioInput): Promise<AppSettings> {
+  const admin = createAdminClient();
+
+  const { data: current, error: readError } = await admin
+    .from('app_settings')
+    .select(
+      'twilio_enabled, twilio_account_sid, twilio_api_key_sid, twilio_auth_secret, twilio_from_number, twilio_messaging_service_sid'
+    )
+    .eq('id', 1)
+    .single();
+
+  if (readError) throw new SettingsError(readError.message);
+
+  /** Identifiers: absent means unchanged, anything else is taken as typed. */
+  const plain = (next: string | undefined, stored: string): string =>
+    next === undefined ? stored : next.trim();
+
+  const secret = resolveSecret(patch.authSecret);
+  const merged = {
+    enabled: patch.enabled ?? current.twilio_enabled,
+    accountSid: plain(patch.accountSid, current.twilio_account_sid),
+    apiKeySid: plain(patch.apiKeySid, current.twilio_api_key_sid),
+    authSecret: secret === undefined ? current.twilio_auth_secret : secret,
+    fromNumber: plain(patch.fromNumber, current.twilio_from_number),
+    messagingServiceSid: plain(patch.messagingServiceSid, current.twilio_messaging_service_sid),
+  };
+
+  const problem = twilioConfigProblem(merged, !!merged.authSecret);
+  if (problem) throw new SettingsError(problem);
+
+  const { error } = await admin
+    .from('app_settings')
+    .update({
+      twilio_enabled: merged.enabled,
+      twilio_account_sid: merged.accountSid,
+      twilio_api_key_sid: merged.apiKeySid,
+      twilio_auth_secret: merged.authSecret,
+      twilio_from_number: merged.fromNumber,
+      twilio_messaging_service_sid: merged.messagingServiceSid,
+    })
+    .eq('id', 1);
+
+  if (error) throw new SettingsError(error.message);
   return getAppSettingsAsAdmin();
 }

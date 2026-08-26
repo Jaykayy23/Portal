@@ -324,6 +324,12 @@ export interface Database {
           whatsapp_otp_key: string;
           sms_api_key: string;
           other_keys: OtherKeyRow[];
+          twilio_enabled: boolean;
+          twilio_account_sid: string;
+          twilio_api_key_sid: string;
+          twilio_auth_secret: string;
+          twilio_from_number: string;
+          twilio_messaging_service_sid: string;
           updated_at: string;
         };
         Insert: {
@@ -332,12 +338,24 @@ export interface Database {
           whatsapp_otp_key?: string;
           sms_api_key?: string;
           other_keys?: OtherKeyRow[];
+          twilio_enabled?: boolean;
+          twilio_account_sid?: string;
+          twilio_api_key_sid?: string;
+          twilio_auth_secret?: string;
+          twilio_from_number?: string;
+          twilio_messaging_service_sid?: string;
         };
         Update: {
           maps_api_key?: string;
           whatsapp_otp_key?: string;
           sms_api_key?: string;
           other_keys?: OtherKeyRow[];
+          twilio_enabled?: boolean;
+          twilio_account_sid?: string;
+          twilio_api_key_sid?: string;
+          twilio_auth_secret?: string;
+          twilio_from_number?: string;
+          twilio_messaging_service_sid?: string;
         };
         Relationships: [];
       };

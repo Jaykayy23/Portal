@@ -166,10 +166,10 @@ Who can reach what:
 | `rate_limits` | — | — | — | — | via server only |
 | `idempotency_keys` | — | — | — | — | via server only |
 
-`app_settings` is granted to **no** public role: the WhatsApp/SMS provider keys
-are only ever read by the server's service-role client, after the caller has been
-confirmed as admin. RLS is enabled on it with zero policies as a second line of
-defence.
+`app_settings` is granted to **no** public role: the provider keys and the Twilio
+credentials are only ever read by the server's service-role client, after the
+caller has been confirmed as admin. RLS is enabled on it with zero policies as a
+second line of defence.
 
 Two deliberate exceptions:
 
@@ -595,19 +595,99 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
   declared value, recommended — leaving what dispatch actually works from; the
   choice is remembered per browser.
 
-  Every message is still a human tapping a pre-filled WhatsApp/SMS link, but the
-  wording and the recipient list for each step now live in one provider-agnostic
-  module, [lib/deliveryMessages.ts](lib/deliveryMessages.ts). Wiring up a
-  WhatsApp Business API later means writing a sender that consumes the same
-  `OutboundMessage[]` — not rewriting the flow.
+  The wording and the recipient list for each step live in one provider-agnostic
+  module, [lib/deliveryMessages.ts](lib/deliveryMessages.ts). That is the seam SMS
+  was wired in through — [lib/twilio.ts](lib/twilio.ts) consumes the same
+  `OutboundMessage[]` the modal renders, so there is no second copy of the wording
+  to drift. A WhatsApp Business API sender would go in the same way.
 
   Set `NEXT_PUBLIC_APP_URL` if a reverse proxy rewrites the forwarded host,
   otherwise links point at whatever host the request arrived on.
-- **WhatsApp/SMS alerts** are one-tap `wa.me` / `sms:` links that pre-fill the
-  message — whoever's at the keyboard taps send. The WhatsApp and SMS **API key
-  fields** are stored ready for a provider integration (Twilio, Africa's Talking,
-  Meta's WhatsApp Business API), but unattended sending isn't implemented. Start
-  from `whatsapp_otp_key` / `sms_api_key` in [lib/settings.ts](lib/settings.ts).
+- **Alerts go out two ways.** The `wa.me` / `sms:` deep links are always there:
+  they pre-fill the message and whoever is at the keyboard taps send. With Twilio
+  configured, the same modal also has a **Send by SMS** button that sends from the
+  portal's own number — see below. WhatsApp is still deep-link only; the
+  `whatsapp_otp_key` field is stored ready for a Business API integration that is
+  not written yet.
+
+### SMS through Twilio
+
+Automated SMS is real. An admin configures it under **Settings → SMS sending
+(Twilio)**; nothing about it lives in the environment, because the person who
+holds the Twilio account is the admin, not whoever deploys the container.
+
+**Setting it up.** In the [Twilio Console](https://console.twilio.com):
+
+1. Buy a number (Phone Numbers → Buy a number) with SMS capability, or note the
+   sender name you have been approved for.
+2. Create an API key (Account → API keys & tokens → Create API key, Standard).
+   Copy the **SID** and the **Secret** — Twilio shows the secret once.
+3. Optionally create a Messaging Service (Messaging → Services) and add the
+   number to its sender pool. Worth it once you have more than one number.
+
+Then in the portal, as an admin: paste the **Account SID** from the Console home
+page, the **API Key SID** and its **Secret**, and either the number in full
+international form (`+233201234567`) or the Messaging Service SID. Tick *Send
+delivery alerts by SMS automatically*, save, and press **Test connection** — that
+is an authenticated `GET` of the account resource, so it costs nothing and proves
+the credentials before any message does. Add a number to the test box to have it
+text you as well.
+
+**Use an API key, not the Auth Token.** Both work — Twilio accepts
+`AccountSid:AuthToken` and `ApiKeySid:ApiKeySecret` on the same endpoint, and the
+portal treats them as one code path, so leaving the API Key SID blank means the
+secret is read as the Auth Token. But the Auth Token is full account access *and*
+the key that signs Twilio's webhooks, so rotating it after a leak breaks
+everything else pointed at that account. An API key can be revoked on its own.
+
+**Where the credentials live.** Six columns on `app_settings`
+(`20260826120000_twilio_messaging.sql`), which is granted to no public role. Only
+`twilio_auth_secret` is a secret, and it is the only one the Settings page masks —
+the SIDs and the sender come back in full on purpose, because an admin who has
+pasted the wrong Account SID has to be able to see that they did. A blank secret
+box means "keep what is stored", which is safe precisely because the value was
+never sent to the browser to be echoed back.
+
+`twilio_enabled` is a real invariant, not a hint: the
+`app_settings_twilio_ready` check constraint refuses the flag over an incomplete
+configuration, so the send path can treat it as the whole answer. The practical
+consequence is that clearing the secret while sending is on is **refused** rather
+than quietly switching sending off — an integration that turns itself off is one
+nobody notices has stopped, and the cost is a rider never told about a job.
+
+**The message text is never accepted from the caller.**
+`POST /api/deliveries/[id]/notify` takes a list of message *ids* and nothing else.
+The text is composed server-side by
+[lib/deliveryMessages.ts](lib/deliveryMessages.ts) from the delivery row — the
+same function the Notify modal renders from. Accepting the body from the browser
+would hand anyone with an ops seat a way to send arbitrary text, from the
+company's number, to a customer's phone. The capability link inside the message
+is minted server-side for the same reason, and only when a message actually
+carrying one is being sent.
+
+**Who may send:** admin, ops, and the merchant who owns the delivery — the same
+set that may mint links, and for the same reason (confirming pickup and telling
+the recipient is the merchant's own step). Finance is excluded. Sends are rate
+limited per user and per delivery, tighter than links are, because each one costs
+money; and the route is idempotent, so a retry after a dropped response replays
+the first send instead of texting a customer twice.
+
+**Two things worth knowing about the bill.** Every send sets Twilio's
+`SmartEncoded=true`, which rewrites look-alike Unicode to its GSM-7 equivalent
+before Twilio counts segments — the message templates use en dashes and curly
+quotes, and a single non-GSM character drops the segment size from 160 characters
+to 70, turning one job offer into three or four billable parts for no visible
+difference on the handset. And `num_segments` is surfaced through to the modal
+rather than swallowed, so a long address quietly costing four SMS is visible.
+
+**Not built yet, deliberately.** There is no status-callback webhook, so the
+portal knows Twilio *accepted* a message (`queued` / `accepted`) but not whether
+the handset ever saw it — `delivered` and `undelivered` only arrive over a
+webhook. And there is no per-message send log; the audit trail is Twilio's own
+Console. Both are the natural next step: a `sms_messages` table keyed on the
+message SID, and a public route validating `X-Twilio-Signature`. Note that
+signature validation needs the **Auth Token** specifically, which is the one
+argument for storing it — an API Key Secret cannot verify a webhook.
 
 ---
 
