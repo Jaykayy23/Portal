@@ -95,6 +95,42 @@ body {
     0 1px 2px rgb(0 0 0 / 0.04),
     0 8px 28px rgb(0 0 0 / 0.06);
 }
+/* --- the portal shell -----------------------------------------------------
+   Three lifted panels in a 1100px frame became a window. The topbar runs edge to
+   edge and is pinned; the nav is the far-left column of the viewport rather than a
+   card inside a centred frame; the content is a field, not a card.
+
+   The panels went because a full-bleed bar has no corners to round and nothing to
+   float above — separation is carried by the same 1px rules the rest of the system
+   already uses, which is also what the sticky table header does and for the same
+   reason. What the frame bought was breathing room; what it cost was every pixel
+   of table width past 1100px, on a product whose main screen is a fifteen-column
+   delivery log. */
+body:has(.somo-header) {
+  padding: 0;
+  /* The ground is the whole window now, so it has to fill it even when the pane
+     inside is short. */
+  align-items: stretch;
+}
+#somo-root:has(> .somo-header) {
+  /* The topbar's height, named once: the sidebar sticks directly underneath it and
+     the two have to agree to the pixel, or a hairline of scrolled content shows
+     through the join. */
+  --somo-topbar: 64px;
+  max-width: none;
+  min-height: 100dvh;
+  /* No gap: these surfaces meet, and the 1px rule between them is the join. */
+  gap: 0;
+}
+/* Every control in the topbar is raised to a 44px target under a coarse pointer,
+   and the account badge's padding sits around one — so the bar itself has to grow
+   with them rather than clipping. */
+@media (pointer: coarse) {
+  #somo-root:has(> .somo-header) {
+    --somo-topbar: 70px;
+  }
+}
+
 #somo-root * {
   box-sizing: border-box;
   scrollbar-color: var(--accent-dim) var(--panel-2);
@@ -126,32 +162,38 @@ body {
   color: var(--teal);
 }
 
-/* The three top-level panels. They were one card divided by hairlines; they are
-   separate lifted cards now, which is what gives the nav its own ground and lets
-   it hold still while the content scrolls. Same lift on all three so they read
-   as one family rather than three unrelated boxes. */
-.somo-header,
-.somo-shell > .somo-tabs,
-.somo-shell > .somo-body {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.04),
-    0 8px 28px rgb(0 0 0 / 0.06);
-}
-
+/* The topbar. Edge to edge and pinned, because the two things it carries — who is
+   signed in, and what is waiting on them — are true at every scroll position.
+   Opaque with a hairline rather than lifted: content passes underneath it, which
+   is the same situation the sticky table header is in, and it takes the same
+   answer. Its z-index sits under the modal backdrop (60) and the toast (90). */
 .somo-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 26px;
-  gap: 12px;
+  gap: 16px;
+  flex: none;
+  height: var(--somo-topbar);
+  padding: 0 22px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
 }
 .somo-brand {
   display: flex;
   align-items: center;
   gap: 12px;
+  /* Down to 640px the brand gives way first and the wordmark truncates inside it,
+     so the bar shortens continuously instead of stepping. Below 640 the priority
+     inverts — see that block: there is no longer room for both, and the wordmark is
+     the half worth keeping. */
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.somo-brand-name {
+  min-width: 0;
 }
 .somo-mark {
   width: 34px;
@@ -186,6 +228,9 @@ body {
   font-weight: 600;
   font-size: 18px;
   letter-spacing: 0.2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .somo-sub {
   font-size: 11.5px;
@@ -198,6 +243,10 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  /* Holds its size while the brand gives way, down to 640px. What is waiting on you
+     and which seat you are in are the parts of the bar that earn their width. */
+  flex: none;
+  min-width: 0;
 }
 
 .somo-merchant-badge {
@@ -253,38 +302,42 @@ body {
   cursor: progress;
 }
 
-/* The section nav sits beside the content rather than above it, so this row is
-   what fills the shell under the header. Below 900px it goes back to being a
-   stacked block with the nav as a horizontal strip — see the media query. */
+/* The nav and the content, side by side under the topbar. Below 900px it goes back
+   to a stacked block with the nav as a horizontal strip — see the media query. */
 .somo-shell {
   display: flex;
   flex: 1;
-  gap: 18px;
-  /* flex-start, so the nav card is only as tall as its items and has somewhere
-     to travel when the row is taller than it. Without this it would stretch to
-     the content's full height and `position: sticky` would never fire. */
+  gap: 0;
+  /* flex-start, so the nav column is its own height and `position: sticky` has
+     somewhere to travel. Stretching it to the content's full height would mean
+     sticky never fires. */
   align-items: flex-start;
   min-height: 0;
 }
 
+/* The far-left column of the window. Wider than the 200px card it replaced,
+   because it is now a wall rather than a panel — at 200px a full-height column
+   reads as a leftover margin, and the eight labels had no room to breathe. */
 .somo-tabs {
-  flex: 0 0 200px;
+  flex: 0 0 248px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 12px;
-  /* Follows the page rather than the content: on a long log or ledger the nav
-     stays where the eye left it instead of scrolling away. 16px matches the
-     breathing room the body already keeps above the shell. */
+  gap: 3px;
+  padding: 16px 14px;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  /* Parked directly under the topbar and held there, so on a long log or ledger the
+     nav stays where the eye left it. Its height is the rest of the window, which is
+     also the guard for a short viewport or a longer nav: the column scrolls inside
+     itself rather than running off the bottom of the screen. */
   position: sticky;
-  top: 16px;
-  /* Guard for a short viewport or a future longer nav — it scrolls itself rather
-     than running off the bottom of the screen. */
-  max-height: calc(100dvh - 32px);
+  top: var(--somo-topbar);
+  height: calc(100dvh - var(--somo-topbar));
   overflow-y: auto;
+  z-index: 20;
 }
 .somo-tab {
-  padding: 9px 12px;
+  padding: 10px 12px;
   border-radius: 8px;
   font-size: 13.5px;
   font-weight: 500;
@@ -295,7 +348,7 @@ body {
   text-decoration: none;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
 }
 /* Lucide strokes are `currentColor`, so the icon tracks the row's own colour —
    muted at rest, navy when selected — with no rule of its own. It only needs to
@@ -331,20 +384,33 @@ body {
   color: var(--accent);
 }
 
+/* The content field. No background, no border, no radius and no shadow: the pane
+   is the ground, and the cards inside it are what carry content. A page presented
+   on a card inside a card was one container too many — the panel was drawing a box
+   around boxes and charging 26px of width on each side for it.
+
+   More room below than above, so the last card in a pane does not sit on the
+   window's bottom edge. */
 .somo-body {
-  padding: 26px;
+  padding: 28px 28px 44px;
   flex: 1;
-  /* The nav hugs its content; the content panel fills the row, so a short page
-     still reaches the frame's 640px floor instead of leaving a ragged edge. */
   align-self: stretch;
   /* Without this the log's 700px-min-width table would refuse to shrink and push
-     the whole shell wider than its 1100px frame. */
+     the shell wider than the window. */
   min-width: 0;
+  /* The skip link and any in-page anchor land under a pinned topbar otherwise. */
+  scroll-margin-top: calc(var(--somo-topbar) + 12px);
 }
 /* Each portal tab is its own route now, so panes are never hidden — the fade
    just softens the transition between routes. */
 .somo-pane {
   animation: somoFade 0.25s ease;
+  /* Fills the window beside the nav, up to the width where a form field would
+     start being 900px across. Past that the field centres rather than stretching:
+     the delivery table wants every pixel it can get, and the New delivery form
+     very much does not. */
+  max-width: 1600px;
+  margin-inline: auto;
 }
 @keyframes somoFade {
   from {
@@ -357,10 +423,16 @@ body {
   }
 }
 
+/* The form-plus-summary split. Capped, because the pane's 1600px exists so the
+   delivery log can use the window — and a single-line address input 865px wide is
+   what that number does to a form if nothing stops it. 1180 puts the form column
+   at about 665px and the summary beside it at 490, which is where both were headed
+   before the shell went full width. */
 .somo-grid {
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
   gap: 22px;
+  max-width: 1180px;
 }
 @media (max-width: 760px) {
   .somo-grid {
@@ -376,6 +448,12 @@ body {
 }
 .somo-card + .somo-card {
   margin-top: 18px;
+}
+/* A card whose content is a form takes a readable measure rather than the field's
+   full width. Applied where the card holds nothing but fields; a card holding a
+   table or a roster grid keeps the width it is given. */
+.somo-card.narrow {
+  max-width: 720px;
 }
 .somo-card h3 {
   font-family: var(--font-display);
@@ -442,10 +520,14 @@ label.somo-field span {
 .somo-input:disabled {
   opacity: 0.6;
 }
+/* A pair of fields, wherever it appears. Capped for the same reason as the grid
+   above, and separately from it, because the rider form's pairs sit in the same
+   card as the roster grid — which does want the whole width. */
 .somo-row2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
+  max-width: 720px;
 }
 .somo-checks {
   display: flex;
@@ -692,6 +774,24 @@ label.somo-field span {
     transform: translateX(-50%);
     transition: opacity 0.1s linear;
   }
+  /* The badge still appears and the panel still opens; neither travels to get
+     there. The bell's ring goes entirely — its whole content was the movement,
+     and the count beside it already says the same thing without moving. */
+  .somo-bell-count,
+  .somo-bell-panel {
+    animation: none;
+  }
+  .somo-bell-btn.ping::after {
+    display: none;
+  }
+}
+
+/* News rather than an outcome. Teal in this system means "the thing you just did
+   worked", and nobody pressed anything to get this one — so it takes the navy the
+   portal already uses for the next action. White on it is 11.82:1. */
+.somo-toast.alert {
+  background: var(--accent-fill);
+  color: var(--brand-navy-ink);
 }
 
 /* Errors. Red rather than the teal a confirmation gets, so a refused submit is
@@ -707,10 +807,12 @@ label.somo-field span {
      bottom of the whole table, so a forty-row log meant scrolling to the very
      bottom to reach it, dragging sideways, then scrolling back up to read what you
      had uncovered. Capping the box puts the scrollbar on screen at all times. */
-  /* 60, not 75: the attention queue and the toolbar sit above this box, and a
-     taller cap pushes the box's own horizontal scrollbar back below the fold —
+  /* It was 60vh while a six-row attention queue sat above it as well as the
+     toolbar; with the queue reduced to one line in the bell, the box can take that
+     height back. Still not 75: the cap exists so the box's own horizontal
+     scrollbar stays on screen, and a taller one pushes it below the fold again —
      which is the entire problem this is here to solve. */
-  max-height: 60vh;
+  max-height: 68vh;
   /* Momentum scrolling on the trackpad/touch, and a visible bar on macOS where
      overlay scrollbars otherwise hide until you touch them. */
   overscroll-behavior-x: contain;
@@ -1131,39 +1233,54 @@ table.somo-table tr:hover td {
 }
 
 @media (max-width: 640px) {
+  /* The topbar is pinned, so at this width it has to stay one row: a bar that wraps
+     to two is a bar that owns a sixth of the screen for the whole session. It pays
+     for that by dropping the standing caption under the wordmark and the company
+     name out of the account badge. What is left is the mark, the wordmark, the bell,
+     the seat, and the way out — and none of those wraps at 360px. */
   .somo-header {
-    align-items: flex-start;
-    flex-wrap: wrap;
-    padding: 16px;
+    padding: 0 12px;
+    gap: 8px;
   }
-  .somo-brand,
+  .somo-sub {
+    display: none;
+  }
+  .somo-title {
+    font-size: 16px;
+  }
+  /* At this width the brand holds and the account badge gives way — the reverse of
+     the rule above it. Past about 400px there is not enough bar for both, and the
+     wordmark clipped to "SomoExp…" is a worse thing to ship than a badge carrying
+     only the seat. */
+  .somo-brand {
+    gap: 10px;
+    flex: none;
+  }
   .somo-header-right,
   .somo-merchant-badge {
     min-width: 0;
   }
   .somo-header-right {
-    width: 100%;
+    gap: 6px;
+    flex: 0 1 auto;
   }
   .somo-merchant-badge {
-    width: 100%;
-    justify-content: space-between;
-    border-radius: 10px;
-    padding-inline-start: 12px;
+    gap: 7px;
+    padding: 5px 6px 5px 10px;
+    font-size: 12px;
   }
+  /* The company name goes, rather than truncating to three letters that say
+     nothing. What the badge is for on a phone is the seat and the way out, and both
+     of those stay. The name is still on every screen that depends on it — the log's
+     own heading, the ledger's merchant column. */
   .somo-merchant-badge > span:first-child {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: none;
+  }
+  .somo-merchant-badge {
+    padding-inline-start: 6px;
   }
   .somo-body {
-    padding: 16px;
-  }
-  /* Three stacked panels cost vertical room a phone does not have to spare, so
-     the gaps between them tighten with everything else. */
-  #somo-root,
-  .somo-shell {
-    gap: 12px;
+    padding: 16px 14px 30px;
   }
   .somo-table-scroll-hint {
     position: static;
@@ -1182,6 +1299,7 @@ table.somo-table tr:hover td {
   .somo-btn.small,
   .somo-merchant-badge button,
   .somo-notify-contact .btns a,
+  .somo-attention-strip,
   .somo-input,
   .somo-select {
     min-height: 44px;
@@ -1203,6 +1321,7 @@ table.somo-table tr:hover td {
   .somo-notify-btn,
   .somo-btn.small,
   .somo-merchant-badge button,
+  .somo-attention-strip,
   .somo-input,
   .somo-select {
     min-height: 44px;
@@ -1255,65 +1374,318 @@ table.somo-table tr:hover td {
   word-break: break-all;
   line-height: 1.4;
 }
-/* The attention queue above the delivery table. Derived from status, so a row
-   leaves it as soon as whoever it was waiting on acts. */
-.somo-queue {
-  border: 1px solid var(--brand-navy-line, var(--line));
-  background: var(--brand-navy-soft);
-  border-radius: 12px;
-  padding: 12px 14px;
-  margin-bottom: 16px;
+/* ===========================================================================
+   The alert bell
+   ===========================================================================
+   The attention queue used to be a band of six rows above the delivery table.
+   There it was the loudest thing on the busiest screen, restating information the
+   table below it already carried, and invisible from every other tab — so a rider
+   declining a job while somebody was reading the ledger could not be noticed at
+   all. As a bell it costs one glyph until somebody wants it, and it is on every
+   tab.
+
+   "Unread" is a local question and a separate one: the alerts themselves are
+   derived from delivery status and are never dismissed. See
+   components/AlertBell.tsx. */
+.somo-bell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: none;
 }
-.somo-queue-head {
+.somo-bell-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--somo-muted);
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+.somo-bell-btn:hover {
+  color: var(--text);
+  background: var(--panel-2);
+}
+/* A square target rather than a min-height: the bell is a glyph in a box, and
+   stretching only its height would take the badge off the corner it belongs on.
+   This has to sit after the rule above rather than in the shared touch-target
+   block earlier in the file — same specificity, and the later rule wins. */
+@media (pointer: coarse) {
+  .somo-bell-btn {
+    width: 44px;
+    height: 44px;
+  }
+}
+/* Open is the same soft-tint-plus-accent pairing the active nav row and the status
+   badges use, so the bar says which of its controls is holding the panel. */
+.somo-bell-btn.open {
+  color: var(--accent);
+  background: var(--brand-navy-soft);
+  border-color: var(--brand-navy-soft);
+}
+/* Navy, not red: red in this system means something went wrong, and an alert is
+   work waiting rather than a failure. Bordered in the bar's own colour so it reads
+   as sitting on top of the bell rather than beside it. */
+.somo-bell-count {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border: 2px solid var(--panel);
+  border-radius: 999px;
+  background: var(--accent-fill);
+  color: var(--brand-navy-ink);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  animation: somoBadgeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* One authored moment, fired once when something arrives that nobody asked for.
+   Not a loop: a bell that keeps ringing is a bell people learn to stop seeing. */
+.somo-bell-btn.ping::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 10px;
+  border: 2px solid var(--accent);
+  animation: somoBellPing 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
+}
+@keyframes somoBellPing {
+  from {
+    opacity: 0.85;
+    transform: scale(0.88);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+}
+@keyframes somoBadgeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.somo-bell-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 40;
+  width: min(392px, calc(100vw - 24px));
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  /* Overlay lift — the one shadow in the system that is not a response to state,
+     allowed because a popover sharing a plane with what it covers is unreadable. */
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.05),
+    0 8px 22px rgb(0 0 0 / 0.10);
+  overflow: hidden;
+  animation: somoHintIn 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.somo-bell-head {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
   font-family: var(--font-display);
-  font-size: 13px;
-  color: var(--accent);
-  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--somo-muted);
 }
-.somo-queue-head .count {
-  background: var(--accent-fill);
-  color: var(--brand-navy-ink);
+.somo-bell-head .count {
+  margin-left: auto;
+  padding: 1px 8px;
   border-radius: 999px;
+  background: var(--brand-navy-soft);
+  color: var(--accent);
   font-family: var(--font-mono);
   font-size: 10.5px;
-  padding: 1px 7px;
+  font-weight: 600;
+  letter-spacing: 0;
 }
-.somo-queue-row {
+.somo-bell-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  /* Bounded so the panel cannot reach past the viewport on a laptop, and so a
+     backlog scrolls inside itself rather than making the topbar the tallest thing
+     on the screen. */
+  max-height: min(58vh, 424px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.somo-bell-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 0;
+  gap: 10px;
+  padding: 11px 14px;
+}
+.somo-bell-row + .somo-bell-row {
   border-top: 1px solid var(--line);
 }
-.somo-queue-row .what {
+.somo-bell-row .what {
   flex: 1;
   min-width: 0;
 }
-.somo-queue-row .act {
-  display: block;
+.somo-bell-row .act {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text);
 }
-/* Route lines are long and this panel is full-width, so it truncates rather than
+/* Route lines are long and this panel is narrow, so it truncates rather than
    wrapping every row to three lines. */
-.somo-queue-row .sub {
+.somo-bell-row .sub {
   display: block;
+  margin-top: 2px;
   font-size: 11px;
   color: var(--somo-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.somo-queue-more {
-  border-top: 1px solid var(--line);
-  padding-top: 8px;
-  margin-top: 4px;
-  font-size: 11px;
+/* The same tag shape the role badges use. A word, not a bare coloured dot: the
+   colour is what makes it findable in a list of nine, the word is what makes it
+   mean something. */
+.somo-alert-new {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--brand-navy-soft);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.somo-bell-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 28px 24px 30px;
+  text-align: center;
+  font-size: 11.5px;
+  line-height: 1.5;
   color: var(--somo-muted);
+}
+.somo-bell-empty svg {
+  margin-bottom: 3px;
+  /* Decorative, so deliberately quieter than the copy beside it — but not so
+     quiet it disappears into the panel. */
+  color: color-mix(in srgb, var(--somo-muted) 55%, var(--panel));
+}
+.somo-bell-empty .big {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+/* ID specificity, because the bare `#somo-root a { color: inherit }` beats any
+   single class — the same reason the nav items and the notify-modal links are
+   written this way. */
+#somo-root .somo-bell-more {
+  display: block;
+  padding: 11px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 500;
+  text-decoration: none;
+}
+#somo-root .somo-bell-more:hover {
+  text-decoration: underline;
+}
+/* Anchoring a 392px panel to the bell's right edge only works while the bell is at
+   least 392px from the left of the window. It is not, below about 700px — the
+   panel's left edge goes off screen, and there is nothing a max-width can do about
+   it because the overflow is in the offset, not the width. So below the width where
+   the sums stop working the panel stops being a popover and becomes a sheet under
+   the bar, spanning the window with a 12px inset on both sides. 760px rather than
+   700 for the margin: the account badge's width follows the company name, so the
+   bell's position is not fixed at any given viewport. */
+@media (max-width: 760px) {
+  .somo-bell-panel {
+    position: fixed;
+    top: calc(var(--somo-topbar) + 8px);
+    right: 12px;
+    left: 12px;
+    width: auto;
+  }
+}
+
+/* One line where a band of six rows used to be. The queue itself is in the bell;
+   what the delivery log still wants is the cue that something is waiting, and a
+   way into it that does not cost the table a third of its first screen. */
+.somo-attention-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--brand-navy-line, var(--line));
+  border-radius: 8px;
+  background: var(--brand-navy-soft);
+  color: var(--accent);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+/* An already-tinted control deepens its tint rather than brightening: a filter on
+   a tint this pale is no hover at all. */
+.somo-attention-strip:hover {
+  background: color-mix(in srgb, var(--accent) 15%, var(--panel));
+}
+.somo-attention-strip svg {
+  flex: none;
+}
+.somo-attention-strip .what {
+  flex: 1;
+  min-width: 0;
+}
+.somo-attention-strip .what strong {
+  font-weight: 600;
+}
+.somo-attention-strip .cta {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 .somo-notify-confirmed {
   background: var(--brand-teal-soft);
@@ -1645,11 +2017,15 @@ body:has(.somo-link-page) {
 /* Settings is a set of independent cards, so it reads two-up on a wide screen
    rather than as one long scroll. align-items: start keeps a short card short
    instead of stretching it to its neighbour's height. */
+/* Two columns of settings cards, capped on the same reasoning as .somo-grid: these
+   cards are all fields, and at the pane's full width each column would be nearly
+   800px of single-line inputs. */
 .somo-settings-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
   align-items: start;
+  max-width: 1180px;
 }
 /* .somo-card + .somo-card carries a top margin for stacked cards; inside the
    grid the gap does that job. */
@@ -1667,23 +2043,20 @@ body:has(.somo-link-page) {
   }
 }
 
-/* Under 900px a 200px sidebar costs more than it gives: it is where the
+/* Under 900px a fixed left column costs more than it gives: it is where the
    two-column content grids already collapse, and the delivery table needs the
-   width back. The nav returns to the horizontal scrolling strip above the
-   content — the layout this portal shipped with, kept for exactly the screens it
-   was right for. */
+   width back. The nav returns to the horizontal strip above the content — the
+   layout this portal shipped with, kept for exactly the screens it was right
+   for. */
 @media (max-width: 900px) {
-  /* Still three panels, stacked instead of side by side. Nothing sticks: a nav
-     card pinned above the content it is scrolling over would eat a third of a
-     phone screen. */
+  /* The nav and the content stack instead of sitting side by side. The nav does
+     not stick: pinned under a topbar that is already pinned, it would eat a third
+     of a phone screen for something looked at once per visit. */
   .somo-shell {
     flex-direction: column;
-    /* No `gap` here on purpose: the base rule already sets 18px, and restating it
-       in this block would sit after the 640px rule that tightens both gaps to
-       12px and quietly win. */
-    /* flex-start is there so the sidebar can be shorter than the content. Once
-       this is a column it would instead shrink the nav card to the width of its
-       tabs, leaving three stacked panels of two different widths. */
+    /* flex-start is there so the nav column can be shorter than the content. Once
+       this is a column it would instead shrink the strip to the width of its own
+       tabs, leaving two stacked blocks at two different widths. */
     align-items: stretch;
   }
   .somo-tabs {
@@ -1692,7 +2065,13 @@ body:has(.somo-link-page) {
     flex-direction: row;
     gap: 4px;
     padding: 8px;
+    /* Was a fixed window-height column; here it is as tall as its own rows. */
+    height: auto;
     max-height: none;
+    /* The rule moves from the right edge to the bottom one, because the strip now
+       sits above the content rather than beside it. */
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
     /* Wraps rather than scrolls. Eight tabs compress to about 727px, which fits
        one row on a tablet and does not on a phone — where the strip used to clip
        five of them, including the one you were on, with nothing to say so and a
@@ -1960,18 +2339,25 @@ body:has(.somo-link-page) {
     flex: 1 1 auto;
   }
 
-  /* The attention queue stacks for the same reason the table does: an action
-     sentence and a button side by side at 375px leaves neither enough room. With
-     the row stacked there is space for the route to wrap rather than truncate. */
-  .somo-queue-row {
+  /* The bell's rows stack for the same reason the table does: an action sentence
+     and a button side by side inside a 351px panel leaves neither enough room.
+     With the row stacked there is space for the route to wrap rather than
+     truncate, and the button gets a full-width target. */
+  .somo-bell-row {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    gap: 9px;
   }
-  .somo-queue-row .sub {
+  .somo-bell-row .sub {
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
+  }
+  /* The strip keeps its one line — it is one line of content — but the uppercase
+     call to action goes, because the whole control is the affordance and at this
+     width the words were competing with the count for the same row. */
+  .somo-attention-strip .cta {
+    display: none;
   }
 }
 
@@ -2871,7 +3257,13 @@ label.somo-field span:has(.somo-hint) {
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
+  /* The page ground, and every recessed surface inside it. Cool rather than
+     neutral: since the content stopped being a card floating in a 1100px frame,
+     this token is the whole window behind the work, and a dead-neutral grey at
+     that size reads as unpainted rather than as a choice. #f3f6fb — 1.08:1 off
+     white, so the white surfaces on it still read as surfaces, and the muted ink
+     that sits on it clears 4.58:1 (up from 4.53 on the old neutral). */
+  --muted: oklch(0.973 0.007 255);
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);

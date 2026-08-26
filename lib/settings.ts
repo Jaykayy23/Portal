@@ -13,6 +13,7 @@
 //                     client touches it, after the caller has been checked as
 //                     admin.
 
+import { cache } from 'react';
 import { createSupabaseServerClient } from './supabase/server';
 import { createAdminClient } from './supabase/admin';
 import { DEFAULT_SURCHARGES } from './pricing';
@@ -46,13 +47,18 @@ function toPricingParams(row: Database['public']['Tables']['pricing_params']['Ro
   };
 }
 
-export async function getPricingParams(): Promise<PricingParams> {
+/**
+ * Request-deduplicated: the portal layout reads the ops phone for the alert
+ * bell's notify modal, and the log page under it reads the same row for the same
+ * reason. One query per render either way.
+ */
+export const getPricingParams = cache(async function getPricingParams(): Promise<PricingParams> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.from('pricing_params').select('*').eq('id', 1).single();
 
   if (error) throw new SettingsError(error.message);
   return toPricingParams(data);
-}
+});
 
 /**
  * Writes only the fields present in `patch`, because the Pricing tab has two

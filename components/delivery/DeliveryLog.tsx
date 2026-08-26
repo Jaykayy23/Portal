@@ -17,7 +17,9 @@ import { fmtMoney as money } from '@/lib/format';
 import { amountsDue, cashToCollect } from '@/lib/amounts';
 import { ScrollableTable } from '@/components/ScrollableTable';
 import { ProgressiveRows } from '@/components/ProgressiveRows';
-import { Bell, Download, Maximize2, Minimize2, RefreshCw } from 'lucide-react';
+import { Bell, BellRing, Download, Maximize2, Minimize2, RefreshCw } from 'lucide-react';
+import { useAlerts } from '@/components/AlertBell';
+import { useRefreshHold } from '@/components/PortalRefresh';
 
 /**
  * Below this the table stops being a table.
@@ -28,31 +30,6 @@ import { Bell, Download, Maximize2, Minimize2, RefreshCw } from 'lucide-react';
  * stylesheet already uses for the same decision.
  */
 const STACK_QUERY = '(max-width: 640px)';
-
-/**
- * Most the queue will show at once.
- *
- * Every unassigned request is genuinely waiting on ops, and an install with a
- * long backlog would otherwise push the table off the screen. The panel says how
- * many it is not showing rather than pretending the rest are handled.
- */
-const QUEUE_LIMIT = 6;
-
-/**
- * How often the log re-reads itself.
- *
- * Riders and customers move deliveries along from their own phones, so the most
- * important changes on this screen originate somewhere else entirely — a decline,
- * a pickup, a recipient confirming receipt. Without this, ops and merchants sit
- * looking at whatever was true when the page loaded and only find out by
- * reloading, which nobody thinks to do.
- *
- * A soft refresh, so it re-renders from the server without losing scroll
- * position, open dropdowns or the modal. Twenty-five seconds is short enough that
- * "confirmed" appears while you are still looking at the screen, and long enough
- * that a room of open tabs is not hammering the database.
- */
-const REFRESH_MS = 25_000;
 
 /**
  * Remembers the compact choice across visits.
@@ -121,36 +98,6 @@ function milestone(r: DeliveryWithMerchant): { label: string; at: string } | nul
   return null;
 }
 
-/**
- * What the person looking at this screen has to do next about a delivery.
- *
- * Derived from status rather than stored, so an item cannot go stale: it is
- * present exactly while the delivery is waiting on this reader, and disappears
- * the moment whoever it was waiting on acts. That is also why there is no
- * "mark as read" — the state is the alert.
- */
-function actionNeeded(r: DeliveryWithMerchant, canManage: boolean): string | null {
-  if (canManage) {
-    switch (r.status) {
-      case 'Requested':
-      case 'Approved':
-        return 'Assign a rider';
-      case 'Pending':
-        return `Waiting on ${r.riderName || 'the rider'} to accept or decline`;
-      case 'Declined':
-        return `${r.riderName || 'The rider'} declined — offer it to someone else`;
-      case 'Assigned':
-        return 'Send the merchant the rider’s details';
-      case 'Recipient confirmed':
-        return 'Send the rider their completion link';
-      default:
-        return null;
-    }
-  }
-  // Merchants have exactly one step of their own: confirming the handover.
-  return r.status === 'Assigned' ? 'Confirm the rider has collected the item' : null;
-}
-
 export function DeliveryLog({
   records,
   riders,
@@ -174,6 +121,9 @@ export function DeliveryLog({
 }) {
   const router = useRouter();
   const toast = useToast();
+  // The one number, from the one place that derives it. Null outside the portal
+  // layout, which is only ever the case in a test that renders this on its own.
+  const alerts = useAlerts();
   const [notify, setNotify] = useState<DeliveryWithMerchant | null>(null);
   const [exporting, setExporting] = useState(false);
   const [confirming, setConfirming] = useState('');
@@ -231,26 +181,13 @@ export function DeliveryLog({
     });
   }
 
-  useEffect(() => {
-    // Held while the alerts modal is open: re-rendering underneath someone who is
-    // mid-way through copying a link is worse than being 25 seconds stale.
-    if (notify) return;
-
-    const refreshIfVisible = () => {
-      // A background tab does not need to be current, and a laptop full of them
-      // should not be polling on the user's behalf.
-      if (document.visibilityState === 'visible') router.refresh();
-    };
-
-    const timer = setInterval(refreshIfVisible, REFRESH_MS);
-    // Coming back to the tab is the moment someone most wants it up to date.
-    document.addEventListener('visibilitychange', refreshIfVisible);
-
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', refreshIfVisible);
-    };
-  }, [router, notify]);
+  // The poll that keeps this screen current lives in the portal layout now — one
+  // timer for the whole portal rather than one per screen that happens to care,
+  // because the topbar bell has to be up to date on every tab. This screen's only
+  // remaining interest in it is asking it to hold still while the alerts modal is
+  // open: re-rendering underneath someone who is mid-way through copying a link is
+  // worse than being 25 seconds stale.
+  useRefreshHold(!!notify);
 
   /** The impatient path — same soft refresh, on demand. */
   function refreshNow() {
@@ -346,54 +283,32 @@ export function DeliveryLog({
     );
   }
 
-  const queue = records
-    .map((r) => ({ record: r, action: actionNeeded(r, canManage) }))
-    .filter((item): item is { record: DeliveryWithMerchant; action: string } => !!item.action);
-  const shown = queue.slice(0, QUEUE_LIMIT);
-  const hidden = queue.length - shown.length;
-
   return (
     <>
-      {queue.length > 0 && (
-        <div className="somo-queue">
-          <div className="somo-queue-head">
-            Needs attention <span className="count">{queue.length}</span>
-          </div>
-          {shown.map(({ record, action }) => (
-            <div className="somo-queue-row" key={record.id}>
-              <div className="what">
-                <span className="act">{action}</span>
-                <span className="sub">
-                  {record.customer} · {record.pickup} → {record.dropoff}
-                </span>
-              </div>
-              {!canManage && record.status === 'Assigned' ? (
-                <button
-                  type="button"
-                  className="somo-notify-btn"
-                  disabled={confirming === record.id}
-                  onClick={() => confirmPickup(record.id)}
-                >
-                  {confirming === record.id ? 'Confirming…' : 'Confirm pickup'}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="somo-notify-btn"
-                  onClick={() => setNotify(record)}
-                >
-                  Open alerts
-                </button>
-              )}
-            </div>
-          ))}
-          {hidden > 0 ? (
-            <div className="somo-queue-more">
-              and {hidden} more waiting — they are in the table below.
-            </div>
-          ) : null}
-        </div>
-      )}
+      {/* The attention queue itself lives in the topbar bell now: as a band here it
+          was six rows of the same information the table already carries, on the one
+          screen with the least room to spare, and invisible from every other tab.
+          What stays is the cue — one line saying how much is waiting, opening the
+          panel that holds it. */}
+      {alerts && alerts.feed.total > 0 ? (
+        <button
+          type="button"
+          className="somo-attention-strip"
+          // The second control for the topbar's one disclosure, so it reports the
+          // same state. Opening from here moves focus into the panel, the same as
+          // opening from the bell.
+          aria-expanded={alerts.panelOpen}
+          aria-controls="somo-alerts-panel"
+          onClick={alerts.open}
+        >
+          <BellRing aria-hidden="true" size={14} />
+          <span className="what">
+            <strong>{alerts.feed.total}</strong>{' '}
+            {alerts.feed.total === 1 ? 'delivery needs' : 'deliveries need'} attention
+          </span>
+          <span className="cta">Open alerts</span>
+        </button>
+      ) : null}
 
       <div className="somo-table-actions">
         <div className="somo-table-search">

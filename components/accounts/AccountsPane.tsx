@@ -110,7 +110,9 @@ export function AccountsPane({
 
   return (
     <>
-      <form className="somo-card" style={{ marginTop: 0 }} onSubmit={createAccount}>
+      {/* narrow: this card is nothing but fields, so it takes a readable measure
+          rather than the full width of the pane the account table below it uses. */}
+      <form className="somo-card narrow" style={{ marginTop: 0 }} onSubmit={createAccount}>
         <h3>
           {merchantsOnly ? 'Create merchant' : 'Create account'}
           <InfoHint label={merchantsOnly ? 'merchant accounts' : 'the four roles'}>

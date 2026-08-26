@@ -5,6 +5,7 @@
 // explicit role branch below exists only to decide whether to *enrich* rows with
 // the merchant's phone number, not to decide who sees what.
 
+import { cache } from 'react';
 import { createSupabaseServerClient } from './supabase/server';
 import { syncRiderAvailability } from './riderAvailability';
 import { seesAllMerchants, type Delivery, type DeliveryWithMerchant, type SessionUser } from './types';
@@ -59,8 +60,26 @@ export function fromRow(r: DeliveryRow): Delivery {
  * enriched with the merchant's phone: ops needs it for the Notify action, and
  * finance needs a way to reach whoever owes an invoice. That's done with one
  * extra query over the merchant profiles rather than a lookup per row.
+ *
+ * Deduplicated per request with React's `cache`, keyed on the two things that
+ * change the answer rather than on the user object — two callers in one render
+ * hold two different `SessionUser` objects, and `cache` compares arguments by
+ * identity, so passing the object would miss every time. This matters now that
+ * the portal layout reads deliveries for the alert bell on top of whatever the
+ * page under it reads: without the dedupe, the dashboard, the log and the ledger
+ * would each run this twice per navigation.
+ *
+ * Per request, so nothing survives into another user's render — and RLS decides
+ * the rows either way.
  */
-export async function listDeliveriesFor(user: SessionUser): Promise<DeliveryWithMerchant[]> {
+export function listDeliveriesFor(user: SessionUser): Promise<DeliveryWithMerchant[]> {
+  return listDeliveries(user.id, seesAllMerchants(user));
+}
+
+const listDeliveries = cache(async function listDeliveries(
+  _userId: string,
+  enrichWithMerchantPhone: boolean
+): Promise<DeliveryWithMerchant[]> {
   const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase
@@ -71,7 +90,7 @@ export async function listDeliveriesFor(user: SessionUser): Promise<DeliveryWith
   if (error) throw new DeliveryError(error.message);
   const rows = (data ?? []).map(fromRow);
 
-  if (!seesAllMerchants(user)) return rows;
+  if (!enrichWithMerchantPhone) return rows;
 
   const { data: merchants } = await supabase
     .from('profiles')
@@ -80,7 +99,7 @@ export async function listDeliveriesFor(user: SessionUser): Promise<DeliveryWith
 
   const phoneById = new Map((merchants ?? []).map((m) => [m.id, m.phone]));
   return rows.map((r) => ({ ...r, merchantPhone: phoneById.get(r.merchantId) ?? '' }));
-}
+});
 
 export interface CreateDeliveryInput {
   merchantId: string;
