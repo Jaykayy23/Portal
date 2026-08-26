@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getSessionUser } from '@/lib/session';
 import { listDeliveriesFor } from '@/lib/deliveries';
 import { listMerchantOptions } from '@/lib/accounts';
+import { IncompleteHistoryNotice } from '@/components/IncompleteHistoryNotice';
 import { CrmDashboard } from '@/components/dashboard/CrmDashboard';
 import { seesAllMerchants } from '@/lib/types';
 
@@ -26,17 +27,23 @@ export default async function DashboardPage() {
 
   const seesAll = seesAllMerchants(user);
 
-  const [records, merchants] = await Promise.all([
+  const [history, merchants] = await Promise.all([
     listDeliveriesFor(user),
     seesAll ? listMerchantOptions() : Promise.resolve([]),
   ]);
 
   return (
-    <CrmDashboard
-      records={records}
-      merchants={merchants}
-      seesAll={seesAll}
-      viewerCompany={user.companyName}
-    />
+    <>
+      <IncompleteHistoryNotice
+        deliveries={history.truncated}
+        loaded={history.records.length}
+      />
+      <CrmDashboard
+        records={history.records}
+        merchants={merchants}
+        seesAll={seesAll}
+        viewerCompany={user.companyName}
+      />
+    </>
   );
 }

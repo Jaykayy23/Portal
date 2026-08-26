@@ -13,6 +13,7 @@
 // so a header can never end up with no lines. See the settlements migration.
 
 import { createSupabaseServerClient } from './supabase/server';
+import { keysetBefore, readAllPages, READ_PAGE_SIZE } from './pagedRead';
 import type {
   SettlementKind,
   SettlementLeg,
@@ -26,6 +27,14 @@ type SettlementRow = Database['public']['Tables']['settlements']['Row'];
 type SettlementLineRow = Database['public']['Tables']['settlement_lines']['Row'];
 
 export class SettlementError extends Error {}
+
+/**
+ * The ceiling on one settlement read, across all its pages.
+ *
+ * Higher than the delivery ceiling because a delivery can carry several lines —
+ * goods in, goods out, fee — so the remittance book outgrows the log it settles.
+ */
+export const SETTLEMENT_MAX_ROWS = 50 * READ_PAGE_SIZE;
 
 /** One line of a settlement, as a browser reads it. */
 export interface SettlementLine {
@@ -68,6 +77,22 @@ function orderNo(deliveryId: string): string {
   return deliveryId.slice(-5);
 }
 
+/** The delivery window these marks are being read for. */
+export interface SettlementReadRange {
+  /** The oldest delivery date on screen. Nothing settled before it can matter. */
+  from: string;
+}
+
+export interface SettlementMarkSet {
+  marks: SettlementMarks;
+  /**
+   * The ceiling was reached, so some marks are missing — and a missing mark does
+   * not read as "unknown", it reads as "not settled". Anything computed from a
+   * truncated set overstates what is owed.
+   */
+  truncated: boolean;
+}
+
 /**
  * Settled legs, keyed by delivery id, for the ledger to read positions with.
  *
@@ -80,23 +105,55 @@ function orderNo(deliveryId: string): string {
  * to — a rider's remittance covers several merchants at once. An embedded join
  * would make that difference silent; two queries make it explicit, and the
  * paperwork fields simply stay blank on the rows they cannot see.
+ *
+ * `range` is the delivery window the caller loaded, and passing it is what keeps
+ * this read proportionate: a settlement cannot predate the delivery it settles,
+ * so every mark that could belong to a row on screen was settled at or after the
+ * window's start. Without it, the oldest marks in the book are read first and
+ * the newest — the ones belonging to the deliveries actually on screen — are the
+ * ones a ceiling would drop. Getting that wrong flips settled money back to
+ * unsettled and sends somebody to collect a debt that was already paid.
  */
-export async function listSettlementMarks(): Promise<SettlementMarks> {
+export async function listSettlementMarks(
+  range?: SettlementReadRange
+): Promise<SettlementMarkSet> {
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: lines, error: linesError }, { data: headers, error: headersError }] =
-    await Promise.all([
-      supabase.from('settlement_lines').select('*').eq('voided', false),
-      supabase.from('settlements').select('*').is('voided_at', null),
-    ]);
+  const [lines, headers] = await Promise.all([
+    readAllPages({
+      page: (cursor, size) => {
+        let query = supabase.from('settlement_lines').select('*').eq('voided', false);
+        if (range) query = query.gte('settled_at', range.from);
+        if (cursor) query = query.or(keysetBefore('settled_at', cursor));
+        return query
+          .order('settled_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(size);
+      },
+      cursorOf: (row) => ({ sort: row.settled_at, id: row.id }),
+      maxRows: SETTLEMENT_MAX_ROWS,
+      fail: (message) => new SettlementError(message),
+    }),
+    readAllPages({
+      page: (cursor, size) => {
+        let query = supabase.from('settlements').select('*').is('voided_at', null);
+        if (range) query = query.gte('settled_at', range.from);
+        if (cursor) query = query.or(keysetBefore('settled_at', cursor));
+        return query
+          .order('settled_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(size);
+      },
+      cursorOf: (row) => ({ sort: row.settled_at, id: row.id }),
+      maxRows: SETTLEMENT_MAX_ROWS,
+      fail: (message) => new SettlementError(message),
+    }),
+  ]);
 
-  if (linesError) throw new SettlementError(linesError.message);
-  if (headersError) throw new SettlementError(headersError.message);
-
-  const headerById = new Map((headers ?? []).map((h) => [h.id, h]));
+  const headerById = new Map(headers.rows.map((h) => [h.id, h]));
   const marks: SettlementMarks = new Map();
 
-  for (const line of lines ?? []) {
+  for (const line of lines.rows) {
     const header = headerById.get(line.settlement_id);
     const mark: SettlementMark = {
       stream: line.stream,
@@ -118,7 +175,7 @@ export async function listSettlementMarks(): Promise<SettlementMarks> {
     list.sort((a, b) => a.settledAt.localeCompare(b.settledAt));
   }
 
-  return marks;
+  return { marks, truncated: lines.truncated || headers.truncated };
 }
 
 function toRecord(
@@ -169,28 +226,50 @@ function toRecord(
  * A voided settlement stays in the list on purpose: "we recorded this and then
  * unwound it, here is who and why" is the thing a deleted row cannot tell you.
  */
-export async function listSettlements(limit = 100): Promise<SettlementRecord[]> {
+export async function listSettlements(
+  limit = 100,
+  range?: { from: string; before: string }
+): Promise<SettlementRecord[]> {
   const supabase = await createSupabaseServerClient();
 
-  const { data: rows, error } = await supabase
-    .from('settlements')
-    .select('*')
+  let query = supabase.from('settlements').select('*');
+  if (range) {
+    query = query.gte('settled_at', range.from).lt('settled_at', range.before);
+  }
+
+  const { data: rows, error } = await query
     .order('settled_at', { ascending: false })
+    .order('id', { ascending: false })
     .limit(limit);
 
   if (error) throw new SettlementError(error.message);
   if (!rows || rows.length === 0) return [];
 
   const ids = rows.map((r) => r.id);
-  const [{ data: lines, error: linesError }, { data: merchants }] = await Promise.all([
-    supabase.from('settlement_lines').select('*').in('settlement_id', ids),
+  // Paged and ordered like every other read here. One settlement carries a line
+  // per leg per delivery, so a hundred bulk remittances can run past a single
+  // response — and a dropped line is money missing from a total that the sheet
+  // still presents as the settlement's full value.
+  const [lines, { data: merchants }] = await Promise.all([
+    readAllPages({
+      page: (cursor, size) => {
+        let query = supabase.from('settlement_lines').select('*').in('settlement_id', ids);
+        if (cursor) query = query.or(keysetBefore('settled_at', cursor));
+        return query
+          .order('settled_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(size);
+      },
+      cursorOf: (row) => ({ sort: row.settled_at, id: row.id }),
+      maxRows: SETTLEMENT_MAX_ROWS,
+      fail: (message) => new SettlementError(message),
+    }),
     supabase.from('profiles').select('id, company_name').eq('role', 'merchant'),
   ]);
-  if (linesError) throw new SettlementError(linesError.message);
 
   const merchantNames = new Map((merchants ?? []).map((m) => [m.id, m.company_name]));
   const linesBySettlement = new Map<string, SettlementLineRow[]>();
-  for (const line of lines ?? []) {
+  for (const line of lines.rows) {
     const existing = linesBySettlement.get(line.settlement_id);
     if (existing) existing.push(line);
     else linesBySettlement.set(line.settlement_id, [line]);

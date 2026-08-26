@@ -16,11 +16,17 @@ import {
   type ItemPayment,
 } from '@/lib/types';
 
-/** Every delivery the caller is allowed to read — RLS decides which those are. */
+/**
+ * Every delivery the caller is allowed to read — RLS decides which those are.
+ *
+ * `truncated` rides along rather than being dropped: a client that sums this
+ * array needs to know when it is summing a prefix of the period, not the period.
+ */
 export async function GET() {
   return handle(async () => {
     const user = await requireUser();
-    return NextResponse.json({ deliveries: await listDeliveriesFor(user) });
+    const { records, truncated } = await listDeliveriesFor(user);
+    return NextResponse.json({ deliveries: records, truncated });
   });
 }
 
@@ -58,10 +64,11 @@ const PER_USER = { limit: 30, windowSeconds: 300 };
  * editable by hand in the form (the Maps lookup only prefills them). They are the
  * inputs to the price, not the price, and ops sees both on every row in the log.
  *
- * Idempotent when the browser sends an Idempotency-Key: the same key returns the
+ * Requires an Idempotency-Key: the same key returns the
  * delivery created by the first attempt rather than filing a second one. That is
- * for the merchant on a bad signal whose response never arrived, not for abuse —
- * the rate limit above covers that.
+ * for the merchant on a bad signal whose response never arrived, while the
+ * requirement is the backstop for scripted or degraded clients. The rate limit
+ * above covers abuse.
  */
 export async function POST(req: Request) {
   return handle(async () => {
@@ -72,6 +79,7 @@ export async function POST(req: Request) {
     await enforceRateLimit('delivery-create', user.id, PER_USER);
 
     const key = idempotencyKey(req);
+    if (!key) badRequest('Idempotency-Key header is required.');
     const body = await readJson<CreateBody>(req);
     const {
       pickup,

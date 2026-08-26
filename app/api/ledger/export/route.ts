@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import { badRequest, handle, requireUser } from '@/lib/http';
 import { enforceRateLimit } from '@/lib/rateLimit';
-import { listDeliveriesFor } from '@/lib/deliveries';
+import {
+  DELIVERY_HISTORY_DAYS,
+  deliveryHistoryRange,
+  listDeliveriesFor,
+} from '@/lib/deliveries';
 import { listSettlementMarks, listSettlements } from '@/lib/settlements';
-import { filterByRange, RANGES, type RangeKey } from '@/lib/analytics';
+import { rangeDays, RANGES, type RangeKey } from '@/lib/analytics';
 import { LEDGER_FOCUSES, matchesFocus, toLedger, type LedgerFocus } from '@/lib/ledger';
 import { ledgerFileName, ledgerToXlsx } from '@/lib/ledgerExport';
 import { seesAllMerchants } from '@/lib/types';
@@ -12,7 +16,7 @@ import { seesAllMerchants } from '@/lib/types';
 export const runtime = 'nodejs';
 
 // The same ceiling as the delivery export, and for the same reason: this reads
-// the caller's whole history and zips a two-sheet workbook out of it.
+// the caller's bounded one-year history and zips a two-sheet workbook out of it.
 const PER_USER = { limit: 5, windowSeconds: 300 };
 
 /**
@@ -44,14 +48,27 @@ export async function GET(req: Request) {
     const focus = LEDGER_FOCUSES.find((f) => f.value === focusParam)?.value;
     if (!focus) badRequest('Unknown ledger filter.');
 
-    const [all, marks, settlements] = await Promise.all([
-      listDeliveriesFor(user),
-      listSettlementMarks(),
-      listSettlements(),
+    // "all" means the full approved reporting horizon, while the shorter UI
+    // ranges narrow both workbook sheets at the database boundary.
+    const selectedRange = range as RangeKey;
+    const readRange = deliveryHistoryRange(
+      rangeDays(selectedRange) || DELIVERY_HISTORY_DAYS
+    );
+
+    const [history, settled, settlements] = await Promise.all([
+      listDeliveriesFor(user, readRange),
+      // The same window the deliveries came from. A settlement cannot predate
+      // the delivery it settles, so this keeps every mark that could belong to a
+      // row in this file — and stops the read being dominated by marks against
+      // deliveries the file does not contain.
+      listSettlementMarks(readRange),
+      listSettlements(100, readRange),
     ]);
-    const inRange = filterByRange(all, range as RangeKey);
-    const scoped = merchantId ? inRange.filter((r) => r.merchantId === merchantId) : inRange;
-    const entries = toLedger(scoped, marks).filter((e) => matchesFocus(e, focus as LedgerFocus));
+    const all = history.records;
+    const scoped = merchantId ? all.filter((r) => r.merchantId === merchantId) : all;
+    const entries = toLedger(scoped, settled.marks).filter((e) =>
+      matchesFocus(e, focus as LedgerFocus)
+    );
 
     // The button is hidden when the table is empty; this covers someone reaching
     // the URL directly, where a workbook of headers would only be puzzling.
@@ -67,9 +84,25 @@ export async function GET(req: Request) {
         ? 'All merchants'
         : user.companyName;
 
+    // Two different distortions, and they point opposite ways: missing
+    // deliveries understate what is owed, missing marks overstate it. Whoever
+    // reconciles from this file needs to know which way to lean.
+    const caveats = [
+      history.truncated &&
+        `Only the newest ${all.length.toLocaleString()} deliveries of ${rangeLabel.toLowerCase()} ` +
+          'could be loaded — older ones are missing, so every total below is a minimum.',
+      settled.truncated &&
+        'Some settlement records could not be loaded, so rows already paid may appear ' +
+          'outstanding. Check the Settlements sheet before chasing anyone.',
+    ].filter(Boolean);
+
     const file = await ledgerToXlsx(entries, {
       includeMerchant: seesAllMerchants(user) && !merchantId,
       scopeLabel: `${merchantLabel} · ${rangeLabel} · ${focusLabel}`,
+      notice:
+        caveats.length > 0
+          ? `INCOMPLETE — ${caveats.join(' ')} Export a narrower date range for exact figures.`
+          : undefined,
       // Scoped to the merchant when one is selected, so the sheet matches the
       // rows beside it. A rider's remittance that happens to cover this
       // merchant's orders counts as theirs.

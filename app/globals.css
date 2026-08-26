@@ -3403,3 +3403,39 @@ label.somo-field span:has(.somo-hint) {
     @apply font-sans;
   }
 }
+
+/* ------------------------------------------------------------------
+   Incomplete history
+
+   Shown when a screen loaded part of the period it claims to cover. It sits
+   above the figures rather than beside them because it changes how every one of
+   them should be read: a total becomes a floor. Amber rather than red — nothing
+   has gone wrong, the numbers are simply narrower than their label.
+   ------------------------------------------------------------------ */
+.somo-incomplete {
+  border: 1px solid #d9a441;
+  border-left-width: 4px;
+  background: #fdf6e8;
+  color: #4a3708;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.somo-incomplete strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.somo-incomplete ul {
+  margin: 0 0 6px;
+  padding-left: 18px;
+}
+.somo-incomplete li + li {
+  margin-top: 4px;
+}
+.somo-incomplete span {
+  display: block;
+  color: #6b5518;
+}

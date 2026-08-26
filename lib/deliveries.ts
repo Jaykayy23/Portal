@@ -7,6 +7,7 @@
 
 import { cache } from 'react';
 import { createSupabaseServerClient } from './supabase/server';
+import { keysetBefore, readAllPages, READ_PAGE_SIZE } from './pagedRead';
 import { syncRiderAvailability } from './riderAvailability';
 import { seesAllMerchants, type Delivery, type DeliveryWithMerchant, type SessionUser } from './types';
 import type { Database } from './database.types';
@@ -17,6 +18,45 @@ export class DeliveryError extends Error {}
 
 /** The row changed under the caller — refresh and retry, nothing was written. */
 export class DeliveryConflictError extends DeliveryError {}
+
+/** One request's worth of rows — the Data API's configured ceiling. */
+export const DELIVERY_READ_LIMIT = READ_PAGE_SIZE;
+/**
+ * The ceiling across all pages of one history read.
+ *
+ * The window is what bounds an ordinary read; this only exists so a install that
+ * has grown far past what these screens were built for degrades into a warning
+ * instead of an out-of-memory kill. Twenty pages of deliveries is roughly 55 a
+ * day for a year, well past the traffic the in-memory analytics in lib/analytics
+ * were sized for — an install reaching it needs aggregation in SQL, and the
+ * banner is what says so.
+ */
+export const DELIVERY_MAX_ROWS = 20 * DELIVERY_READ_LIMIT;
+/** The full history loaded into portal screens and exports. */
+export const DELIVERY_HISTORY_DAYS = 365;
+
+/**
+ * A whole-UTC-day range, inclusive of today and the preceding 364 dates.
+ *
+ * Whole days keep independently rendered server components on the same cache
+ * key and avoid excluding deliveries filed later on the current date.
+ */
+export interface DeliveryHistoryRange {
+  from: string;
+  before: string;
+}
+
+export function deliveryHistoryRange(
+  days = DELIVERY_HISTORY_DAYS,
+  now = new Date()
+): DeliveryHistoryRange {
+  const before = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
+  );
+  const from = new Date(before);
+  from.setUTCDate(from.getUTCDate() - days);
+  return { from: from.toISOString(), before: before.toISOString() };
+}
 
 export function fromRow(r: DeliveryRow): Delivery {
   return {
@@ -64,35 +104,121 @@ export function fromRow(r: DeliveryRow): Delivery {
  * finance needs a way to reach whoever owes an invoice. That's done with one
  * extra query over the merchant profiles rather than a lookup per row.
  *
- * Deduplicated per request with React's `cache`, keyed on the two things that
- * change the answer rather than on the user object — two callers in one render
- * hold two different `SessionUser` objects, and `cache` compares arguments by
- * identity, so passing the object would miss every time. This matters now that
- * the portal layout reads deliveries for the alert bell on top of whatever the
- * page under it reads: without the dedupe, the dashboard, the log and the ledger
- * would each run this twice per navigation.
+ * Deduplicated per request with React's `cache`, keyed on scalar identity,
+ * enrichment and range values rather than on the user object — two callers in
+ * one render may hold different `SessionUser` objects, and `cache` compares
+ * objects by identity, so passing the object would miss every time.
  *
  * Per request, so nothing survives into another user's render — and RLS decides
  * the rows either way.
  */
-export function listDeliveriesFor(user: SessionUser): Promise<DeliveryWithMerchant[]> {
-  return listDeliveries(user.id, seesAllMerchants(user));
+export function listDeliveriesFor(
+  user: SessionUser,
+  range = deliveryHistoryRange()
+): Promise<DeliveryHistory> {
+  const { from, before } = range;
+  return listDeliveries(user.id, seesAllMerchants(user), from, before, DELIVERY_MAX_ROWS);
+}
+
+/**
+ * A history read and whether it is the whole window.
+ *
+ * `truncated` is not a detail for the log: everything computed from `records` —
+ * outstanding balances, rider floats, the dashboard's counts — is then a floor
+ * rather than a total, and a screen that shows those figures has to say so.
+ */
+export interface DeliveryHistory {
+  records: DeliveryWithMerchant[];
+  truncated: boolean;
 }
 
 const listDeliveries = cache(async function listDeliveries(
   _userId: string,
+  enrichWithMerchantPhone: boolean,
+  from: string,
+  before: string,
+  maxRows: number
+): Promise<DeliveryHistory> {
+  const supabase = await createSupabaseServerClient();
+
+  // Paged rather than capped. A single .limit() would hand back the newest 1,000
+  // rows of a year and no indication that the rest existed, so a debt older than
+  // the cut would simply stop being owed — the ledger reporting less outstanding
+  // money than there is, with nothing on screen to suggest it.
+  const { rows, truncated } = await readAllPages({
+    page: (cursor, size) => {
+      let query = supabase
+        .from('deliveries')
+        .select('*')
+        .gte('created_at', from)
+        .lt('created_at', before);
+      // ANDed with the window filters above, so each page picks up strictly
+      // where the last one stopped without widening the range.
+      if (cursor) query = query.or(keysetBefore('created_at', cursor));
+      return query
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(size);
+    },
+    cursorOf: (row) => ({ sort: row.created_at, id: row.id }),
+    maxRows,
+    fail: (message) => new DeliveryError(message),
+  });
+
+  const records = rows.map(fromRow);
+  if (!enrichWithMerchantPhone) return { records, truncated };
+
+  const { data: merchants } = await supabase
+    .from('profiles')
+    .select('id, phone')
+    .eq('role', 'merchant');
+
+  const phoneById = new Map((merchants ?? []).map((m) => [m.id, m.phone]));
+  return {
+    records: records.map((r) => ({ ...r, merchantPhone: phoneById.get(r.merchantId) ?? '' })),
+    truncated,
+  };
+});
+
+/**
+ * The alert bell has a separate operational read instead of loading the portal's
+ * entire delivery window on every tab. These are precisely the statuses from
+ * which `alertFeed` can produce work for at least one alert-bearing role.
+ *
+ * There is deliberately no age cutoff here: a request still waiting on someone
+ * after a year is more important, not less. The status filter keeps terminal
+ * history out, while the explicit limit prevents another silent Data API cliff.
+ */
+const ALERT_DELIVERY_STATUSES: Delivery['status'][] = [
+  'Requested',
+  'Approved',
+  'Pending',
+  'Declined',
+  'Assigned',
+  'Recipient confirmed',
+];
+
+export function listAlertDeliveriesFor(
+  user: SessionUser
+): Promise<DeliveryWithMerchant[]> {
+  return listAlertDeliveries(user.id, seesAllMerchants(user));
+}
+
+const listAlertDeliveries = cache(async function listAlertDeliveries(
+  _userId: string,
   enrichWithMerchantPhone: boolean
 ): Promise<DeliveryWithMerchant[]> {
   const supabase = await createSupabaseServerClient();
-
   const { data, error } = await supabase
     .from('deliveries')
     .select('*')
-    .order('created_at', { ascending: false });
+    .in('status', ALERT_DELIVERY_STATUSES)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(DELIVERY_READ_LIMIT);
 
   if (error) throw new DeliveryError(error.message);
   const rows = (data ?? []).map(fromRow);
-
   if (!enrichWithMerchantPhone) return rows;
 
   const { data: merchants } = await supabase

@@ -1,0 +1,24 @@
+-- Index for the alert bell's query.
+--
+-- listAlertDeliveriesFor (lib/deliveries.ts) runs `where status in (...) order by
+-- created_at desc, id desc limit 1000` on every portal page load, for every
+-- signed-in seat, and again on the bell's poll. It is now the most frequently
+-- executed query in the app, and `deliveries` carries no index on status at all —
+-- so each run is a sequential scan of the whole table followed by a sort, to
+-- return a handful of in-flight rows.
+--
+-- That is the opposite of what the query is for. It exists so the bell does not
+-- have to load the portal's whole 365-day window; without an index it reads more
+-- of the table than the window read does.
+--
+-- (status, created_at desc) and not a partial index on the alert statuses: the
+-- set of statuses that produce work is a product decision that has already moved
+-- once (Approved and Pending were both added after the fact), and a partial index
+-- silently stops being used the moment the query's IN list no longer matches the
+-- predicate. A full index on the leading column keeps working as that list
+-- drifts, at the cost of covering terminal rows nobody asks for.
+--
+-- id is deliberately not in the index. It only breaks ties between rows sharing a
+-- created_at to the microsecond, so it sorts a handful of rows at most, and
+-- carrying it would widen every entry for that.
+create index deliveries_status_created_idx on public.deliveries (status, created_at desc);

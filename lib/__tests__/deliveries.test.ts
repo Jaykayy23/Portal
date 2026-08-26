@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '@/lib/database.types';
+import type { SessionUser } from '@/lib/types';
 
 type DeliveryRow = Database['public']['Tables']['deliveries']['Row'];
 type DeliveryUpdate = Database['public']['Tables']['deliveries']['Update'];
@@ -106,7 +107,197 @@ vi.mock('@/lib/supabase/server', () => ({
 // its own unit of behaviour and its own query surface — not this one's.
 vi.mock('@/lib/riderAvailability', () => ({ syncRiderAvailability: vi.fn() }));
 
-const { patchDelivery, DeliveryConflictError } = await import('@/lib/deliveries');
+const {
+  patchDelivery,
+  DeliveryConflictError,
+  DELIVERY_MAX_ROWS,
+  listDeliveriesFor,
+  listAlertDeliveriesFor,
+} = await import('@/lib/deliveries');
+
+const MERCHANT_USER: SessionUser = {
+  id: 'merchant-1',
+  username: 'obra',
+  companyName: 'Obra Chop Bar',
+  phone: '0201111111',
+  role: 'merchant',
+};
+
+describe('listDeliveriesFor — bounded history', () => {
+  beforeEach(() => createSupabaseServerClient.mockReset());
+
+  it('orders a rolling 365-day delivery window and reads it whole', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-26T12:00:00.000Z'));
+
+    const calls: [string, ...unknown[]][] = [];
+    const query = {
+      gte(column: string, value: string) {
+        calls.push(['gte', column, value]);
+        return query;
+      },
+      lt(column: string, value: string) {
+        calls.push(['lt', column, value]);
+        return query;
+      },
+      order(column: string, options: unknown) {
+        calls.push(['order', column, options]);
+        return query;
+      },
+      async limit(value: number) {
+        calls.push(['limit', value]);
+        return { data: [BASE_ROW], error: null };
+      },
+    };
+    createSupabaseServerClient.mockResolvedValue({
+      from: () => ({
+        select: () => query,
+      }),
+    });
+
+    try {
+      const { records, truncated } = await listDeliveriesFor(MERCHANT_USER);
+
+      expect(records).toHaveLength(1);
+      // A short first page is the whole window, so the figures built from it
+      // are totals and the screens say nothing.
+      expect(truncated).toBe(false);
+      expect(calls).toEqual([
+        ['gte', 'created_at', '2025-08-27T00:00:00.000Z'],
+        ['lt', 'created_at', '2026-08-27T00:00:00.000Z'],
+        ['order', 'created_at', { ascending: false }],
+        ['order', 'id', { ascending: false }],
+        ['limit', 1000],
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /**
+   * The bug this replaced: a single capped query handed back the newest 1,000
+   * rows of the year and nothing said the rest existed, so a debt older than the
+   * cut simply stopped being owed. Two full pages have to come back as one set.
+   */
+  it('pages past the row ceiling instead of stopping at the first thousand', async () => {
+    const page = (start: number, count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        ...BASE_ROW,
+        id: `delivery-${String(start + i).padStart(5, '0')}`,
+        created_at: new Date(Date.UTC(2026, 0, 1) - (start + i) * 60_000).toISOString(),
+      }));
+
+    const pages = [page(0, 1000), page(1000, 250)];
+    const filters: string[] = [];
+    let served = 0;
+
+    createSupabaseServerClient.mockResolvedValue({
+      from: () => ({
+        select: () => {
+          const query = {
+            gte: () => query,
+            lt: () => query,
+            or(filter: string) {
+              filters.push(filter);
+              return query;
+            },
+            order: () => query,
+            async limit() {
+              return { data: pages[served++] ?? [], error: null };
+            },
+          };
+          return query;
+        },
+      }),
+    });
+
+    const { records, truncated } = await listDeliveriesFor(MERCHANT_USER);
+
+    expect(records).toHaveLength(1250);
+    expect(truncated).toBe(false);
+    expect(served).toBe(2);
+    // The second request resumed from the last row of the first, by timestamp
+    // and id together rather than timestamp alone.
+    const last = pages[0][999];
+    expect(filters).toEqual([
+      `created_at.lt.${last.created_at},` +
+        `and(created_at.eq.${last.created_at},id.lt.${last.id})`,
+    ]);
+  });
+
+  /**
+   * Past the ceiling the screens are working from a prefix of the period, and
+   * that has to arrive as a fact the page can render — not as a shorter array
+   * that looks exactly like a quiet year.
+   */
+  it('says so when the window is larger than the ceiling', async () => {
+    let served = 0;
+    createSupabaseServerClient.mockResolvedValue({
+      from: () => ({
+        select: () => {
+          const query = {
+            gte: () => query,
+            lt: () => query,
+            or: () => query,
+            order: () => query,
+            async limit(size: number) {
+              const start = served++ * size;
+              return {
+                data: Array.from({ length: size }, (_, i) => ({
+                  ...BASE_ROW,
+                  id: `delivery-${start + i}`,
+                  created_at: new Date(Date.UTC(2026, 0, 1) - (start + i) * 1000).toISOString(),
+                })),
+                error: null,
+              };
+            },
+          };
+          return query;
+        },
+      }),
+    });
+
+    const { records, truncated } = await listDeliveriesFor(MERCHANT_USER);
+
+    expect(truncated).toBe(true);
+    expect(records).toHaveLength(DELIVERY_MAX_ROWS);
+  });
+
+  it('gives the alert bell only actionable in-flight rows with its own capped query', async () => {
+    const calls: [string, ...unknown[]][] = [];
+    const query = {
+      in(column: string, values: string[]) {
+        calls.push(['in', column, values]);
+        return query;
+      },
+      order(column: string, options: unknown) {
+        calls.push(['order', column, options]);
+        return query;
+      },
+      async limit(value: number) {
+        calls.push(['limit', value]);
+        return { data: [BASE_ROW], error: null };
+      },
+    };
+    createSupabaseServerClient.mockResolvedValue({
+      from: () => ({ select: () => query }),
+    });
+
+    const records = await listAlertDeliveriesFor(MERCHANT_USER);
+
+    expect(records).toHaveLength(1);
+    expect(calls).toEqual([
+      [
+        'in',
+        'status',
+        ['Requested', 'Approved', 'Pending', 'Declined', 'Assigned', 'Recipient confirmed'],
+      ],
+      ['order', 'created_at', { ascending: false }],
+      ['order', 'id', { ascending: false }],
+      ['limit', 1000],
+    ]);
+  });
+});
 
 /** Runs one patch against a delivery in `current`, and returns what was written. */
 async function patchFrom(

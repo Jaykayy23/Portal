@@ -25,9 +25,10 @@ export const RANGES: { value: RangeKey; label: string; days: number }[] = [
   { value: '7d', label: 'Last 7 days', days: 7 },
   { value: '30d', label: 'Last 30 days', days: 30 },
   { value: '90d', label: 'Last 90 days', days: 90 },
-  // 0 days means "no cutoff", and the day-by-day chart falls back to a month so
-  // an install with two years of history does not render 700 bars.
-  { value: 'all', label: 'All time', days: 0 },
+  // The server has already bounded the loaded history to 365 days. Zero here
+  // means "no additional client-side cutoff", and the chart still falls back to
+  // a month so the full window does not render 365 bars.
+  { value: 'all', label: 'Past 365 days', days: 0 },
 ];
 
 export function rangeDays(range: RangeKey): number {
@@ -288,7 +289,7 @@ export function perDay(
     const at = new Date(r.date);
     if (Number.isNaN(at.getTime())) continue;
     const bucket = buckets.get(dayKey(at));
-    // Older than the window, which is normal when the range is All time.
+    // Older than the chart window, which is normal for the full loaded year.
     if (!bucket) continue;
     bucket.deliveries += 1;
     bucket.fees += r.price || 0;

@@ -5,7 +5,7 @@
 //   unauthenticated  — the rider confirmation link, the first-run setup route,
 //                      the bootstrap probe. Anyone on the internet can call
 //                      these, so they are the only real abuse surface.
-//   expensive        — the Excel export (reads the whole history and zips it),
+//   expensive        — the Excel export (reads the bounded history and zips it),
 //                      account creation (writes to auth.users), delivery
 //                      creation. A session is not a licence to run these in a
 //                      loop.

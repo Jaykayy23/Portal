@@ -157,12 +157,13 @@ export function LedgerPane({
   const toast = useToast();
 
   /**
-   * All time, not a recent window.
+   * The full server-loaded year, not a short recent window.
    *
    * The dashboard defaults to a month because it is a trend view, but an unpaid
    * invoice does not stop existing after thirty days — and a ledger that opened
    * on "last 30 days" would quietly leave the oldest debt out of the headline
-   * figures, which is the one number nobody should have to go looking for.
+   * figures inside that explicit reporting horizon, which is the one number
+   * nobody should have to go looking for.
    */
   const [range, setRange] = useState<RangeKey>('all');
   const [merchantId, setMerchantId] = useState('');

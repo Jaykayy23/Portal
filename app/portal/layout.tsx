@@ -3,7 +3,7 @@ import { missingEnv } from '@/lib/config';
 import { ConfigError } from '@/components/ConfigError';
 import { getSessionUser } from '@/lib/session';
 import { getLogoDataUrl, getMapsApiKeyForSignedInUser, getPricingParams } from '@/lib/settings';
-import { listDeliveriesFor } from '@/lib/deliveries';
+import { listAlertDeliveriesFor } from '@/lib/deliveries';
 import { alertFeed, seatHasAlerts } from '@/lib/alerts';
 import { BrandMark } from '@/components/BrandMark';
 import { LogoutButton } from '@/components/LogoutButton';
@@ -25,17 +25,14 @@ export default async function PortalLayout({ children }: { children: React.React
   // The Maps key legitimately reaches signed-in browsers (Maps JS runs
   // client-side). The provider secrets in app_settings never leave the server.
   //
-  // The delivery read is here rather than only on the pages that list deliveries,
-  // because the bell is in the topbar of every tab: a rider declining a job while
-  // somebody is on the ledger is exactly the case the bell exists for.
-  // listDeliveriesFor is request-deduplicated, so the log and the dashboard still
-  // run one query between them and the layout, not two. A read-only seat (finance)
-  // has no alerts of its own, so it pays for neither query.
+  // The bell gets its own status-bounded read rather than loading the full
+  // delivery-history window on every tab. A read-only seat (finance) has no
+  // alerts of its own, so it pays for neither the delivery nor pricing query.
   const wantsAlerts = seatHasAlerts(user.role);
   const [logoDataUrl, mapsApiKey, records, params] = await Promise.all([
     getLogoDataUrl(),
     getMapsApiKeyForSignedInUser(),
-    wantsAlerts ? listDeliveriesFor(user) : Promise.resolve([]),
+    wantsAlerts ? listAlertDeliveriesFor(user) : Promise.resolve([]),
     wantsAlerts ? getPricingParams() : Promise.resolve(null),
   ]);
 

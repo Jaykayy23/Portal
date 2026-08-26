@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { badRequest, handle, requireUser } from '@/lib/http';
 import { enforceRateLimit } from '@/lib/rateLimit';
-import { listDeliveriesFor } from '@/lib/deliveries';
+import { DELIVERY_HISTORY_DAYS, listDeliveriesFor } from '@/lib/deliveries';
 import { getPricingParams } from '@/lib/settings';
 import { deliveriesToXlsx, exportFileName } from '@/lib/deliveryExport';
 import { seesAllMerchants } from '@/lib/types';
@@ -10,13 +10,13 @@ import { seesAllMerchants } from '@/lib/types';
 export const runtime = 'nodejs';
 
 /**
- * The signed-in user's delivery history as an .xlsx download.
+ * The signed-in user's past 365 days of delivery history as an .xlsx download.
  *
  * There is no scoping code here on purpose: listDeliveriesFor reads through the
  * caller's session, so the RLS SELECT policy decides what lands in the file — a
  * merchant's export can only ever contain their own rows.
  */
-// The most expensive endpoint in the app: it reads the caller's entire delivery
+// The most expensive endpoint in the app: it reads the caller's bounded delivery
 // history and zips a workbook out of it, in the Node runtime. Nobody legitimately
 // needs more than a handful of these in a few minutes.
 const PER_USER = { limit: 5, windowSeconds: 300 };
@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     const user = await requireUser();
     await enforceRateLimit('delivery-export', user.id, PER_USER);
 
-    const [records, params] = await Promise.all([
+    const [{ records, truncated }, params] = await Promise.all([
       listDeliveriesFor(user),
       getPricingParams(),
     ]);
@@ -39,6 +39,12 @@ export async function GET(req: Request) {
       includeCustomer: seesAllMerchants(user),
       // Deliveries store surge charge ids; the sheet shows the labels.
       surcharges: params.surcharges,
+      notice: truncated
+        ? `This file holds the newest ${records.length.toLocaleString()} deliveries, ` +
+          `not the full ${DELIVERY_HISTORY_DAYS} days. Older deliveries are missing ` +
+          'entirely, so any count or total taken from it is a minimum rather than ' +
+          'the real figure. Export a narrower date range for exact numbers.'
+        : undefined,
     });
     const filename = exportFileName();
 

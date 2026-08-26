@@ -31,10 +31,9 @@ import type { MerchantOption } from '@/lib/accounts';
 /**
  * Days in the day-by-day chart.
  *
- * All time has no natural width and an install with two years of history would
- * render seven hundred bars, so it borrows a month. Every other figure on the
- * page still covers the whole period — this cap is the chart's alone, and the
- * heading says so.
+ * The full loaded year has no useful daily width, so it borrows a month. Every
+ * other figure on the page still covers the whole reporting period — this cap
+ * is the chart's alone, and the heading says so.
  */
 const ALL_TIME_CHART_DAYS = 30;
 

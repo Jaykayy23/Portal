@@ -65,6 +65,13 @@ export interface LedgerExportOptions {
   includeMerchant: boolean;
   /** Shown on the summary sheet so a filtered export says what it was filtered to. */
   scopeLabel: string;
+  /**
+   * Set when the workbook covers part of the period it is named for. It sits
+   * directly under the title, above the first figure, because every total below
+   * it is then a floor rather than a total — and a spreadsheet gets forwarded to
+   * people who never saw the screen it came from.
+   */
+  notice?: string;
   /** The remittance book for the third sheet. Empty leaves the sheet out. */
   settlements: SettlementRecord[];
 }
@@ -246,6 +253,9 @@ function summarySheet(entries: LedgerEntry[], opts: LedgerExportOptions): SheetD
   const rows: SheetData = [
     heading(`${COMPANY} ledger`),
     [opts.scopeLabel],
+    ...(opts.notice
+      ? [[{ value: opts.notice, fontWeight: 'bold', textColor: '#9a3412', wrap: true }] as Row]
+      : []),
     [],
     heading('Money that has to move'),
     line('Cash with riders, owed to merchants', totals.cashWithRidersForMerchants),

@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 import { getSessionUser } from '@/lib/session';
-import { listDeliveriesFor } from '@/lib/deliveries';
+import { deliveryHistoryRange, listDeliveriesFor } from '@/lib/deliveries';
 import { listMerchantOptions } from '@/lib/accounts';
 import { listSettlementMarks, listSettlements } from '@/lib/settlements';
+import { IncompleteHistoryNotice } from '@/components/IncompleteHistoryNotice';
 import { LedgerPane } from '@/components/ledger/LedgerPane';
 import { canRecordSettlements, seesAllMerchants } from '@/lib/types';
 
@@ -32,9 +33,14 @@ export default async function LedgerPage() {
 
   const seesAll = seesAllMerchants(user);
 
-  const [records, marks, settlements, merchants] = await Promise.all([
-    listDeliveriesFor(user),
-    listSettlementMarks(),
+  // Computed once and shared. Both reads take the same window, and asking for it
+  // twice could straddle UTC midnight and give the marks a different start date
+  // from the deliveries they belong to — as well as missing React's cache.
+  const range = deliveryHistoryRange();
+
+  const [history, settled, settlements, merchants] = await Promise.all([
+    listDeliveriesFor(user, range),
+    listSettlementMarks(range),
     listSettlements(),
     // A merchant's picker would hold exactly one entry — their own name — so it
     // is not asked for, and the pane hides the control.
@@ -42,16 +48,23 @@ export default async function LedgerPage() {
   ]);
 
   return (
-    <LedgerPane
-      records={records}
-      // A plain object rather than the Map, so what crosses into the client
-      // component does not depend on the framework's serialiser handling Maps.
-      marks={Object.fromEntries(marks)}
-      settlements={settlements}
-      merchants={merchants}
-      seesAll={seesAll}
-      canRecord={canRecordSettlements(user)}
-      viewerCompany={user.companyName}
-    />
+    <>
+      <IncompleteHistoryNotice
+        deliveries={history.truncated}
+        marks={settled.truncated}
+        loaded={history.records.length}
+      />
+      <LedgerPane
+        records={history.records}
+        // A plain object rather than the Map, so what crosses into the client
+        // component does not depend on the framework's serialiser handling Maps.
+        marks={Object.fromEntries(settled.marks)}
+        settlements={settlements}
+        merchants={merchants}
+        seesAll={seesAll}
+        canRecord={canRecordSettlements(user)}
+        viewerCompany={user.companyName}
+      />
+    </>
   );
 }

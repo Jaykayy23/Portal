@@ -8,7 +8,7 @@
 // than as pre-formatted strings ("GHS 51.25"), so the exported file can be summed
 // and sorted in Excel instead of only read.
 
-import writeXlsxFile from 'write-excel-file/node';
+import writeXlsxFile, { getSheetData } from 'write-excel-file/node';
 import type { Column } from 'write-excel-file/node';
 import { shortId } from './format';
 import type { DeliveryWithMerchant, SurchargeOption } from './types';
@@ -46,6 +46,13 @@ export interface DeliveryExportOptions {
    * deleted, and the record still has to say what was applied.
    */
   surcharges: SurchargeOption[];
+  /**
+   * Set when the workbook holds part of the period it is named for. A
+   * spreadsheet outlives the screen it was exported from and gets forwarded,
+   * filtered and totalled by people who never saw the banner, so the caveat has
+   * to travel inside the file.
+   */
+  notice?: string;
 }
 
 function columnsFor(opts: DeliveryExportOptions): Column<DeliveryWithMerchant>[] {
@@ -149,12 +156,41 @@ export async function deliveriesToXlsx(
   records: DeliveryWithMerchant[],
   opts: DeliveryExportOptions
 ): Promise<Buffer> {
-  return writeXlsxFile(records, {
-    columns: columnsFor(opts),
-    sheet: 'Deliveries',
-    // The header stays put while scrolling a long history.
-    stickyRowsCount: 1,
-  }).toBuffer();
+  const columns = columnsFor(opts);
+
+  if (!opts.notice) {
+    return writeXlsxFile(records, {
+      columns,
+      sheet: 'Deliveries',
+      // The header stays put while scrolling a long history.
+      stickyRowsCount: 1,
+    }).toBuffer();
+  }
+
+  // The caveat goes on the first sheet, which is the one Excel opens on. Putting
+  // it after the data would make the file open on a complete-looking table and
+  // leave the warning for whoever thought to go looking for it.
+  return writeXlsxFile(
+    [
+      {
+        sheet: 'Read this first',
+        data: [
+          [{ value: 'This export is incomplete', fontWeight: 'bold', textColor: '#9a3412' }],
+          [{ value: opts.notice, wrap: true }],
+        ],
+        columns: [{ width: 110 }],
+      },
+      {
+        sheet: 'Deliveries',
+        // getSheetData turns the object columns into the raw rows the
+        // multi-sheet form of writeXlsxFile takes.
+        data: getSheetData(records, columns),
+        columns: columns.map((c) => ({ width: c.width })),
+        stickyRowsCount: 1,
+      },
+    ],
+    {}
+  ).toBuffer();
 }
 
 /** e.g. somoexpress-deliveries-2026-08-19.xlsx */
