@@ -32,7 +32,7 @@ Two populations use the product without ever holding an account:
 
 Merchants log delivery requests and get one fixed distance-based price. Ops
 assign a rider. Everyone involved gets an alert — sent from the portal over SMS
-once Twilio is configured, or as a one-tap WhatsApp/SMS link either way. A ledger
+once BMS is configured, or as a one-tap WhatsApp/SMS link either way. A ledger
 tracks where the money for each delivery physically is, settlements record it
 moving, and a rider sitting on undeposited cash is blocked from taking new work.
 A dashboard counts the traffic behind all of it.

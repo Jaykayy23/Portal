@@ -6,69 +6,61 @@ import { api, errMessage } from '@/lib/api';
 import { useToast } from '@/components/Toast';
 import { InfoHint } from '@/components/InfoHint';
 import { Spinner } from '@/components/Spinner';
-import { describeSender, twilioConfigProblem } from '@/lib/twilioConfig';
-import type { TwilioSettings } from '@/lib/types';
+import { MAX_SENDER_ID_CHARS, smsConfigProblem } from '@/lib/smsConfig';
+import type { SmsSettings } from '@/lib/types';
 
 /**
- * The Twilio SMS configuration, as its own card.
+ * The BMS SMS configuration, as its own card.
  *
  * Separate from the API keys card next to it, because the two behave differently
  * in the one way that matters to whoever is filling them in. A key is a value you
- * paste and forget. This is a set of values that only work together, so the form
- * has to be able to say "that Account SID is not an Account SID" and "you have
- * turned sending on with nobody to send from" — and it says both from
- * lib/twilioConfig.ts, which is the same code the Route Handler will use when the
- * save arrives. The browser is not where the rule is enforced; it is where the
- * rule is explained early enough to be useful.
+ * paste and forget. This is a pair of values that only work together, so the form
+ * has to be able to say "that sender ID is two characters too long" and "you have
+ * turned sending on with no key" — and it says both from lib/smsConfig.ts, which
+ * is the same code the Route Handler uses when the save arrives. The browser is
+ * not where the rule is enforced; it is where the rule is explained early enough
+ * to be useful.
  *
- * Which fields are pre-filled and which start blank is the security line:
+ * Which field is pre-filled and which starts blank is the security line:
  *
- *   the identifiers   arrive with their real values, because an admin has to be
- *                     able to read back an Account SID to spot a mis-paste.
- *   the secret        arrives as a mask and the box starts empty. Blank means
- *                     "keep what is stored", which is only safe because the value
- *                     was never sent here to be echoed back.
+ *   the sender ID  arrives with its real value, because an admin has to be able
+ *                  to read it back and check it against what BMS approved.
+ *   the API key    arrives as a mask and the box starts empty. Blank means "keep
+ *                  what is stored", which is only safe because the value was
+ *                  never sent here to be echoed back.
  */
-export function SmsSettingsCard({ twilio }: { twilio: TwilioSettings }) {
+export function SmsSettingsCard({ sms }: { sms: SmsSettings }) {
   const router = useRouter();
   const toast = useToast();
 
-  const [enabled, setEnabled] = useState(twilio.enabled);
-  const [accountSid, setAccountSid] = useState(twilio.accountSid);
-  const [apiKeySid, setApiKeySid] = useState(twilio.apiKeySid);
-  const [fromNumber, setFromNumber] = useState(twilio.fromNumber);
-  const [messagingServiceSid, setMessagingServiceSid] = useState(twilio.messagingServiceSid);
+  const [enabled, setEnabled] = useState(sms.enabled);
+  const [senderId, setSenderId] = useState(sms.senderId);
 
   // Only ever what the admin has typed in this session.
-  const [secret, setSecret] = useState('');
-  const [clearSecret, setClearSecret] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [clearKey, setClearKey] = useState(false);
 
   const [testTo, setTestTo] = useState('');
   const [testResult, setTestResult] = useState('');
   const [busy, setBusy] = useState<'save' | 'test' | null>(null);
 
-  // After a save the page refreshes with new values; the typed secret is spent, so
-  // it is dropped rather than left in memory. The identifiers are re-seeded from
-  // the server so what is on screen is what is stored — including any trimming.
+  // After a save the page refreshes with new values; the typed key is spent, so it
+  // is dropped rather than left in memory. The sender ID is re-seeded from the
+  // server so what is on screen is what is stored, trimming included.
   useEffect(() => {
-    setEnabled(twilio.enabled);
-    setAccountSid(twilio.accountSid);
-    setApiKeySid(twilio.apiKeySid);
-    setFromNumber(twilio.fromNumber);
-    setMessagingServiceSid(twilio.messagingServiceSid);
-    setSecret('');
-    setClearSecret(false);
-  }, [twilio]);
-
-  const fields = { enabled, accountSid, apiKeySid, fromNumber, messagingServiceSid };
+    setEnabled(sms.enabled);
+    setSenderId(sms.senderId);
+    setApiKey('');
+    setClearKey(false);
+  }, [sms]);
 
   /**
-   * Will a secret be stored once this form is saved? Typing beats a pending
-   * removal, so the two cannot contradict each other.
+   * Will a key be stored once this form is saved? Typing beats a pending removal,
+   * so the two cannot contradict each other.
    */
-  const secretSet = secret.trim() ? true : !clearSecret && twilio.authSecret.set;
+  const keySet = apiKey.trim() ? true : !clearKey && sms.apiKey.set;
 
-  const problem = twilioConfigProblem(fields, secretSet);
+  const problem = smsConfigProblem({ enabled, senderId }, keySet);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -85,21 +77,18 @@ export function SmsSettingsCard({ twilio }: { twilio: TwilioSettings }) {
       await api('/settings', {
         method: 'POST',
         body: {
-          twilio: {
+          sms: {
             enabled,
-            accountSid,
-            apiKeySid,
-            fromNumber,
-            messagingServiceSid,
+            senderId,
             // null clears it, a string replaces it, and undefined is dropped by
             // JSON.stringify — which is the wire format for "leave it alone".
-            authSecret: clearSecret ? null : secret.trim() || undefined,
+            apiKey: clearKey ? null : apiKey.trim() || undefined,
           },
         },
       });
       toast(enabled ? 'SMS sending is on' : 'SMS settings saved — sending is off');
-      // The Notify modal asks the server whether it may offer a send button, so
-      // a refresh is what makes a newly enabled channel show up there.
+      // The Notify modal asks the server whether it may offer a send button, so a
+      // refresh is what makes a newly enabled channel show up there.
       router.refresh();
     } catch (err) {
       toast(errMessage(err), 'danger');
@@ -110,8 +99,8 @@ export function SmsSettingsCard({ twilio }: { twilio: TwilioSettings }) {
   /**
    * Checks the saved credentials, and texts a number if one is given.
    *
-   * Tests what is stored, not what is on screen — so an admin saves first. That
-   * is deliberate: a test that accepted the typed secret would be a second route
+   * Tests what is stored, not what is on screen — so an admin saves first. That is
+   * deliberate: a test that accepted the typed key would be a second route
    * carrying a credential over the wire, for no gain over pressing Save.
    */
   async function test() {
@@ -123,18 +112,20 @@ export function SmsSettingsCard({ twilio }: { twilio: TwilioSettings }) {
         body: { to: testTo.trim() || undefined },
       });
       setTestResult(detail);
-      toast('Twilio answered');
+      toast('BMS answered');
     } catch (err) {
       setTestResult(errMessage(err));
-      toast('Twilio test failed', 'danger');
+      toast('BMS test failed', 'danger');
     }
     setBusy(null);
   }
 
+  const senderLeft = MAX_SENDER_ID_CHARS - senderId.trim().length;
+
   return (
     <form className="somo-card" onSubmit={save}>
       <h3>
-        SMS sending (Twilio)
+        SMS sending (BMS)
         <InfoHint label="SMS sending">
           <p>
             With this on, the <strong>Notify</strong> button can send a delivery&rsquo;s alerts
@@ -142,14 +133,14 @@ export function SmsSettingsCard({ twilio }: { twilio: TwilioSettings }) {
             is identical either way — it comes from the same place.
           </p>
           <p>
-            Use an <strong>API key</strong> rather than your Auth Token if you can (Twilio Console
-            → Account → API keys &amp; tokens). An API key can be revoked on its own; the Auth
-            Token is full account access and also signs your webhooks, so replacing it breaks
-            everything else pointed at the account.
+            Get the API key from the BMS dashboard under <strong>Developer / API</strong>. It is
+            the whole credential — there is no second secret — so treat it the way you would a
+            password, and generate a fresh one rather than sharing this one.
           </p>
           <p>
-            Nothing here reaches a browser except what you see: the SIDs and the sender come back
-            so you can check them, and the secret never leaves the server.
+            The <strong>sender ID</strong> is the name recipients see instead of a number. BMS has
+            to approve it before anything will send, and messages from it are one-way: nobody can
+            reply. Every alert carries a tap-through link instead, so that costs nothing here.
           </p>
         </InfoHint>
         <span className="tag-note">{enabled ? 'sending' : 'off'}</span>
@@ -161,48 +152,15 @@ export function SmsSettingsCard({ twilio }: { twilio: TwilioSettings }) {
       </label>
 
       <label className="somo-field">
-        <span>Account SID</span>
-        <input
-          className="somo-input"
-          placeholder="AC…"
-          autoComplete="off"
-          spellCheck={false}
-          value={accountSid}
-          onChange={(e) => setAccountSid(e.target.value)}
-        />
-      </label>
-
-      <label className="somo-field">
         <span>
-          API Key SID — optional
-          <InfoHint label="API Key SID">
-            <p>
-              Leave this blank to authenticate with your account Auth Token instead. Filling it in
-              means the secret below is that key&rsquo;s secret, which Twilio shows once, when the
-              key is created.
-            </p>
-          </InfoHint>
-        </span>
-        <input
-          className="somo-input"
-          placeholder="SK… — blank to use the Auth Token"
-          autoComplete="off"
-          spellCheck={false}
-          value={apiKeySid}
-          onChange={(e) => setApiKeySid(e.target.value)}
-        />
-      </label>
-
-      <label className="somo-field">
-        <span>
-          {apiKeySid.trim() ? 'API Key Secret' : 'Auth Token'}
-          {twilio.authSecret.set ? (
+          BMS API key
+          {sms.apiKey.set ? (
             <button
               type="button"
               className="somo-inline-link"
-              onClick={() => setClearSecret((v) => !v)}
+              onClick={() => setClearKey((v) => !v)}
             >
-              {clearSecret ? 'keep it after all' : 'remove'}
+              {clearKey ? 'keep it after all' : 'remove'}
             </button>
           ) : null}
         </span>
@@ -210,69 +168,55 @@ export function SmsSettingsCard({ twilio }: { twilio: TwilioSettings }) {
           className="somo-input"
           type="password"
           autoComplete="off"
+          spellCheck={false}
           placeholder={
-            clearSecret
+            clearKey
               ? 'Will be removed when you save'
-              : twilio.authSecret.set
-                ? `${twilio.authSecret.masked} — leave blank to keep`
-                : 'Paste it here'
+              : sms.apiKey.set
+                ? `${sms.apiKey.masked} — leave blank to keep`
+                : 'Paste it from the BMS dashboard'
           }
-          value={secret}
+          value={apiKey}
           onChange={(e) => {
-            if (clearSecret && e.target.value) setClearSecret(false);
-            setSecret(e.target.value);
+            if (clearKey && e.target.value) setClearKey(false);
+            setApiKey(e.target.value);
           }}
         />
-        {!twilio.authSecret.set && !secret ? (
+        {!sms.apiKey.set && !apiKey ? (
           <span className="somo-field-note">Not configured</span>
         ) : null}
       </label>
 
       <label className="somo-field">
         <span>
-          Twilio number or sender name
-          <InfoHint label="sender">
+          Sender ID
+          <InfoHint label="sender ID">
             <p>
-              A Twilio number you own, in full international form — <code>+233201234567</code>.
+              Up to {MAX_SENDER_ID_CHARS} characters, starting with a letter — e.g.
+              <strong> SomoExpres</strong>. It has to be registered and approved in the BMS
+              dashboard first; an unapproved sender is rejected at send time, which looks exactly
+              like a broken integration.
             </p>
             <p>
-              Or a sender name of up to 11 letters and digits, which shows in place of a number.
-              Cheaper to brand, but one-way: nobody can reply to it. Every alert the portal sends
-              carries a tap-through link rather than asking for a reply, so that costs nothing
-              here.
+              <strong>Test connection</strong> below checks the approval state for you, so you can
+              tell the two apart without spending credits.
             </p>
           </InfoHint>
         </span>
         <input
           className="somo-input"
-          placeholder="+233201234567 or SOMOEXPRESS"
+          placeholder="SomoExpres"
           autoComplete="off"
           spellCheck={false}
-          value={fromNumber}
-          onChange={(e) => setFromNumber(e.target.value)}
+          maxLength={MAX_SENDER_ID_CHARS}
+          value={senderId}
+          onChange={(e) => setSenderId(e.target.value)}
         />
-      </label>
-
-      <label className="somo-field">
-        <span>
-          Messaging Service SID — optional
-          <InfoHint label="Messaging Service SID">
-            <p>
-              A Messaging Service holds a pool of numbers and picks a sensible one per recipient.
-              Twilio recommends it once you have more than one number, and it can be re-pointed
-              without touching this portal.
-            </p>
-            <p>Set, it replaces the number above rather than adding to it.</p>
-          </InfoHint>
-        </span>
-        <input
-          className="somo-input"
-          placeholder="MG… — leave blank to send from the number above"
-          autoComplete="off"
-          spellCheck={false}
-          value={messagingServiceSid}
-          onChange={(e) => setMessagingServiceSid(e.target.value)}
-        />
+        {senderId.trim() ? (
+          <span className="somo-field-note">
+            {senderLeft} character{senderLeft === 1 ? '' : 's'} left
+          </span>
+        ) : null}
       </label>
 
       {problem ? (
@@ -281,9 +225,9 @@ export function SmsSettingsCard({ twilio }: { twilio: TwilioSettings }) {
         </div>
       ) : (
         <div className="somo-note" style={{ marginTop: 0 }}>
-          {describeSender(fields)}.{' '}
+          {senderId.trim() ? `Alerts will show as “${senderId.trim()}”. ` : ''}
           {enabled
-            ? 'Alerts will go out from the Notify button.'
+            ? 'They go out from the Notify button.'
             : 'Sending is off — the Notify button still opens WhatsApp for you to tap send.'}
         </div>
       )}
@@ -298,11 +242,11 @@ export function SmsSettingsCard({ twilio }: { twilio: TwilioSettings }) {
           Test it
           <InfoHint label="testing SMS">
             <p>
-              Checks the saved credentials against Twilio without sending anything. Add a number
-              and it texts that too, so you can tell &ldquo;the credentials are wrong&rdquo; from
-              &ldquo;the credentials are fine and this sender cannot reach this phone&rdquo;.
+              Checks the API key, reads your remaining credit balance, and asks BMS whether the
+              sender ID is approved — all without sending anything. Those are the three separate
+              ways this can be broken, and they all look the same from the outside.
             </p>
-            <p>Save first — the test uses what is stored, not what is typed above.</p>
+            <p>Add a number and it texts that too. Save first: the test uses what is stored.</p>
           </InfoHint>
         </span>
         <input
@@ -318,10 +262,10 @@ export function SmsSettingsCard({ twilio }: { twilio: TwilioSettings }) {
         type="button"
         className="somo-btn ghost small"
         onClick={test}
-        disabled={busy !== null || !twilio.authSecret.set}
+        disabled={busy !== null || !sms.apiKey.set}
       >
         {busy === 'test' ? <Spinner /> : null}
-        {busy === 'test' ? 'Asking Twilio…' : testTo.trim() ? 'Test and send' : 'Test connection'}
+        {busy === 'test' ? 'Asking BMS…' : testTo.trim() ? 'Test and send' : 'Test connection'}
       </button>
 
       {testResult ? <div className="somo-note">{testResult}</div> : null}

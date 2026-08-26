@@ -17,7 +17,7 @@ import { cache } from 'react';
 import { createSupabaseServerClient } from './supabase/server';
 import { createAdminClient } from './supabase/admin';
 import { DEFAULT_SURCHARGES } from './pricing';
-import { twilioConfigProblem } from './twilioConfig';
+import { smsConfigProblem } from './smsConfig';
 import type {
   AppSettings,
   DeliveryOptions,
@@ -207,25 +207,21 @@ export async function getAppSettingsAsAdmin(): Promise<AppSettings> {
   return {
     mapsApiKey: maskSecret(settings.maps_api_key),
     whatsappOtpKey: maskSecret(settings.whatsapp_otp_key),
-    smsApiKey: maskSecret(settings.sms_api_key),
     otherKeys: (settings.other_keys ?? []).map((k) => ({
       name: k.name,
       ...maskSecret(k.value),
     })),
-    twilio: {
+    sms: {
       // Same reasoning as per_min in toPricingParams(): an app deployed ahead of
-      // the Twilio migration has none of these columns, and `select('*')` reports
+      // the SMS migration has neither of these columns, and `select('*')` reports
       // that as undefined rather than as an error. Coalescing means Settings
       // renders an unconfigured card until `db push` runs, instead of throwing on
       // the first .trim() of a column that is not there yet.
-      enabled: settings.twilio_enabled ?? false,
-      // The identifiers go back in full — see the note on TwilioSettings for why
-      // masking them would cost an admin more than it protects.
-      accountSid: settings.twilio_account_sid ?? '',
-      apiKeySid: settings.twilio_api_key_sid ?? '',
-      authSecret: maskSecret(settings.twilio_auth_secret),
-      fromNumber: settings.twilio_from_number ?? '',
-      messagingServiceSid: settings.twilio_messaging_service_sid ?? '',
+      enabled: settings.sms_enabled ?? false,
+      apiKey: maskSecret(settings.sms_api_key),
+      // Goes back in full: it is the name recipients see, and an admin has to be
+      // able to check it against what BMS approved.
+      senderId: settings.sms_sender_id ?? '',
     },
     logoDataUrl,
   };
@@ -264,7 +260,6 @@ export type SecretPatch = string | null | undefined;
 export interface SaveApiKeysInput {
   mapsApiKey?: SecretPatch;
   whatsappOtpKey?: SecretPatch;
-  smsApiKey?: SecretPatch;
   /**
    * The full list of named keys to keep, in order. A blank value means "keep the
    * one already stored under this name"; omitting a name deletes it.
@@ -296,8 +291,11 @@ export async function saveApiKeysAsAdmin(patch: SaveApiKeysInput): Promise<AppSe
   if (maps !== undefined) update.maps_api_key = maps;
   const whatsapp = resolveSecret(patch.whatsappOtpKey);
   if (whatsapp !== undefined) update.whatsapp_otp_key = whatsapp;
-  const sms = resolveSecret(patch.smsApiKey);
-  if (sms !== undefined) update.sms_api_key = sms;
+  // sms_api_key is deliberately not here. It used to be a generic placeholder
+  // this function wrote alongside the others; it is now the live BMS credential,
+  // owned by saveSmsSettingsAsAdmin() below, where "enabled" can be validated
+  // against it. Two writers for one column is how a key gets cleared by a form
+  // that was not showing it.
 
   if (patch.otherKeys !== undefined) {
     // The stored values are needed to honour "keep this one": the browser sent a
@@ -336,88 +334,72 @@ export async function saveApiKeysAsAdmin(patch: SaveApiKeysInput): Promise<AppSe
   return getAppSettingsAsAdmin();
 }
 
-// --- Twilio SMS --------------------------------------------------------------
+// --- SMS (BMS) ---------------------------------------------------------------
 
 /**
  * A write to the SMS configuration.
  *
- * Note that the secret and the identifiers take opposite conventions for a blank
+ * Note that the key and the sender ID take opposite conventions for a blank
  * string, and the reason is the same reason in both directions:
  *
- *   authSecret  '' means "leave it alone", because the browser was never given
- *               the value and so cannot be echoing it back. null clears it.
- *   everything  '' means "clear it", because the browser *was* given the value.
- *   else        A blank Account SID box is an admin emptying it, not a browser
- *               with nothing to say.
+ *   apiKey    '' means "leave it alone", because the browser was never given the
+ *             value and so cannot be echoing it back. null clears it.
+ *   senderId  '' means "clear it", because the browser *was* given the value. A
+ *             blank sender box is an admin emptying it, not a browser with
+ *             nothing to say.
  *
  * The asymmetry is what makes each field's blank unambiguous. It is also exactly
  * the kind of thing that reads as a bug six months from now, hence this note.
  */
-export interface SaveTwilioInput {
+export interface SaveSmsInput {
   enabled?: boolean;
-  accountSid?: string;
-  apiKeySid?: string;
-  authSecret?: SecretPatch;
-  fromNumber?: string;
-  messagingServiceSid?: string;
+  apiKey?: SecretPatch;
+  senderId?: string;
 }
 
 /**
  * Writes the SMS configuration. Callers MUST have confirmed admin.
  *
  * The whole patch is validated against the *merged* result rather than against
- * what arrived, because every interesting rule spans fields: whether a secret is
- * required depends on `enabled`, and what the secret is called depends on
- * whether an API Key SID is set. A patch that only turns `enabled` on carries
- * none of that context, so the stored row is read first and the two are merged
- * before anything is checked.
+ * what arrived, because the one rule that matters spans fields: whether a key and
+ * a sender are required depends on `enabled`, and a patch that only flips
+ * `enabled` carries neither. So the stored row is read first and the two are
+ * merged before anything is checked.
  *
- * Refusing is deliberate where a kinder-looking option exists. Clearing the
- * secret while sending is on could quietly switch sending off instead — but an
- * integration that turns itself off is an integration nobody notices has stopped,
- * and the failure mode is a rider who was never told about a job. The database
- * says the same thing in app_settings_twilio_ready, which is the copy of this
- * rule that cannot be bypassed.
+ * Refusing is deliberate where a kinder-looking option exists. Clearing the key
+ * while sending is on could quietly switch sending off instead — but an
+ * integration that turns itself off is one nobody notices has stopped, and the
+ * failure mode is a rider who was never told about a job. The database says the
+ * same thing in app_settings_sms_ready, which is the copy of this rule that
+ * cannot be bypassed.
  */
-export async function saveTwilioSettingsAsAdmin(patch: SaveTwilioInput): Promise<AppSettings> {
+export async function saveSmsSettingsAsAdmin(patch: SaveSmsInput): Promise<AppSettings> {
   const admin = createAdminClient();
 
   const { data: current, error: readError } = await admin
     .from('app_settings')
-    .select(
-      'twilio_enabled, twilio_account_sid, twilio_api_key_sid, twilio_auth_secret, twilio_from_number, twilio_messaging_service_sid'
-    )
+    .select('sms_enabled, sms_api_key, sms_sender_id')
     .eq('id', 1)
     .single();
 
   if (readError) throw new SettingsError(readError.message);
 
-  /** Identifiers: absent means unchanged, anything else is taken as typed. */
-  const plain = (next: string | undefined, stored: string): string =>
-    next === undefined ? stored : next.trim();
-
-  const secret = resolveSecret(patch.authSecret);
+  const key = resolveSecret(patch.apiKey);
   const merged = {
-    enabled: patch.enabled ?? current.twilio_enabled,
-    accountSid: plain(patch.accountSid, current.twilio_account_sid),
-    apiKeySid: plain(patch.apiKeySid, current.twilio_api_key_sid),
-    authSecret: secret === undefined ? current.twilio_auth_secret : secret,
-    fromNumber: plain(patch.fromNumber, current.twilio_from_number),
-    messagingServiceSid: plain(patch.messagingServiceSid, current.twilio_messaging_service_sid),
+    enabled: patch.enabled ?? current.sms_enabled,
+    apiKey: key === undefined ? current.sms_api_key : key,
+    senderId: patch.senderId === undefined ? current.sms_sender_id : patch.senderId.trim(),
   };
 
-  const problem = twilioConfigProblem(merged, !!merged.authSecret);
+  const problem = smsConfigProblem(merged, !!merged.apiKey);
   if (problem) throw new SettingsError(problem);
 
   const { error } = await admin
     .from('app_settings')
     .update({
-      twilio_enabled: merged.enabled,
-      twilio_account_sid: merged.accountSid,
-      twilio_api_key_sid: merged.apiKeySid,
-      twilio_auth_secret: merged.authSecret,
-      twilio_from_number: merged.fromNumber,
-      twilio_messaging_service_sid: merged.messagingServiceSid,
+      sms_enabled: merged.enabled,
+      sms_api_key: merged.apiKey,
+      sms_sender_id: merged.senderId,
     })
     .eq('id', 1);
 

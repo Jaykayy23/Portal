@@ -28,9 +28,12 @@ interface SendResult {
   who: string;
   phone: string;
   ok: boolean;
-  sid: string;
-  status: string;
-  segments: number;
+  /** BMS campaign id, for looking the send up in their dashboard. */
+  campaignId: string;
+  /** Billable SMS parts this message cost. */
+  parts: number;
+  /** Credits left on the account afterwards, or -1 when BMS did not say. */
+  creditLeft: number;
   error: string;
 }
 
@@ -85,7 +88,7 @@ function NotifyContact({
             {/* The portal's own send leads when it is available, because it is the
                 one that needs no second app and no second tap. The deep links stay
                 beside it rather than being replaced: they are what works when
-                Twilio is down, when a rider only reads WhatsApp, and when whoever
+                the provider is down, when a rider only reads WhatsApp, and when whoever
                 is sending wants the message to come from their own number. */}
             {channel?.enabled ? (
               <button type="button" className="wa" onClick={onSend} disabled={sending}>
@@ -103,8 +106,8 @@ function NotifyContact({
 
           {result?.ok ? (
             <div className="somo-notify-confirmed">
-              Sent by SMS — Twilio says “{result.status}”
-              {result.segments > 1 ? `, ${result.segments} parts` : ''}.
+              Sent by SMS — {result.parts} credit{result.parts === 1 ? '' : 's'} used
+              {result.creditLeft >= 0 ? `, ${result.creditLeft} left on the account` : ''}.
             </div>
           ) : null}
           {result && !result.ok ? (
@@ -144,7 +147,7 @@ function LinkBox({ link, onCopy }: { link: MintedLink; onCopy: () => void }) {
  * for that step is held back until it arrives, because a job offer with no
  * accept/decline link is the exact failure this flow exists to prevent.
  *
- * Two ways out, and only one of them is new. If an admin has configured Twilio
+ * Two ways out, and only one of them is new. If an admin has configured SMS
  * under Settings, "Send by SMS" posts to the server and the server sends. If not
  * — or as well — the WhatsApp and SMS deep links are what they always were. The
  * words are identical either way: both are rendered from the same
@@ -286,7 +289,7 @@ function NotifyBody({
       title={TRIGGER_TITLE[trigger]}
       description={
         channel?.enabled
-          ? 'Send by SMS goes out from the portal’s Twilio number straight away. The WhatsApp and SMS buttons open the message on this device instead, for you to tap send there.'
+          ? 'Send by SMS goes out from the portal’s own sender straight away. The WhatsApp and SMS buttons open the message on this device instead, for you to tap send there.'
           : 'These open WhatsApp or your SMS app with the message pre-filled — tap send there to actually deliver it. No message leaves this device until you do.'
       }
       closeLabel="Close"
@@ -321,7 +324,7 @@ function NotifyBody({
       ) : null}
 
       {/* Said once, at the bottom, and only when there is something to say: an
-          admin who has not set Twilio up does not need telling on every row. */}
+          admin who has not set SMS up does not need telling on every row. */}
       {channel && !channel.enabled && channel.reason ? (
         <div className="somo-note">{channel.reason}</div>
       ) : null}
@@ -330,7 +333,7 @@ function NotifyBody({
 }
 
 /**
- * Alerts go out one of two ways: through Twilio, when an admin has configured it
+ * Alerts go out one of two ways: through the SMS provider, when an admin has configured it
  * under Settings, or as a pre-filled deep link a human taps send on. Both send
  * the same words — lib/deliveryMessages.ts composes them, and the server composes
  * from the same function rather than trusting anything this component sends up.

@@ -166,8 +166,8 @@ Who can reach what:
 | `rate_limits` | — | — | — | — | via server only |
 | `idempotency_keys` | — | — | — | — | via server only |
 
-`app_settings` is granted to **no** public role: the provider keys and the Twilio
-credentials are only ever read by the server's service-role client, after the
+`app_settings` is granted to **no** public role: the provider keys and the BMS
+SMS credential are only ever read by the server's service-role client, after the
 caller has been confirmed as admin. RLS is enabled on it with zero policies as a
 second line of defence.
 
@@ -597,97 +597,109 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
 
   The wording and the recipient list for each step live in one provider-agnostic
   module, [lib/deliveryMessages.ts](lib/deliveryMessages.ts). That is the seam SMS
-  was wired in through — [lib/twilio.ts](lib/twilio.ts) consumes the same
+  was wired in through — [lib/sms.ts](lib/sms.ts) consumes the same
   `OutboundMessage[]` the modal renders, so there is no second copy of the wording
-  to drift. A WhatsApp Business API sender would go in the same way.
+  to drift. Swapping provider touched that file and not this one, which is the
+  whole point; a WhatsApp Business API sender would go in the same way.
 
   Set `NEXT_PUBLIC_APP_URL` if a reverse proxy rewrites the forwarded host,
   otherwise links point at whatever host the request arrived on.
 - **Alerts go out two ways.** The `wa.me` / `sms:` deep links are always there:
-  they pre-fill the message and whoever is at the keyboard taps send. With Twilio
+  they pre-fill the message and whoever is at the keyboard taps send. With BMS
   configured, the same modal also has a **Send by SMS** button that sends from the
-  portal's own number — see below. WhatsApp is still deep-link only; the
+  portal's own sender ID — see below. WhatsApp is still deep-link only; the
   `whatsapp_otp_key` field is stored ready for a Business API integration that is
   not written yet.
 
-### SMS through Twilio
+### SMS through BMS
 
-Automated SMS is real. An admin configures it under **Settings → SMS sending
-(Twilio)**; nothing about it lives in the environment, because the person who
-holds the Twilio account is the admin, not whoever deploys the container.
+Automated SMS is real. An admin configures it under **Settings -> SMS sending
+(BMS)**; nothing about it lives in the environment, because the person who holds
+the BMS account is the admin, not whoever deploys the container.
 
-**Setting it up.** In the [Twilio Console](https://console.twilio.com):
+BMS is [developer.bms.africa](https://developer.bms.africa), which is mNotify's
+API under a different brand - the endpoints are all `api.mnotify.com`. Twilio was
+wired up first and replaced before it was ever configured; see
+`20260826160000_bms_sms_replaces_twilio.sql` for what that migration removes.
 
-1. Buy a number (Phone Numbers → Buy a number) with SMS capability, or note the
-   sender name you have been approved for.
-2. Create an API key (Account → API keys & tokens → Create API key, Standard).
-   Copy the **SID** and the **Secret** — Twilio shows the secret once.
-3. Optionally create a Messaging Service (Messaging → Services) and add the
-   number to its sender pool. Worth it once you have more than one number.
+**Setting it up.** In the BMS dashboard:
 
-Then in the portal, as an admin: paste the **Account SID** from the Console home
-page, the **API Key SID** and its **Secret**, and either the number in full
-international form (`+233201234567`) or the Messaging Service SID. Tick *Send
-delivery alerts by SMS automatically*, save, and press **Test connection** — that
-is an authenticated `GET` of the account resource, so it costs nothing and proves
-the credentials before any message does. Add a number to the test box to have it
-text you as well.
+1. Register a **sender ID** (up to 11 characters, starting with a letter) and wait
+   for approval. This is the name recipients see instead of a number.
+2. Generate an **API key** under Developer / API.
 
-**Use an API key, not the Auth Token.** Both work — Twilio accepts
-`AccountSid:AuthToken` and `ApiKeySid:ApiKeySecret` on the same endpoint, and the
-portal treats them as one code path, so leaving the API Key SID blank means the
-secret is read as the Auth Token. But the Auth Token is full account access *and*
-the key that signs Twilio's webhooks, so rotating it after a leak breaks
-everything else pointed at that account. An API key can be revoked on its own.
+Then in the portal, as an admin: paste the key, type the sender ID, tick *Send
+delivery alerts by SMS automatically*, save, and press **Test connection**.
 
-**Where the credentials live.** Six columns on `app_settings`
-(`20260826120000_twilio_messaging.sql`), which is granted to no public role. Only
-`twilio_auth_secret` is a secret, and it is the only one the Settings page masks —
-the SIDs and the sender come back in full on purpose, because an admin who has
-pasted the wrong Account SID has to be able to see that they did. A blank secret
-box means "keep what is stored", which is safe precisely because the value was
-never sent to the browser to be echoed back.
+**What "Test connection" actually checks**, and why it earns its own button: there
+are three independent ways for this to be broken and from the outside they are
+identical - a message that never arrives. A wrong API key, an account with no
+credits, and a sender ID BMS has not approved yet. The test separates all three
+without sending anything (`GET /balance/sms` and `POST /senderid/status` are both
+free), so a failure names which one it was. Add a number to the test box and it
+texts that too.
 
-`twilio_enabled` is a real invariant, not a hint: the
-`app_settings_twilio_ready` check constraint refuses the flag over an incomplete
-configuration, so the send path can treat it as the whole answer. The practical
-consequence is that clearing the secret while sending is on is **refused** rather
-than quietly switching sending off — an integration that turns itself off is one
-nobody notices has stopped, and the cost is a rider never told about a job.
+**One credential, and it travels in the URL.** BMS takes the API key as a
+`?key=...` query parameter on every request. There is no header form, so this is
+not a choice - but it has two consequences worth being deliberate about. First, on
+this API the URL *is* the credential, so [lib/sms.ts](lib/sms.ts) builds it at the
+point of use and every log line names the endpoint and BMS's own error code rather
+than the request. Second, HTTPS still covers it in transit; what it is exposed to
+is anything that logs whole URLs at either end. Nothing the portal can do about
+that beyond keeping it out of its own logs - worth knowing when deciding how
+widely to share the key.
+
+**Where the credentials live.** Two columns on `app_settings`, which is granted to
+no public role. `sms_api_key` already existed as a generic placeholder nothing
+read; it is now the live credential. Only that column is a secret, and it is the
+only one the Settings page masks - the sender ID comes back in full on purpose,
+because an admin has to be able to check it against what BMS approved.
+
+The columns are named `sms_*`, not `bms_*`, on purpose: this project has now
+changed SMS provider once, and naming a column after the carrier means every
+future swap costs a migration and a rename through a dozen files.
+
+`sms_enabled` is a real invariant, not a hint: the `app_settings_sms_ready` check
+constraint refuses the flag over an incomplete configuration, so the send path can
+treat it as the whole answer. The practical consequence is that clearing the key
+while sending is on is **refused** rather than quietly switching sending off - an
+integration that turns itself off is one nobody notices has stopped, and the cost
+is a rider never told about a job.
 
 **The message text is never accepted from the caller.**
 `POST /api/deliveries/[id]/notify` takes a list of message *ids* and nothing else.
 The text is composed server-side by
-[lib/deliveryMessages.ts](lib/deliveryMessages.ts) from the delivery row — the
+[lib/deliveryMessages.ts](lib/deliveryMessages.ts) from the delivery row - the
 same function the Notify modal renders from. Accepting the body from the browser
 would hand anyone with an ops seat a way to send arbitrary text, from the
-company's number, to a customer's phone. The capability link inside the message
+company's sender ID, to a customer's phone. The capability link inside the message
 is minted server-side for the same reason, and only when a message actually
 carrying one is being sent.
 
-**Who may send:** admin, ops, and the merchant who owns the delivery — the same
-set that may mint links, and for the same reason (confirming pickup and telling
-the recipient is the merchant's own step). Finance is excluded. Sends are rate
-limited per user and per delivery, tighter than links are, because each one costs
-money; and the route is idempotent, so a retry after a dropped response replays
+**Who may send:** admin, ops, and the merchant who owns the delivery - the same set
+that may mint links, and for the same reason (confirming pickup and telling the
+recipient is the merchant's own step). Finance is excluded. Sends are rate limited
+per user and per delivery, tighter than links are, because each one spends
+credits; and the route is idempotent, so a retry after a dropped response replays
 the first send instead of texting a customer twice.
 
-**Two things worth knowing about the bill.** Every send sets Twilio's
-`SmartEncoded=true`, which rewrites look-alike Unicode to its GSM-7 equivalent
-before Twilio counts segments — the message templates use en dashes and curly
-quotes, and a single non-GSM character drops the segment size from 160 characters
-to 70, turning one job offer into three or four billable parts for no visible
-difference on the handset. And `num_segments` is surfaced through to the modal
-rather than swallowed, so a long address quietly costing four SMS is visible.
+**Punctuation costs money, so it is substituted before sending.** An SMS is 160
+characters a part in GSM-7 and 70 in UCS-2, and *one* character outside the GSM-7
+alphabet re-encodes the whole message. Twilio had a `SmartEncoded` flag that
+stripped those server-side; BMS has nothing equivalent, so `toGsm7()` in
+[lib/smsConfig.ts](lib/smsConfig.ts) does it here. It matters more than it sounds:
+the recipient's "on the way" alert - the one message that goes out for every single
+delivery - carries one em dash, and that em dash alone bills it at **five credits
+instead of three**. There is a test asserting exactly that. Characters GSM-7
+already covers are left alone, and so is anything it cannot represent: mangling a
+name to save a credit is the wrong trade.
 
-**Not built yet, deliberately.** There is no status-callback webhook, so the
-portal knows Twilio *accepted* a message (`queued` / `accepted`) but not whether
-the handset ever saw it — `delivered` and `undelivered` only arrive over a
-webhook. And there is no per-message send log; the audit trail is Twilio's own
-Console. Both are the natural next step: a `sms_messages` table keyed on the
-message SID, and a public route validating `X-Twilio-Signature`. Note that
-signature validation needs the **Auth Token** specifically, which is the one
-argument for storing it — an API Key Secret cannot verify a webhook.
+**Not built yet, deliberately.** The portal knows BMS *accepted* a campaign and
+what it charged, but not whether the handset saw it. BMS does expose delivery
+reports - `GET /campaign/<id>/<status>` and `GET /status/<id>` - and every send
+already returns and surfaces the campaign id they are looked up by, so the next
+step is a polling job plus an `sms_messages` table rather than new plumbing. There
+is no per-message send log either; the audit trail is the BMS dashboard.
 
 ---
 

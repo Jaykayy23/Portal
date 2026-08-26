@@ -99,11 +99,10 @@ export function SettingsPane({
   const router = useRouter();
   const toast = useToast();
 
-  // All three start empty and stay empty unless the admin types. The stored
-  // values are not here to be edited, because they were never sent.
+  // Both start empty and stay empty unless the admin types. The stored values are
+  // not here to be edited, because they were never sent.
   const [mapsApiKey, setMapsApiKey] = useState('');
   const [whatsappOtpKey, setWhatsappOtpKey] = useState('');
-  const [smsApiKey, setSmsApiKey] = useState('');
   // Which fields the admin has asked to empty. Blank means "keep", so wanting a
   // key gone has to be said out loud.
   const [cleared, setCleared] = useState<Record<string, boolean>>({});
@@ -121,7 +120,6 @@ export function SettingsPane({
   useEffect(() => {
     setMapsApiKey('');
     setWhatsappOtpKey('');
-    setSmsApiKey('');
     setCleared({});
     setOtherKeys(rowsFrom(settings));
   }, [settings]);
@@ -148,7 +146,6 @@ export function SettingsPane({
           // "not mentioned, do not touch".
           mapsApiKey: secretPatch(mapsApiKey, 'maps'),
           whatsappOtpKey: secretPatch(whatsappOtpKey, 'whatsapp'),
-          smsApiKey: secretPatch(smsApiKey, 'sms'),
           otherKeys: otherKeys
             .filter((k) => k.name.trim())
             .map((k) => ({ name: k.name.trim(), value: k.value })),
@@ -349,9 +346,9 @@ export function SettingsPane({
               HTTP referrer in the Google Cloud Console.
             </p>
             <p>
-              Twilio has its own card — SMS is wired up, so its credentials need somewhere they
-              can be checked and switched on. The keys here are stored for integrations that are
-              not: WhatsApp alerts still go out through the one-tap links on the delivery
+              SMS has its own card below: it is wired up, so its credentials need somewhere they
+              can be validated and switched on. The keys here are stored for integrations that
+              are not — WhatsApp alerts still go out through the one-tap links on the delivery
               log&rsquo;s <strong>Notify</strong> button.
             </p>
           </InfoHint>
@@ -376,16 +373,6 @@ export function SettingsPane({
           cleared={!!cleared.whatsapp}
           onToggleClear={() => toggleClear('whatsapp')}
         />
-        <SecretField
-          label="SMS API key — another provider"
-          hint="e.g. Africa's Talking. Twilio goes in its own card."
-          secret={settings.smsApiKey}
-          value={smsApiKey}
-          onChange={setSmsApiKey}
-          cleared={!!cleared.sms}
-          onToggleClear={() => toggleClear('sms')}
-        />
-
         {otherKeys.map((k, i) => (
           <div className="somo-otherkey-row" key={i}>
             <input
@@ -433,7 +420,7 @@ export function SettingsPane({
         </button>
       </form>
 
-      <SmsSettingsCard twilio={settings.twilio} />
+      <SmsSettingsCard sms={settings.sms} />
     </div>
   );
 }

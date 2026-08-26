@@ -315,31 +315,25 @@ export interface MaskedOtherKey {
 }
 
 /**
- * The Twilio SMS configuration as sent to an admin's browser.
+ * The SMS configuration as sent to an admin's browser.
  *
  * Note which single field is masked, because the asymmetry is deliberate rather
- * than an oversight: `authSecret` is the credential, and the rest are
- * identifiers that grant nothing on their own. An admin has to be able to read
- * an Account SID back to notice they pasted the wrong one — a masked identifier
- * turns a two-second fix into an afternoon — while the secret is the one value
- * that must never make the return trip.
+ * than an oversight: `apiKey` is the credential — on BMS it is the whole
+ * credential, since there is no SID/secret pair — and the sender ID is a name
+ * recipients see on their handset. An admin has to be able to read the sender ID
+ * back to check it against what BMS approved; the key is the one value that must
+ * never make the return trip.
  *
- * Structurally a TwilioConfigFields (lib/twilioConfig.ts) plus the mask, so the
- * shared validators take one of these directly.
+ * Structurally an SmsConfigFields (lib/smsConfig.ts) plus the mask, so the shared
+ * validators take one of these directly.
  */
-export interface TwilioSettings {
+export interface SmsSettings {
   /** Master switch. Off leaves the credentials stored but dormant. */
   enabled: boolean;
-  /** 'AC…', from the Twilio Console home page. */
-  accountSid: string;
-  /** 'SK…'. Blank means the secret is the account Auth Token instead. */
-  apiKeySid: string;
-  /** The API Key Secret, or the Auth Token. Masked — never the value. */
-  authSecret: MaskedSecret;
-  /** A Twilio number in E.164, or an alphanumeric sender ID. */
-  fromNumber: string;
-  /** 'MG…'. Wins over fromNumber when both are set. */
-  messagingServiceSid: string;
+  /** The BMS API key. Masked — never the value. */
+  apiKey: MaskedSecret;
+  /** Up to 11 characters, and registered with BMS. Not a secret. */
+  senderId: string;
 }
 
 /**
@@ -349,9 +343,10 @@ export interface TwilioSettings {
 export interface AppSettings {
   mapsApiKey: MaskedSecret;
   whatsappOtpKey: MaskedSecret;
-  smsApiKey: MaskedSecret;
   otherKeys: MaskedOtherKey[];
-  twilio: TwilioSettings;
+  /** The SMS provider's credentials. `sms_api_key` is inside this, not beside it —
+   *  it stopped being a placeholder the moment something read it. */
+  sms: SmsSettings;
   logoDataUrl: string;
 }
 

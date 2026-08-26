@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { badRequest, handle, requireUser, readJson } from '@/lib/http';
 import { enforceRateLimit } from '@/lib/rateLimit';
-import { TwilioError, sendTestSms, twilioStatus, verifyTwilioCredentials } from '@/lib/twilio';
+import { SmsError, sendTestSms, smsStatus, verifySmsCredentials } from '@/lib/sms';
 import { isValidPhone } from '@/lib/phone';
 
 /**
@@ -12,13 +12,13 @@ import { isValidPhone } from '@/lib/phone';
  * every role that can send an alert, because all three of them open that modal.
  *
  * The response is two fields and neither is a credential: whether sending works,
- * and a sentence for when it does not. Nothing in lib/twilio.ts can return more
- * than that — see TwilioStatus.
+ * and a sentence for when it does not. Nothing in lib/sms.ts can return more than
+ * that — see SmsStatus.
  */
 export async function GET() {
   return handle(async () => {
     await requireUser('admin', 'ops', 'merchant');
-    return NextResponse.json(await twilioStatus());
+    return NextResponse.json(await smsStatus());
   });
 }
 
@@ -28,24 +28,24 @@ interface TestBody {
 }
 
 /**
- * A real send would tell an admin the same thing at twice the cost, so the check
- * is capped low. It exists to stop a stuck retry loop, not to ration a button
- * somebody presses twice.
+ * The credential check is free, but the optional test send spends a credit, so
+ * the whole endpoint is capped low. It exists to stop a stuck retry loop, not to
+ * ration a button somebody presses twice.
  */
 const TEST_LIMIT = { limit: 6, windowSeconds: 300 };
 
 const TEST_BODY =
-  'SomoExpress test message. If you are reading this, the portal can send SMS through Twilio.';
+  'SomoExpress test message. If you are reading this, the portal can send SMS through BMS.';
 
 /**
  * Proves the saved configuration works — first without spending anything, then,
  * if a number is given, for real.
  *
- * Two steps in one call on purpose. "The credentials are wrong" and "the
- * credentials are fine but this sender cannot reach this recipient" are the two
- * failures an admin has to tell apart, and they are indistinguishable from a
- * message that simply never arrives. Checking the account first means a failure
- * here always names which of the two it was.
+ * Two steps in one call on purpose. There are three independent ways for this to
+ * be broken and from the outside they look identical, as a message that never
+ * arrives: a wrong API key, an empty credit balance, and a sender ID BMS has not
+ * approved. verifySmsCredentials() separates all three without sending anything,
+ * so a failure here names which one it was instead of leaving an admin to guess.
  *
  * The credentials tested are the *saved* ones. Nothing is accepted from the
  * request body except the destination number, so testing never becomes a second
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
 
     const { to } = await readJson<TestBody>(req);
 
-    const credentials = await verifyTwilioCredentials();
+    const credentials = await verifySmsCredentials();
     if (!credentials.ok) badRequest(credentials.detail);
 
     if (to === undefined || String(to).trim() === '') {
@@ -72,18 +72,23 @@ export async function POST(req: Request) {
 
     try {
       const result = await sendTestSms(number, TEST_BODY);
-      if (!result.ok) badRequest(`${credentials.detail} But the test message failed: ${result.error}`);
+      if (!result.ok) {
+        badRequest(`${credentials.detail} But the test message failed: ${result.error}`);
+      }
+
+      const spent = `${result.parts} credit${result.parts === 1 ? '' : 's'} used`;
+      const left = result.creditLeft >= 0 ? `, ${result.creditLeft} left` : '';
 
       return NextResponse.json({
-        detail: `${credentials.detail} Test message accepted by Twilio (${result.segments} SMS part${result.segments === 1 ? '' : 's'}).`,
+        detail: `${credentials.detail} Test message accepted — ${spent}${left}.`,
         sent: true,
-        sid: result.sid,
+        campaignId: result.campaignId,
       });
     } catch (e) {
-      // Only thrown when sending is off entirely, which verifyTwilioCredentials
+      // Only thrown when sending is off entirely, which verifySmsCredentials
       // above has already ruled out — so reaching here means the switch was
       // turned off between the two calls.
-      if (e instanceof TwilioError) badRequest(e.message);
+      if (e instanceof SmsError) badRequest(e.message);
       throw e;
     }
   });

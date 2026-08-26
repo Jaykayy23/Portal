@@ -5,12 +5,12 @@ import { idempotencyKey, withIdempotency } from '@/lib/idempotency';
 import { DeliveryError, getDeliveryFor } from '@/lib/deliveries';
 import { LinkError, issueLink } from '@/lib/deliveryLinks';
 import { getPricingParams } from '@/lib/settings';
-import { TwilioError, sendOutbound } from '@/lib/twilio';
+import { SmsError, sendOutbound } from '@/lib/sms';
 import { linkNeededFor, outboundFor, triggerForStatus } from '@/lib/deliveryMessages';
 import type { DeliveryWithMerchant, LinkPurpose } from '@/lib/types';
 
 /**
- * Sends this delivery's alerts by SMS, through Twilio.
+ * Sends this delivery's alerts by SMS, through BMS.
  *
  * --- the message text is not accepted from the caller ------------------------
  *
@@ -32,7 +32,7 @@ import type { DeliveryWithMerchant, LinkPurpose } from '@/lib/types';
  * loop because one step of this flow is theirs: they confirm the pickup, and the
  * message telling the recipient it is on the way follows from that. They can
  * already send exactly these words from their own phone through the modal's
- * WhatsApp links — what is new is that it now costs the portal's Twilio credit,
+ * WhatsApp links — what is new is that it now spends the portal's SMS credits,
  * which is what the per-user rate limit below is for.
  *
  * Finance is excluded, as it is for minting links: watching the money does not
@@ -148,7 +148,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       } catch (e) {
         // Thrown only when the portal cannot send at all, which is a 400 the
         // admin can act on rather than a server fault.
-        if (e instanceof TwilioError) badRequest(e.message);
+        if (e instanceof SmsError) badRequest(e.message);
         throw e;
       }
     });

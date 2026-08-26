@@ -5,8 +5,8 @@ import {
   getAppSettingsAsAdmin,
   saveApiKeysAsAdmin,
   saveLogoDataUrl,
-  saveTwilioSettingsAsAdmin,
-  type SaveTwilioInput,
+  saveSmsSettingsAsAdmin,
+  type SaveSmsInput,
 } from '@/lib/settings';
 import type { OtherKey } from '@/lib/types';
 
@@ -25,20 +25,20 @@ interface SettingsBody {
   logoDataUrl?: string;
   mapsApiKey?: string | null;
   whatsappOtpKey?: string | null;
-  smsApiKey?: string | null;
   otherKeys?: OtherKey[];
   /**
-   * The Twilio SMS configuration, as its own object because it is saved by its
-   * own form. `authSecret` follows the three-way secret convention above;
-   * the identifiers alongside it do not — see SaveTwilioInput for why.
+   * The SMS configuration, as its own object because it is saved by its own
+   * form. `apiKey` follows the three-way secret convention above; `senderId`
+   * does not — see SaveSmsInput for why.
+   *
+   * Note there is no top-level `smsApiKey` any more. That field was a generic
+   * placeholder nothing read; it is now the live BMS credential and belongs to
+   * the one form that can validate it against `enabled`.
    */
-  twilio?: {
+  sms?: {
     enabled?: boolean;
-    accountSid?: string;
-    apiKeySid?: string;
-    authSecret?: string | null;
-    fromNumber?: string;
-    messagingServiceSid?: string;
+    apiKey?: string | null;
+    senderId?: string;
   };
 }
 
@@ -49,7 +49,7 @@ function secretField(value: unknown): string | null | undefined {
   return String(value);
 }
 
-// Full settings, including the WhatsApp/SMS provider keys. Admin only — and this
+// Full settings, including the provider keys. Admin only — and this
 // requireUser call is the only thing standing between those keys and the caller,
 // because app_settings is read with the service-role client.
 export async function GET() {
@@ -70,11 +70,11 @@ const MAX_OTHER_KEYS = 40;
 const MAX_KEY_NAME_CHARS = 120;
 const MAX_KEY_VALUE_CHARS = 4_000;
 
-// The Twilio fields have known shapes, so these are not really limits — they are
-// a floor under the length checks, so a megabyte pasted into the Account SID box
-// is rejected before a regex runs over it. lib/twilioConfig.ts is what actually
-// decides whether the contents are valid, and says so in a usable sentence.
-const MAX_TWILIO_FIELD_CHARS = 200;
+// The SMS fields have known shapes, so this is not really a limit — it is a floor
+// under the length checks, so a megabyte pasted into the sender box is rejected
+// before a regex runs over it. lib/smsConfig.ts is what actually decides whether
+// the contents are valid, and says so in a usable sentence.
+const MAX_SMS_FIELD_CHARS = 200;
 
 export async function POST(req: Request) {
   return handle(async () => {
@@ -95,7 +95,6 @@ export async function POST(req: Request) {
     const keyPatch: Parameters<typeof saveApiKeysAsAdmin>[0] = {};
     if ('mapsApiKey' in body) keyPatch.mapsApiKey = secretField(body.mapsApiKey);
     if ('whatsappOtpKey' in body) keyPatch.whatsappOtpKey = secretField(body.whatsappOtpKey);
-    if ('smsApiKey' in body) keyPatch.smsApiKey = secretField(body.smsApiKey);
 
     if (Array.isArray(body.otherKeys)) {
       const named = body.otherKeys
@@ -120,33 +119,31 @@ export async function POST(req: Request) {
     }
 
     // Saved through its own function rather than folded into the key patch,
-    // because it is the one group of settings with rules that span its fields —
+    // because it is the one group of settings with a rule that spans its fields —
     // "on" is only allowed over a complete configuration. Its own form on the
     // page, its own save, its own validation.
-    let twilioPatch: SaveTwilioInput | null = null;
-    if (body.twilio) {
-      const t = body.twilio;
-      twilioPatch = {};
-      if ('enabled' in t) twilioPatch.enabled = !!t.enabled;
+    let smsPatch: SaveSmsInput | null = null;
+    if (body.sms) {
+      const t = body.sms;
+      smsPatch = {};
+      if ('enabled' in t) smsPatch.enabled = !!t.enabled;
 
-      if ('authSecret' in t) {
-        const secret = secretField(t.authSecret);
-        if (typeof secret === 'string' && secret.length > MAX_TWILIO_FIELD_CHARS) {
-          badRequest('That is too long to be a Twilio Auth Token or API Key Secret.');
+      if ('apiKey' in t) {
+        const key = secretField(t.apiKey);
+        if (typeof key === 'string' && key.length > MAX_SMS_FIELD_CHARS) {
+          badRequest('That is too long to be a BMS API key.');
         }
-        twilioPatch.authSecret = secret;
+        smsPatch.apiKey = key;
       }
 
-      // Identifiers, where '' is a deliberate "clear this" rather than silence —
-      // the opposite of the secret above, and for the reason set out on
-      // SaveTwilioInput.
-      for (const field of ['accountSid', 'apiKeySid', 'fromNumber', 'messagingServiceSid'] as const) {
-        if (!(field in t)) continue;
-        const value = String(t[field] ?? '');
-        if (value.length > MAX_TWILIO_FIELD_CHARS) {
-          badRequest('That is too long to be a Twilio SID, number or sender name.');
+      // '' here is a deliberate "clear this" rather than silence — the opposite
+      // of the key above, and for the reason set out on SaveSmsInput.
+      if ('senderId' in t) {
+        const senderId = String(t.senderId ?? '');
+        if (senderId.length > MAX_SMS_FIELD_CHARS) {
+          badRequest('That is too long to be a sender ID.');
         }
-        twilioPatch[field] = value;
+        smsPatch.senderId = senderId;
       }
     }
 
@@ -154,15 +151,15 @@ export async function POST(req: Request) {
       // Both are applied when a request carries both. The page posts one form at
       // a time, so in practice only one runs — but silently dropping half of a
       // request that mentioned both would be the worse kind of surprise. Keys
-      // first, so a Twilio refusal cannot strand an unrelated Maps key.
+      // first, so an SMS refusal cannot strand an unrelated Maps key.
       let settings = Object.keys(keyPatch).length ? await saveApiKeysAsAdmin(keyPatch) : null;
-      if (twilioPatch) settings = await saveTwilioSettingsAsAdmin(twilioPatch);
+      if (smsPatch) settings = await saveSmsSettingsAsAdmin(smsPatch);
 
       // A logo-only save mentions neither, and still owes the page fresh masks.
       return NextResponse.json({ settings: settings ?? (await getAppSettingsAsAdmin()) });
     } catch (e) {
       // "Enter a value for X" is the caller's mistake, not a server fault. So is
-      // every sentence twilioConfigProblem() produces.
+      // every sentence smsConfigProblem() produces.
       if (e instanceof SettingsError) badRequest(e.message);
       throw e;
     }
