@@ -210,9 +210,13 @@ export function DeliveryLog({
     setExporting(false);
   }
 
-  async function changeStatus(id: string, status: DeliveryStatus) {
+  // Both writes carry what this screen showed alongside what it wants. The list
+  // can be a poll interval stale, and with two people working the same queue the
+  // server refuses (409) a write against a row that has since changed — the
+  // refresh in the catch then shows them what it changed to.
+  async function changeStatus(id: string, status: DeliveryStatus, expectedStatus: DeliveryStatus) {
     try {
-      await api('/deliveries/' + id, { method: 'PATCH', body: { status } });
+      await api('/deliveries/' + id, { method: 'PATCH', body: { status, expectedStatus } });
       toast('Status updated');
       router.refresh();
     } catch (e) {
@@ -222,11 +226,11 @@ export function DeliveryLog({
     }
   }
 
-  async function assignRider(id: string, riderId: string) {
+  async function assignRider(id: string, riderId: string, expectedRiderId: string) {
     try {
       const data = await api<{ delivery: DeliveryWithMerchant }>('/deliveries/' + id, {
         method: 'PATCH',
-        body: { riderId },
+        body: { riderId, expectedRiderId: expectedRiderId || null },
       });
       toast(riderId ? `Offered to ${data.delivery.riderName}` : 'Rider unassigned');
       router.refresh();
@@ -489,7 +493,7 @@ export function DeliveryLog({
                       <select
                         className="somo-status-select"
                         value={r.status}
-                        onChange={(e) => changeStatus(r.id, e.target.value as DeliveryStatus)}
+                        onChange={(e) => changeStatus(r.id, e.target.value as DeliveryStatus, r.status)}
                       >
                         {DELIVERY_STATUSES.map((s) => (
                           <option key={s} value={s}>
@@ -517,7 +521,7 @@ export function DeliveryLog({
                       <select
                         className="somo-status-select"
                         value={r.riderId}
-                        onChange={(e) => assignRider(r.id, e.target.value)}
+                        onChange={(e) => assignRider(r.id, e.target.value, r.riderId)}
                       >
                         <option value="">Unassigned</option>
                         {riders.map((rider) => {

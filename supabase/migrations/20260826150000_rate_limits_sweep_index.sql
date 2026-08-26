@@ -1,0 +1,13 @@
+-- Index for the rate-limit sweep.
+--
+-- rate_limit_hit() deletes day-old buckets on ~0.5% of calls (see
+-- 20260819170000). That delete filters on window_start, and the table's only
+-- index is the bucket primary key — so each sweep is a sequential scan, run
+-- inside the same transaction that holds the caller's bucket row lock. Harmless
+-- while the table is small; at volume it turns 1 request in 200 into a
+-- tail-latency spike that also serialises other hits on that bucket behind it.
+--
+-- A plain btree on window_start makes the sweep an index range scan. Not
+-- partial: the predicate is a moving `< now() - interval '1 day'`, which an
+-- index predicate cannot express.
+create index rate_limits_window_start_idx on public.rate_limits (window_start);

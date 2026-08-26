@@ -15,6 +15,9 @@ type DeliveryRow = Database['public']['Tables']['deliveries']['Row'];
 
 export class DeliveryError extends Error {}
 
+/** The row changed under the caller — refresh and retry, nothing was written. */
+export class DeliveryConflictError extends DeliveryError {}
+
 export function fromRow(r: DeliveryRow): Delivery {
   return {
     id: r.id,
@@ -159,12 +162,27 @@ export interface PatchDeliveryInput {
   status?: Delivery['status'];
   /** undefined = leave alone, '' or null = unassign, otherwise a rider id. */
   riderId?: string | null;
+  /**
+   * What the caller's screen showed when they acted. With two ops working the
+   * same queue, a dropdown can be up to a poll interval stale — anchoring the
+   * write to what was on screen turns "both assignments succeed and two riders
+   * get messaged" into a refused second write. undefined = don't check (older
+   * clients, scripts that only know the target state).
+   */
+  expectedRiderId?: string | null;
+  expectedStatus?: Delivery['status'];
 }
 
 /**
  * Status change and/or rider assignment. Ops/admin only — enforced by the RLS
  * UPDATE policy, so a merchant's request affects zero rows and surfaces as
  * "Delivery not found" rather than a silent success.
+ *
+ * Concurrency: the row is read once, every decision below is made from that
+ * snapshot, and the UPDATE at the end refuses to land unless the row still
+ * matches it. Two ops racing each other therefore resolve in Postgres — the
+ * loser gets a DeliveryConflictError instead of silently overwriting, which
+ * matters most for assignment, where "both won" means two riders dispatched.
  */
 export async function patchDelivery(
   id: string,
@@ -172,21 +190,35 @@ export async function patchDelivery(
 ): Promise<DeliveryWithMerchant> {
   const supabase = await createSupabaseServerClient();
 
+  const { data: before, error: readError } = await supabase
+    .from('deliveries')
+    .select('status, rider_id')
+    .eq('id', id)
+    .maybeSingle();
+  if (readError) throw new DeliveryError(readError.message);
+  if (!before) throw new DeliveryError('Delivery not found.');
+
+  const conflict = () =>
+    new DeliveryConflictError(
+      'This delivery was changed by someone else just now — nothing was saved. Check the refreshed row and try again.'
+    );
+
+  // The stale-screen case: the caller acted on a row that had already moved by
+  // the time their request arrived. ('' and null both mean "no rider".)
+  if (patch.expectedRiderId !== undefined && (patch.expectedRiderId || null) !== before.rider_id) {
+    throw conflict();
+  }
+  if (patch.expectedStatus !== undefined && patch.expectedStatus !== before.status) {
+    throw conflict();
+  }
+
   const update: Database['public']['Tables']['deliveries']['Update'] = {};
   if (patch.status) update.status = patch.status;
 
-  // Read before writing: once the rider column is overwritten there is no way to
-  // ask who used to be carrying this, and that rider's availability has to be
+  // Kept from the snapshot: once the rider column is overwritten there is no way
+  // to ask who used to be carrying this, and that rider's availability has to be
   // recomputed or they stay 'On delivery' for a job that is no longer theirs.
-  let previousRiderId: string | null = null;
-  if (patch.riderId !== undefined) {
-    const { data: before } = await supabase
-      .from('deliveries')
-      .select('rider_id')
-      .eq('id', id)
-      .maybeSingle();
-    previousRiderId = before?.rider_id ?? null;
-  }
+  const previousRiderId = before.rider_id;
 
   if (patch.riderId !== undefined) {
     if (!patch.riderId) {
@@ -205,15 +237,10 @@ export async function patchDelivery(
       // collected, and erasing that because ops corrected the rider field would
       // lose the more important fact.
       if (!patch.status) {
-        const { data: current } = await supabase
-          .from('deliveries')
-          .select('status')
-          .eq('id', id)
-          .maybeSingle();
         if (
-          current?.status === 'Pending' ||
-          current?.status === 'Declined' ||
-          current?.status === 'Assigned'
+          before.status === 'Pending' ||
+          before.status === 'Declined' ||
+          before.status === 'Assigned'
         ) {
           update.status = 'Requested';
         }
@@ -243,11 +270,6 @@ export async function patchDelivery(
       Object.assign(update, { accepted_at: null, declined_at: null });
 
       if (!patch.status) {
-        const { data: current } = await supabase
-          .from('deliveries')
-          .select('status')
-          .eq('id', id)
-          .maybeSingle();
         // Offering the job to a rider advances a fresh request, and un-parks one
         // the last rider declined — but never overrides an explicit status sent in
         // the same patch. It stops at 'Pending': only the rider's own acceptance
@@ -258,9 +280,9 @@ export async function patchDelivery(
         // behind would keep that line in Needs attention for a delivery that
         // already has someone on it.
         if (
-          current?.status === 'Requested' ||
-          current?.status === 'Approved' ||
-          current?.status === 'Declined'
+          before.status === 'Requested' ||
+          before.status === 'Approved' ||
+          before.status === 'Declined'
         ) {
           update.status = 'Pending';
         }
@@ -268,15 +290,24 @@ export async function patchDelivery(
     }
   }
 
-  const { data, error } = await supabase
-    .from('deliveries')
-    .update(update)
-    .eq('id', id)
-    .select('*')
-    .maybeSingle();
+  // Anchored to the snapshot: if another request landed between the read above
+  // and here, this updates zero rows instead of overwriting it.
+  let write = supabase.from('deliveries').update(update).eq('id', id).eq('status', before.status);
+  write = previousRiderId === null ? write.is('rider_id', null) : write.eq('rider_id', previousRiderId);
+  const { data, error } = await write.select('*').maybeSingle();
 
   if (error) throw new DeliveryError(error.message);
-  if (!data) throw new DeliveryError('Delivery not found.');
+  if (!data) {
+    // Zero rows is either a row that moved underneath us or one the caller
+    // cannot see at all — and RLS makes "not yours" and "gone" the same answer.
+    const { data: still } = await supabase
+      .from('deliveries')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle();
+    if (!still) throw new DeliveryError('Delivery not found.');
+    throw conflict();
+  }
 
   const delivery = fromRow(data);
 

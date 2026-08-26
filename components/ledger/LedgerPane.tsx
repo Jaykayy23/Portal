@@ -13,6 +13,7 @@ import { Modal } from '@/components/Modal';
 import { ScrollableTable } from '@/components/ScrollableTable';
 import { ProgressiveRows } from '@/components/ProgressiveRows';
 import { SettleModal, type SettleParty } from '@/components/ledger/SettleModal';
+import { useRefreshHold } from '@/components/PortalRefresh';
 import { RANGES, filterByRange, type RangeKey } from '@/lib/analytics';
 import {
   COMPANY,
@@ -32,13 +33,6 @@ import {
 import type { SettlementRecord } from '@/lib/settlements';
 import type { MerchantOption } from '@/lib/accounts';
 import type { DeliveryWithMerchant } from '@/lib/types';
-
-/**
- * Same cadence as the delivery log, and for the same reason: the figures on this
- * screen move when a rider taps a link on the other side of town. A finance
- * person watching a float should not have to reload to see it change.
- */
-const REFRESH_MS = 25_000;
 
 const COMPACT_KEY = 'somo.ledger.compact';
 
@@ -198,21 +192,12 @@ export function LedgerPane({
     });
   }
 
-  useEffect(() => {
-    // Held while either dialog is open: re-rendering under someone half-way
-    // through ticking off a rider's float is worse than being 25 seconds stale.
-    if (settling || voiding) return;
-
-    const refreshIfVisible = () => {
-      if (document.visibilityState === 'visible') router.refresh();
-    };
-    const timer = setInterval(refreshIfVisible, REFRESH_MS);
-    document.addEventListener('visibilitychange', refreshIfVisible);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', refreshIfVisible);
-    };
-  }, [router, settling, voiding]);
+  // The poll that keeps this screen current lives in the portal layout — one
+  // timer for the whole portal, not a second one here running alongside it. This
+  // screen's only remaining interest is asking it to hold still while either
+  // dialog is open: re-rendering under someone half-way through ticking off a
+  // rider's float is worse than being 25 seconds stale.
+  useRefreshHold(!!(settling || voiding));
 
   function refreshNow() {
     setRefreshing(true);

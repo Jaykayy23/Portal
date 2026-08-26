@@ -17,8 +17,27 @@ services:
     restart: unless-stopped
     ports:
       - "4000:4000"
+    # A ceiling on the one thing that can take the whole portal down: the Excel
+    # exports build the entire workbook in memory, so without a limit a couple of
+    # concurrent exports on a big history can OOM the host. With it, the kernel
+    # kills the process, `restart: unless-stopped` brings it back in seconds, and
+    # everyone else's session survives the blip.
+    mem_limit: 1g
+    healthcheck:
+      # A static file, deliberately: it proves the Node process is serving HTTP
+      # without depending on Supabase, so a database outage shows as errors in the
+      # app rather than restart-flapping the container that could still serve the
+      # error page.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:4000/logo.png"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     environment:
       - PORT=4000
+      # Below mem_limit so V8 garbage-collects under pressure instead of the
+      # kernel OOM-killing mid-request. Keep the two in step if either changes.
+      - NODE_OPTIONS=--max-old-space-size=768
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}
       # Runtime only — never a build arg, so it stays out of the image layers.

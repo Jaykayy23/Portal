@@ -318,15 +318,41 @@ export async function redeemLink(token: string, action: LinkAction): Promise<Lin
   const update: Database['public']['Tables']['deliveries']['Update'] = { status: nextStatus };
   update[stampColumn] = usedAt;
 
-  const { error: deliveryError } = await admin
+  // Anchored to the state this link is for. loadLink checked it above, but two
+  // *different* live links for the same delivery (a re-mint) each pass their own
+  // claim — without this filter, both answers would land and the second would
+  // overwrite the first, stamping a delivery accepted and declined at once. The
+  // same anchor stops a redemption racing an ops reassignment: the old rider's
+  // tap updates zero rows once the rider column names someone else.
+  let write = admin
     .from('deliveries')
     .update(update)
-    .eq('id', claimed.delivery_id);
+    .eq('id', claimed.delivery_id)
+    .eq('status', PURPOSE_REQUIRES_STATUS[current.purpose]);
+  if (current.purpose !== 'recipient-confirm') {
+    write =
+      claimed.rider_id === null
+        ? write.is('rider_id', null)
+        : write.eq('rider_id', claimed.rider_id);
+  }
+  const { data: moved, error: deliveryError } = await write.select('id').maybeSingle();
 
   // The link is already spent at this point, so failing here would leave the log
   // showing the old status with no way to retry. Surfacing it tells the holder to
   // call ops, which is the only useful thing they can do.
   if (deliveryError) throw new LinkError(deliveryError.message);
+
+  if (!moved) {
+    // The delivery moved between the claim and this write — another link's answer
+    // or an ops edit got there first. This answer did not take effect, so hand the
+    // claim back and report what the link is actually worth now ('superseded' /
+    // 'reassigned'), rather than a 'used' that recorded nothing.
+    await admin
+      .from('delivery_links')
+      .update({ confirmed_at: null, outcome: null })
+      .eq('token_hash', hashToken(token));
+    return loadLink(token);
+  }
 
   // Accepting a job is exactly when a rider stops being free, and closing one out
   // is when they are again — so the Riders tab follows from here rather than being

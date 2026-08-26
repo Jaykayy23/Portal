@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { fmtDateTime, fmtMoney } from '@/lib/format';
 import { StatTile } from '@/components/StatTile';
@@ -28,9 +27,6 @@ import {
 import { COMPANY, ledgerTotals, toLedger } from '@/lib/ledger';
 import { DELIVERY_STATUSES, type DeliveryWithMerchant } from '@/lib/types';
 import type { MerchantOption } from '@/lib/accounts';
-
-/** Same soft refresh as the log and the ledger — riders move these figures. */
-const REFRESH_MS = 60_000;
 
 /**
  * Days in the day-by-day chart.
@@ -139,21 +135,12 @@ export function CrmDashboard({
   seesAll: boolean;
   viewerCompany: string;
 }) {
-  const router = useRouter();
   const [range, setRange] = useState<RangeKey>('30d');
   const [merchantId, setMerchantId] = useState('');
 
-  useEffect(() => {
-    const refreshIfVisible = () => {
-      if (document.visibilityState === 'visible') router.refresh();
-    };
-    const timer = setInterval(refreshIfVisible, REFRESH_MS);
-    document.addEventListener('visibilitychange', refreshIfVisible);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', refreshIfVisible);
-    };
-  }, [router]);
+  // No refresh timer of its own: the portal layout's poll re-renders this page
+  // along with everything else, and a second interval here just doubled the
+  // database reads on the heaviest query in the app.
 
   const merchantOptions = useMemo(() => {
     const byId = new Map<string, string>();

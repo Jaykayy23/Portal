@@ -56,7 +56,10 @@ const BASE_ROW = {
  * `patchDelivery` decided to write, and a status it deliberately left alone is
  * an absent key, not a value.
  */
-function fakeSupabase(current: { status: DeliveryStatus; rider_id: string | null }) {
+function fakeSupabase(
+  current: { status: DeliveryStatus; rider_id: string | null },
+  { updateFindsRow = true }: { updateFindsRow?: boolean } = {}
+) {
   const updates: DeliveryUpdate[] = [];
 
   const readOne = (data: unknown) => ({
@@ -74,16 +77,19 @@ function fakeSupabase(current: { status: DeliveryStatus; rider_id: string | null
         select: () => readOne(current),
         update: (payload: DeliveryUpdate) => {
           updates.push(payload);
-          return {
-            eq: () => ({
-              select: () => ({
-                maybeSingle: async () => ({
-                  data: { ...BASE_ROW, ...current, ...payload },
-                  error: null,
-                }),
+          // The write is anchored with chained filters (.eq on id and status,
+          // .eq/.is on rider_id), so the double has to accept any number of them.
+          const chain = {
+            eq: () => chain,
+            is: () => chain,
+            select: () => ({
+              maybeSingle: async () => ({
+                data: updateFindsRow ? { ...BASE_ROW, ...current, ...payload } : null,
+                error: null,
               }),
             }),
           };
+          return chain;
         },
       };
     },
@@ -100,7 +106,7 @@ vi.mock('@/lib/supabase/server', () => ({
 // its own unit of behaviour and its own query surface — not this one's.
 vi.mock('@/lib/riderAvailability', () => ({ syncRiderAvailability: vi.fn() }));
 
-const { patchDelivery } = await import('@/lib/deliveries');
+const { patchDelivery, DeliveryConflictError } = await import('@/lib/deliveries');
 
 /** Runs one patch against a delivery in `current`, and returns what was written. */
 async function patchFrom(
@@ -168,5 +174,37 @@ describe('patchDelivery — offering a job to a rider', () => {
       { riderId: null }
     );
     expect(approved.status).toBeUndefined();
+  });
+});
+
+describe('patchDelivery — two ops working the same stale queue', () => {
+  beforeEach(() => createSupabaseServerClient.mockReset());
+
+  // The screen said "Unassigned", but by the time the request arrived somebody
+  // else had already put a rider on it. Refusing before anything is written is
+  // what stops both riders being messaged for one parcel.
+  it('refuses a write whose expected rider no longer matches, without writing', async () => {
+    const { client, updates } = fakeSupabase({ status: 'Pending', rider_id: 'rider-old' });
+    createSupabaseServerClient.mockResolvedValue(client);
+
+    await expect(
+      patchDelivery('delivery-1', { riderId: RIDER.id, expectedRiderId: null })
+    ).rejects.toBeInstanceOf(DeliveryConflictError);
+    expect(updates).toHaveLength(0);
+  });
+
+  // The row moved between this request's own read and its write — the anchored
+  // UPDATE matches zero rows, and a row that still exists means conflict, not
+  // "not found".
+  it('reports a conflict when the anchored update lands on zero rows', async () => {
+    const { client } = fakeSupabase(
+      { status: 'Requested', rider_id: null },
+      { updateFindsRow: false }
+    );
+    createSupabaseServerClient.mockResolvedValue(client);
+
+    await expect(
+      patchDelivery('delivery-1', { riderId: RIDER.id })
+    ).rejects.toBeInstanceOf(DeliveryConflictError);
   });
 });
