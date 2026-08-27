@@ -243,6 +243,35 @@ export interface LinkView {
   usedAt: string;
 }
 
+/**
+ * One SMS this portal attempted for a delivery, as the Notify modal reads it back.
+ *
+ * Lives here rather than beside the code that writes it because both sides of the
+ * wire need the shape and only one of them may touch lib/autoNotify.ts — that
+ * module carries a 'server-only' guard, and a Client Component importing even a
+ * type from it is a build failure waiting for the day the import stops being
+ * erased.
+ *
+ * There is no campaign id and no credit balance in here. Those are for whoever is
+ * debugging BMS, and they are in the table; this is for an ops person asking "was
+ * the rider told?".
+ */
+export interface SentAlert {
+  /** OutboundMessage.id — what the modal keys its rows on. */
+  messageId: string;
+  /** The lifecycle moment announced — a NotifyTrigger. */
+  event: string;
+  who: string;
+  phone: string;
+  /** False when someone re-sent this by hand from the Notify modal. */
+  automatic: boolean;
+  ok: boolean;
+  parts: number;
+  /** Why it did not go, in the words shown to whoever pressed send. '' when ok. */
+  error: string;
+  sentAt: string;
+}
+
 /** Statuses at which each kind of link is the question worth asking. */
 export const PURPOSE_REQUIRES_STATUS: Record<LinkPurpose, DeliveryStatus> = {
   'rider-response': 'Pending',

@@ -14,7 +14,7 @@ import {
   triggerForStatus,
   type OutboundMessage,
 } from '@/lib/deliveryMessages';
-import type { DeliveryWithMerchant, LinkPurpose } from '@/lib/types';
+import type { DeliveryWithMerchant, LinkPurpose, SentAlert } from '@/lib/types';
 
 /** Whether the portal can send SMS itself. GET /api/sms — never a credential. */
 interface SmsChannel {
@@ -51,6 +51,8 @@ function NotifyContact({
   channel,
   sending,
   result,
+  /** The last time the portal sent this message, if it ever has. */
+  already,
   onSend,
   children,
 }: {
@@ -60,6 +62,7 @@ function NotifyContact({
   channel: SmsChannel | null;
   sending: boolean;
   result: SendResult | undefined;
+  already: SentAlert | undefined;
   onSend: () => void;
   children?: React.ReactNode;
 }) {
@@ -84,6 +87,23 @@ function NotifyContact({
         <div className="somo-notify-pending">{pendingLabel || 'Preparing…'}</div>
       ) : (
         <>
+          {/* What the portal has already done with this message, before offering
+              to do it again. With alerts going out on the transition itself, this
+              is the normal state of every contact in this modal — the send button
+              below is a second message, and it should read like one. */}
+          {!result && already ? (
+            already.ok ? (
+              <div className="somo-notify-confirmed">
+                {already.automatic ? 'Sent automatically' : 'Sent by hand'} {fmtDateTime(already.sentAt)}{' '}
+                — {already.parts} credit{already.parts === 1 ? '' : 's'} used.
+              </div>
+            ) : (
+              <div className="somo-notify-link-error">
+                Did not send {fmtDateTime(already.sentAt)} — {already.error}
+              </div>
+            )
+          ) : null}
+
           <div className="btns">
             {/* The portal's own send leads when it is available, because it is the
                 one that needs no second app and no second tap. The deep links stay
@@ -93,7 +113,13 @@ function NotifyContact({
             {channel?.enabled ? (
               <button type="button" className="wa" onClick={onSend} disabled={sending}>
                 {sending ? <Spinner /> : null}
-                {sending ? 'Sending…' : result?.ok ? 'Send again' : 'Send by SMS'}
+                {sending
+                  ? 'Sending…'
+                  : result?.ok || already?.ok
+                    ? 'Send again'
+                    : already
+                      ? 'Try again'
+                      : 'Send by SMS'}
               </button>
             ) : null}
             <a className="wa" href={wa} target="_blank" rel="noopener noreferrer">
@@ -147,12 +173,19 @@ function LinkBox({ link, onCopy }: { link: MintedLink; onCopy: () => void }) {
  * for that step is held back until it arrives, because a job offer with no
  * accept/decline link is the exact failure this flow exists to prevent.
  *
- * Two ways out, and only one of them is new. If an admin has configured SMS
- * under Settings, "Send by SMS" posts to the server and the server sends. If not
- * — or as well — the WhatsApp and SMS deep links are what they always were. The
- * words are identical either way: both are rendered from the same
- * outboundFor() call the server composes from, so there is no second copy of the
- * wording to drift.
+ * What this modal is *for* has changed, and the code reads best if that is said
+ * plainly. Alerts now go out on the transition itself (lib/autoNotify.ts), so by
+ * the time anyone opens this, the rider has usually been offered the job and the
+ * customer has usually been told the parcel is coming. Nothing here opens by
+ * itself any more. It is opened deliberately, by someone who wants to know what
+ * was sent — which is why the first thing each contact shows is the recorded
+ * send, and only then a button to do it again.
+ *
+ * It stays the whole story for a portal with SMS switched off. There, nothing is
+ * automatic, the WhatsApp and SMS deep links are the channel, and this modal
+ * still opens by itself after an assignment or a pickup. The words are identical
+ * either way: every path renders the same outboundFor() call the server composes
+ * from, so there is no second copy of the wording to drift.
  */
 function NotifyBody({
   record,
@@ -172,6 +205,8 @@ function NotifyBody({
   const [channel, setChannel] = useState<SmsChannel | null>(null);
   const [sending, setSending] = useState('');
   const [results, setResults] = useState<Record<string, SendResult>>({});
+  /** The newest recorded send per message id. Empty until the log arrives. */
+  const [history, setHistory] = useState<Record<string, SentAlert>>({});
 
   /**
    * One idempotency key per message, minted on the first attempt and dropped once
@@ -224,6 +259,34 @@ function NotifyBody({
     };
   }, []);
 
+  // What has already been sent for this delivery. The server returns every
+  // recorded attempt newest first, so the first row for a message id is its
+  // latest outcome and the rest are its history — which this screen has no room
+  // for and no question that needs it.
+  //
+  // A failure here is silent on purpose: it means the modal shows no send
+  // history, which is the state it was in before this existed, rather than an
+  // error over a delivery flow that is working.
+  useEffect(() => {
+    let cancelled = false;
+    api<{ sent: SentAlert[] }>(`/deliveries/${record.id}/notify`)
+      .then(({ sent }) => {
+        if (cancelled) return;
+        const latest: Record<string, SentAlert> = {};
+        for (const alert of sent) {
+          if (!latest[alert.messageId]) latest[alert.messageId] = alert;
+        }
+        setHistory(latest);
+      })
+      .catch(() => {
+        /* no history shown */
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [record.id]);
+
   const messages = outboundFor(trigger, record, {
     opsPhone,
     merchantPhone: record.merchantPhone || '',
@@ -271,6 +334,13 @@ function NotifyBody({
         if (result.ok) {
           // Consumed: the next press is a deliberate second message.
           delete sendKeys.current[message.id];
+          // This send is now the newest one, and it is already on screen as
+          // `result`. Dropping the recorded row stops the two contradicting each
+          // other — "did not send 14:02" sitting above "sent by SMS".
+          setHistory((prev) => {
+            const { [message.id]: _gone, ...rest } = prev;
+            return rest;
+          });
           toast(`Sent to ${result.who}`);
         } else {
           toast(result.error, 'danger');
@@ -289,7 +359,7 @@ function NotifyBody({
       title={TRIGGER_TITLE[trigger]}
       description={
         channel?.enabled
-          ? 'Send by SMS goes out from the portal’s own sender straight away. The WhatsApp and SMS buttons open the message on this device instead, for you to tap send there.'
+          ? 'The portal sends these by itself as a delivery moves, so they have normally gone already — each one says when. Send again if something did not arrive, or use WhatsApp to send it from this device.'
           : 'These open WhatsApp or your SMS app with the message pre-filled — tap send there to actually deliver it. No message leaves this device until you do.'
       }
       closeLabel="Close"
@@ -306,6 +376,7 @@ function NotifyBody({
             channel={channel}
             sending={sending === message.id}
             result={results[message.id]}
+            already={history[message.id]}
             onSend={() => send(message)}
           >
             {message.needsLink && link ? <LinkBox link={link} onCopy={copyLink} /> : null}

@@ -6,11 +6,52 @@ import { DeliveryError, getDeliveryFor } from '@/lib/deliveries';
 import { LinkError, issueLink } from '@/lib/deliveryLinks';
 import { getPricingParams } from '@/lib/settings';
 import { SmsError, sendOutbound } from '@/lib/sms';
+import { listSentAlerts, recordSends } from '@/lib/autoNotify';
 import { linkNeededFor, outboundFor, triggerForStatus } from '@/lib/deliveryMessages';
 import type { DeliveryWithMerchant, LinkPurpose } from '@/lib/types';
 
 /**
+ * What this delivery has already been sent.
+ *
+ * The modal asks on open, and the answer is what turns it from a prompt into a
+ * record: the alerts for a status change have normally gone out automatically
+ * before anyone opens this, so a plain "Send by SMS" button would be an
+ * invitation to text a rider a second time. What it shows instead is when the
+ * message went, whether BMS took it, and — if it did not — the button to try
+ * again.
+ *
+ * Visibility is decided by loading the delivery under RLS first, which is the
+ * same check that governs everything else the modal shows. delivery_notifications
+ * itself is granted to no public role, so there is no second policy to keep in
+ * step with this one.
+ */
+export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  return handle(async () => {
+    await requireUser('admin', 'ops', 'merchant');
+    const { id } = await ctx.params;
+
+    try {
+      await getDeliveryFor(id);
+    } catch (e) {
+      if (e instanceof DeliveryError) notFound(e.message);
+      throw e;
+    }
+
+    return NextResponse.json({ sent: await listSentAlerts(id) });
+  });
+}
+
+/**
  * Sends this delivery's alerts by SMS, through BMS.
+ *
+ * --- this is the re-send path, not the send path ----------------------------
+ *
+ * Alerts now go out on the transition itself — see lib/autoNotify.ts. What is
+ * left for this handler is the case automation cannot cover: a message BMS
+ * refused, a number that was wrong and has been corrected, a rider who says he
+ * never got it. That is a deliberate second message, which is why every send
+ * from here is recorded with `automatic: false` and why the modal labels the
+ * button "Send again" once something has already gone.
  *
  * --- the message text is not accepted from the caller ------------------------
  *
@@ -144,7 +185,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         : wanted;
 
       try {
-        return { trigger, link, results: await sendOutbound(messages) };
+        const results = await sendOutbound(messages);
+        // Recorded as a hand-sent message, which is the distinction the log
+        // exists to make: "the portal never told them" and "somebody told them
+        // twice" look identical from a handset and need telling apart here.
+        await recordSends(id, trigger, results, { automatic: false, sentBy: user.id });
+        return { trigger, link, results };
       } catch (e) {
         // Thrown only when the portal cannot send at all, which is a 400 the
         // admin can act on rather than a server fault.

@@ -13,8 +13,9 @@ Three portal seats carry roughly equal weight — none is a visitor:
 - **Merchants** file delivery requests and follow their own rows. They work from
   **phone, tablet, or laptop**, often between other work, so merchant-facing
   surfaces have to be genuinely good at phone width, not merely survivable.
-- **Ops** triage the incoming queue, assign riders, and fire the WhatsApp/SMS
-  alerts. **At a desk.**
+- **Ops** triage the incoming queue and assign riders. The alerts fire themselves
+  once SMS is configured — ops chase the exceptions, not the sending. **At a
+  desk.**
 - **Finance** work the ledger: rider floats, merchant invoices, COD payouts, and
   recording settlements. **At a desk.** Read-only by construction everywhere
   except the settlement they record.
@@ -31,8 +32,9 @@ Two populations use the product without ever holding an account:
 ## Product Purpose
 
 Merchants log delivery requests and get one fixed distance-based price. Ops
-assign a rider. Everyone involved gets an alert — sent from the portal over SMS
-once BMS is configured, or as a one-tap WhatsApp/SMS link either way. A ledger
+assign a rider. Everyone involved is alerted — sent by the portal itself, over
+SMS, the moment the delivery moves once BMS is configured; as a one-tap
+WhatsApp/SMS link somebody sends by hand when it is not. A ledger
 tracks where the money for each delivery physically is, settlements record it
 moving, and a rider sitting on undeposited cash is blocked from taking new work.
 A dashboard counts the traffic behind all of it.

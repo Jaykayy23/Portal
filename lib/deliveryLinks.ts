@@ -163,11 +163,17 @@ export interface IssuedLink {
  * value was never stored, so reuse is impossible. Earlier links for the same
  * purpose keep working — revoking them would break the message already sent, and
  * they all ask the same question about the same delivery.
+ *
+ * `issuedBy` is null when the portal minted this itself for an automatic alert.
+ * Three of the six lifecycle transitions are anonymous requests carrying a
+ * capability token — a rider accepting, a recipient confirming, a rider closing
+ * a job — and each is followed by an alert carrying the next link. There is no
+ * signed-in user to name, and naming one anyway would be a false audit trail.
  */
 export async function issueLink(
   deliveryId: string,
   purpose: LinkPurpose,
-  issuedBy: string
+  issuedBy: string | null
 ): Promise<IssuedLink> {
   const admin = createAdminClient();
 
@@ -289,6 +295,26 @@ export async function loadLink(token: string): Promise<LinkView> {
   return { ...base, state: 'pending' };
 }
 
+/** The outcome of a redemption attempt, and whether it was this call that made it. */
+export interface RedeemResult {
+  view: LinkView;
+  /**
+   * The delivery this call moved, and where it moved it to — or null when the
+   * call changed nothing.
+   *
+   * A second tap on a spent link reports the same 'used' view as the first, which
+   * is right for the page: the holder should read back what they answered, not an
+   * error. It is wrong for anything with a side effect, and the alert that
+   * follows a transition is exactly that — without this, a rider refreshing the
+   * confirmation page would text the merchant again on every reload.
+   *
+   * The new status rides along because this function has already worked it out
+   * from the link's purpose and the holder's answer. Handing it back saves the
+   * caller re-reading the delivery to learn something that is known here.
+   */
+  redeemed: { deliveryId: string; status: DeliveryStatus } | null;
+}
+
 /**
  * Redeems the link: records the outcome and moves the delivery.
  *
@@ -297,9 +323,9 @@ export async function loadLink(token: string): Promise<LinkView> {
  * than in Node — the loser claims no row and is handed the winner's result
  * instead of writing a second, later timestamp over it.
  */
-export async function redeemLink(token: string, action: LinkAction): Promise<LinkView> {
+export async function redeemLink(token: string, action: LinkAction): Promise<RedeemResult> {
   const current = await loadLink(token);
-  if (current.state !== 'pending') return current;
+  if (current.state !== 'pending') return { view: current, redeemed: null };
 
   if (!PURPOSE_ACTIONS[current.purpose].includes(action)) {
     throw new LinkError('That is not something this link can do.');
@@ -327,7 +353,7 @@ export async function redeemLink(token: string, action: LinkAction): Promise<Lin
       userMessage('deliveryLinks.redeemLink (claim)', error, 'Could not record your answer. Try again in a moment.')
     );
   // Someone else got there first — re-read rather than reporting a second time.
-  if (!claimed) return loadLink(token);
+  if (!claimed) return { view: await loadLink(token), redeemed: null };
 
   const update: Database['public']['Tables']['deliveries']['Update'] = { status: nextStatus };
   update[stampColumn] = usedAt;
@@ -372,7 +398,7 @@ export async function redeemLink(token: string, action: LinkAction): Promise<Lin
       .from('delivery_links')
       .update({ confirmed_at: null, outcome: null })
       .eq('token_hash', hashToken(token));
-    return loadLink(token);
+    return { view: await loadLink(token), redeemed: null };
   }
 
   // Accepting a job is exactly when a rider stops being free, and closing one out
@@ -382,5 +408,8 @@ export async function redeemLink(token: string, action: LinkAction): Promise<Lin
     await syncRiderAvailability(admin, claimed.rider_id);
   }
 
-  return { ...current, state: 'used', outcome, usedAt };
+  return {
+    view: { ...current, state: 'used', outcome, usedAt },
+    redeemed: { deliveryId: claimed.delivery_id, status: nextStatus },
+  };
 }

@@ -306,6 +306,20 @@ export interface PatchDeliveryInput {
   expectedStatus?: Delivery['status'];
 }
 
+/** A patch that landed, and what the row looked like before it did. */
+export interface PatchDeliveryResult {
+  delivery: DeliveryWithMerchant;
+  /**
+   * The status this delivery held before the patch.
+   *
+   * Carried out because it is what makes the alert fire exactly once. The caller
+   * texts the rider only when this differs from the new status, and the UPDATE
+   * below is anchored to it — so out of any number of concurrent requests,
+   * exactly one sees a change and exactly one message goes out.
+   */
+  previousStatus: Delivery['status'];
+}
+
 /**
  * Status change and/or rider assignment. Ops/admin only — enforced by the RLS
  * UPDATE policy, so a merchant's request affects zero rows and surfaces as
@@ -320,7 +334,7 @@ export interface PatchDeliveryInput {
 export async function patchDelivery(
   id: string,
   patch: PatchDeliveryInput
-): Promise<DeliveryWithMerchant> {
+): Promise<PatchDeliveryResult> {
   const supabase = await createSupabaseServerClient();
 
   const { data: before, error: readError } = await supabase
@@ -465,7 +479,22 @@ export async function patchDelivery(
     .eq('id', delivery.merchantId)
     .maybeSingle();
 
-  return { ...delivery, merchantPhone: merchant?.phone ?? '' };
+  return {
+    delivery: { ...delivery, merchantPhone: merchant?.phone ?? '' },
+    previousStatus: before.status,
+  };
+}
+
+/** A pickup confirmation, and whether this call is the one that made it. */
+export interface ConfirmPickupResult {
+  delivery: DeliveryWithMerchant;
+  /**
+   * False when the delivery was already 'Picked up' — a second tap, or a retried
+   * request. The row comes back either way, because that is what the caller
+   * asked for and it is now true; but only the call that actually moved it has
+   * anything to announce.
+   */
+  moved: boolean;
 }
 
 /**
@@ -482,7 +511,7 @@ export async function patchDelivery(
  * but it does make the transition atomic: two taps a second apart cannot both
  * stamp a time.
  */
-export async function confirmPickup(deliveryId: string): Promise<DeliveryWithMerchant> {
+export async function confirmPickup(deliveryId: string): Promise<ConfirmPickupResult> {
   const supabase = await createSupabaseServerClient();
 
   const pickedUpAt = new Date().toISOString();
@@ -512,8 +541,9 @@ export async function confirmPickup(deliveryId: string): Promise<DeliveryWithMer
     if (!current) throw new DeliveryError('Delivery not found.');
     if (current.status === 'Picked up') {
       // Already done — almost certainly this caller's own double tap, so treat it
-      // as success and hand back the row rather than inventing a failure.
-      return readDelivery(supabase, deliveryId);
+      // as success and hand back the row rather than inventing a failure. `moved`
+      // is what stops the recipient being texted a second time for it.
+      return { delivery: await readDelivery(supabase, deliveryId), moved: false };
     }
     throw new DeliveryError(
       `Pickup can only be confirmed once the rider has accepted — this delivery is "${current.status}".`
@@ -527,7 +557,7 @@ export async function confirmPickup(deliveryId: string): Promise<DeliveryWithMer
     .eq('id', delivery.merchantId)
     .maybeSingle();
 
-  return { ...delivery, merchantPhone: merchant?.phone ?? '' };
+  return { delivery: { ...delivery, merchantPhone: merchant?.phone ?? '' }, moved: true };
 }
 
 /**

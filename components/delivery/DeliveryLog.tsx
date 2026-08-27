@@ -216,8 +216,14 @@ export function DeliveryLog({
   // refresh in the catch then shows them what it changed to.
   async function changeStatus(id: string, status: DeliveryStatus, expectedStatus: DeliveryStatus) {
     try {
-      await api('/deliveries/' + id, { method: 'PATCH', body: { status, expectedStatus } });
-      toast('Status updated');
+      const data = await api<{ alertsSent: boolean }>('/deliveries/' + id, {
+        method: 'PATCH',
+        body: { status, expectedStatus },
+      });
+      // Moving a row by hand announces itself exactly as the rider's own tap
+      // would have. Worth saying so: ops setting a delivery to 'Picked up'
+      // themselves has just texted the customer, and should know that.
+      toast(data.alertsSent ? 'Status updated — alerts sent' : 'Status updated');
       router.refresh();
     } catch (e) {
       toast(errMessage(e), 'danger');
@@ -228,14 +234,23 @@ export function DeliveryLog({
 
   async function assignRider(id: string, riderId: string, expectedRiderId: string) {
     try {
-      const data = await api<{ delivery: DeliveryWithMerchant }>('/deliveries/' + id, {
-        method: 'PATCH',
-        body: { riderId, expectedRiderId: expectedRiderId || null },
-      });
-      toast(riderId ? `Offered to ${data.delivery.riderName}` : 'Rider unassigned');
+      const data = await api<{ delivery: DeliveryWithMerchant; alertsSent: boolean }>(
+        '/deliveries/' + id,
+        { method: 'PATCH', body: { riderId, expectedRiderId: expectedRiderId || null } }
+      );
+      toast(
+        riderId
+          ? data.alertsSent
+            ? `Offered to ${data.delivery.riderName} — job offer sent`
+            : `Offered to ${data.delivery.riderName}`
+          : 'Rider unassigned'
+      );
       router.refresh();
-      // Straight into the job offer, which is the only reason to assign someone.
-      if (riderId) setNotify(data.delivery);
+      // The job offer, with its accept/decline link, has already reached the
+      // rider. The modal opens only when the portal cannot send it — there it is
+      // still the one thing standing between an assignment and a rider who knows
+      // about it.
+      if (riderId && !data.alertsSent) setNotify(data.delivery);
     } catch (e) {
       toast(errMessage(e), 'danger');
       router.refresh();
@@ -246,12 +261,15 @@ export function DeliveryLog({
   async function confirmPickup(id: string) {
     setConfirming(id);
     try {
-      const data = await api<{ delivery: DeliveryWithMerchant }>(`/deliveries/${id}/pickup`, {
-        method: 'POST',
-      });
-      toast('Pickup confirmed');
+      const data = await api<{ delivery: DeliveryWithMerchant; alertsSent: boolean }>(
+        `/deliveries/${id}/pickup`,
+        { method: 'POST' }
+      );
+      toast(
+        data.alertsSent ? 'Pickup confirmed — the customer has been texted' : 'Pickup confirmed'
+      );
       router.refresh();
-      setNotify(data.delivery);
+      if (!data.alertsSent) setNotify(data.delivery);
     } catch (e) {
       toast(errMessage(e), 'danger');
       router.refresh();

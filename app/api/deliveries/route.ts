@@ -6,6 +6,7 @@ import { calcPrice } from '@/lib/pricing';
 import { isValidPhone } from '@/lib/phone';
 import { getDeliveryOptions, getPricingParams } from '@/lib/settings';
 import { DeliveryError, createDelivery, listDeliveriesFor } from '@/lib/deliveries';
+import { alertOnTransition } from '@/lib/autoNotify';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import {
   DELIVERY_PAYERS,
@@ -190,7 +191,9 @@ export async function POST(req: Request) {
     }
 
     // Only the write is wrapped: a request rejected by the validation above never
-    // claims the key, so fixing the input and resubmitting works normally.
+    // claims the key, so fixing the input and resubmitting works normally — and
+    // the ops alert below is queued inside it, so a retried submission that
+    // replays the stored response does not text ops about the same request twice.
     const created = await withIdempotency('delivery-create', user.id, key, async () => {
       try {
         const delivery = await createDelivery({
@@ -212,7 +215,13 @@ export async function POST(req: Request) {
           price,
           status: 'Requested',
         });
-        return { delivery };
+
+        // Ops finds out that a request came in without anyone having to
+        // remember to tell them. `alertsSent` false means SMS is switched off,
+        // which is the form's cue to open the Notify modal instead so the
+        // merchant can send it from their own phone.
+        const alertsSent = await alertOnTransition(delivery.id, 'created', req);
+        return { delivery, alertsSent };
       } catch (e) {
         if (e instanceof DeliveryError) badRequest(e.message);
         throw e;

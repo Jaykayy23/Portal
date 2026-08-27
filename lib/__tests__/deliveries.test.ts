@@ -109,6 +109,7 @@ vi.mock('@/lib/riderAvailability', () => ({ syncRiderAvailability: vi.fn() }));
 
 const {
   patchDelivery,
+  confirmPickup,
   DeliveryConflictError,
   DELIVERY_MAX_ROWS,
   listDeliveriesFor,
@@ -397,5 +398,91 @@ describe('patchDelivery — two ops working the same stale queue', () => {
     await expect(
       patchDelivery('delivery-1', { riderId: RIDER.id })
     ).rejects.toBeInstanceOf(DeliveryConflictError);
+  });
+});
+
+/**
+ * Both of these exist for the automatic sender, and the property they protect is
+ * the same one: an alert fires when a delivery genuinely moves, and not
+ * otherwise. Getting it wrong is not a crash — it is a rider texted twice about
+ * one job, or a customer told their parcel is on the way every time somebody
+ * refreshes a page.
+ *
+ * Neither function decides to send anything. What they do is report honestly
+ * whether their own write changed the row, which is the fact the Route Handlers
+ * key the send off. That is why it is worth a test: the write is anchored in
+ * Postgres, so the only way this breaks is a caller here quietly reporting a
+ * transition that did not happen.
+ */
+describe('patchDelivery — reporting the transition, for the alert that follows', () => {
+  beforeEach(() => createSupabaseServerClient.mockReset());
+
+  it('reports the status the row held before, alongside the one it holds now', async () => {
+    const { client } = fakeSupabase({ status: 'Requested', rider_id: null });
+    createSupabaseServerClient.mockResolvedValue(client);
+
+    const { delivery, previousStatus } = await patchDelivery('delivery-1', {
+      riderId: RIDER.id,
+    });
+
+    expect(previousStatus).toBe('Requested');
+    expect(delivery.status).toBe('Pending');
+  });
+
+  // Attaching a rider to a delivery that is already Pending — correcting a
+  // mis-assignment, say — writes the rider columns and leaves the status where it
+  // was. There is no new job offer to send, and the two statuses matching is how
+  // the route knows that.
+  it('reports no change when a patch writes columns but does not move the row', async () => {
+    const { client } = fakeSupabase({ status: 'Pending', rider_id: 'rider-old' });
+    createSupabaseServerClient.mockResolvedValue(client);
+
+    const { delivery, previousStatus } = await patchDelivery('delivery-1', {
+      riderId: RIDER.id,
+    });
+
+    expect(previousStatus).toBe('Pending');
+    expect(delivery.status).toBe('Pending');
+  });
+});
+
+describe('confirmPickup — a second tap is not a second message', () => {
+  beforeEach(() => createSupabaseServerClient.mockReset());
+
+  it('reports the move when the status filter claims the row', async () => {
+    const { client } = fakeSupabase({ status: 'Assigned', rider_id: RIDER.id });
+    createSupabaseServerClient.mockResolvedValue(client);
+
+    const { delivery, moved } = await confirmPickup('delivery-1');
+
+    expect(moved).toBe(true);
+    expect(delivery.status).toBe('Picked up');
+  });
+
+  // The merchant tapping twice, or a retried request. The update finds nothing
+  // because the delivery is no longer 'Assigned', the row comes back anyway
+  // because that is what the caller asked for — and `moved` is false, so the
+  // recipient is not sent their "on the way" message a second time.
+  it('returns the row but reports no move when the delivery is already picked up', async () => {
+    const { client, updates } = fakeSupabase(
+      { status: 'Picked up', rider_id: RIDER.id },
+      { updateFindsRow: false }
+    );
+    createSupabaseServerClient.mockResolvedValue(client);
+
+    const { delivery, moved } = await confirmPickup('delivery-1');
+
+    expect(moved).toBe(false);
+    expect(delivery.status).toBe('Picked up');
+    // It did attempt the write — the guard is Postgres's status filter, not a
+    // read-then-decide in Node, which two taps a second apart would race.
+    expect(updates).toHaveLength(1);
+  });
+
+  it('refuses a delivery that has not been accepted yet', async () => {
+    const { client } = fakeSupabase({ status: 'Pending', rider_id: RIDER.id }, { updateFindsRow: false });
+    createSupabaseServerClient.mockResolvedValue(client);
+
+    await expect(confirmPickup('delivery-1')).rejects.toThrow(/only be confirmed once/);
   });
 });

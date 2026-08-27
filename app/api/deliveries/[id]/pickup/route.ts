@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { badRequest, handle, requireUser } from '@/lib/http';
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { DeliveryError, confirmPickup } from '@/lib/deliveries';
+import { alertOnTransition } from '@/lib/autoNotify';
 
 const PER_USER = { limit: 30, windowSeconds: 300 };
 
@@ -30,7 +31,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     await enforceRateLimit('delivery-pickup', user.id, PER_USER);
 
     try {
-      return NextResponse.json({ delivery: await confirmPickup(id) });
+      const { delivery, moved } = await confirmPickup(id);
+
+      // The recipient's "it is on the way" message, with their confirmation link
+      // in it, is the whole reason this transition exists — so it goes out here
+      // rather than waiting for the merchant to notice a modal. `moved` is what
+      // keeps a double tap from texting them twice: the second call finds the
+      // delivery already 'Picked up' and announces nothing.
+      const alertsSent = moved ? await alertOnTransition(id, 'picked-up', req) : false;
+
+      return NextResponse.json({ delivery, alertsSent });
     } catch (e) {
       if (e instanceof DeliveryError) badRequest(e.message);
       throw e;

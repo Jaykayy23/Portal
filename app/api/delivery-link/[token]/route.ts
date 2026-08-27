@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { HttpError, badRequest, handle } from '@/lib/http';
 import { enforceIpRateLimit, enforceRateLimit } from '@/lib/rateLimit';
 import { LinkError, redeemLink } from '@/lib/deliveryLinks';
+import { TRIGGER_ON_ENTERING } from '@/lib/deliveryMessages';
+import { alertOnTransition } from '@/lib/autoNotify';
 import type { LinkAction } from '@/lib/types';
 
 // A rider or customer taps once, maybe twice if unsure it worked. Anything past
@@ -55,22 +57,42 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
       throw e;
     }
 
+    const { view, redeemed } = result;
+
     // 'used' covers both a fresh answer and a second tap on a spent link; either
     // way the delivery is where the holder expects it, which is what the page
     // needs to render. Anything else is a link that cannot be redeemed, and the
     // status code lets the page say why rather than showing a generic failure.
-    if (result.state !== 'used') {
+    if (view.state !== 'used') {
       const message =
-        result.state === 'expired'
+        view.state === 'expired'
           ? 'This link has expired. Please call the ops team for a new one.'
-          : result.state === 'reassigned'
+          : view.state === 'reassigned'
             ? 'This delivery is no longer assigned to you.'
-            : result.state === 'superseded'
+            : view.state === 'superseded'
               ? 'This delivery has already moved on — nothing to do here.'
               : 'This link is not valid.';
       throw new HttpError(410, message);
     }
 
-    return NextResponse.json({ outcome: result.outcome, usedAt: result.usedAt });
+    // Half of this portal's alerts start here, at a tap from someone with no
+    // account: a rider accepting a job is what tells the merchant who is coming,
+    // and a recipient confirming receipt is what sends the rider the link that
+    // closes the job out. Nobody was ever going to open a modal for these — until
+    // now they waited for ops to notice the row had moved.
+    //
+    // Fired only for the tap that actually redeemed the link. Riders refresh
+    // these pages; `redeemed` is what keeps a refresh from being a second text.
+    // The status the link redeems into is known from its purpose and outcome, so
+    // there is no need to re-read the delivery to find out what to announce.
+    if (redeemed) {
+      const trigger = TRIGGER_ON_ENTERING[redeemed.status];
+      // Nothing is reported back to the caller. The holder is a rider at a gate
+      // or a customer at their door; the alert is about them, not for them, and
+      // whether it went is not their problem to see.
+      if (trigger) await alertOnTransition(redeemed.deliveryId, trigger, req);
+    }
+
+    return NextResponse.json({ outcome: view.outcome, usedAt: view.usedAt });
   });
 }

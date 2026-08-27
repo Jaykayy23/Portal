@@ -86,7 +86,11 @@ export function SmsSettingsCard({ sms }: { sms: SmsSettings }) {
           },
         },
       });
-      toast(enabled ? 'SMS sending is on' : 'SMS settings saved — sending is off');
+      toast(
+        enabled
+          ? 'SMS sending is on — alerts now go out automatically'
+          : 'SMS settings saved — sending is off'
+      );
       // The Notify modal asks the server whether it may offer a send button, so a
       // refresh is what makes a newly enabled channel show up there.
       router.refresh();
@@ -128,9 +132,15 @@ export function SmsSettingsCard({ sms }: { sms: SmsSettings }) {
         SMS sending (BMS)
         <InfoHint label="SMS sending">
           <p>
-            With this on, the <strong>Notify</strong> button can send a delivery&rsquo;s alerts
-            straight from the portal instead of opening WhatsApp for you to tap send. The wording
-            is identical either way — it comes from the same place.
+            With this on, the portal texts people <strong>by itself</strong> as a delivery moves:
+            ops when a request comes in, the rider when they are offered a job, the customer when
+            it is picked up, and so on down the line. Nobody has to remember to send anything.
+          </p>
+          <p>
+            The <strong>Notify</strong> button stays, and changes job. It becomes the record of
+            what was sent and the place to re-send anything that did not arrive — and with this
+            off, it is once again the only way alerts go out, by opening WhatsApp for you to tap
+            send. The wording is identical either way; it comes from the same place.
           </p>
           <p>
             Get the API key from the BMS dashboard under <strong>Developer / API</strong>. It is
@@ -150,6 +160,14 @@ export function SmsSettingsCard({ sms }: { sms: SmsSettings }) {
         <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
         Send delivery alerts by SMS automatically
       </label>
+      {/* Said beside the switch rather than only in the hint, because it is the
+          one consequence nobody should have to open a tooltip to find: turning
+          this on starts spending credits with no one pressing send. */}
+      <div className="somo-note" style={{ marginTop: -4 }}>
+        {enabled
+          ? 'The portal is sending these itself. Every delivery costs a few credits across its life.'
+          : 'Turning this on makes the portal text riders, merchants and customers on its own as each delivery moves.'}
+      </div>
 
       <label className="somo-field">
         <span>
@@ -227,8 +245,8 @@ export function SmsSettingsCard({ sms }: { sms: SmsSettings }) {
         <div className="somo-note" style={{ marginTop: 0 }}>
           {senderId.trim() ? `Alerts will show as “${senderId.trim()}”. ` : ''}
           {enabled
-            ? 'They go out from the Notify button.'
-            : 'Sending is off — the Notify button still opens WhatsApp for you to tap send.'}
+            ? 'They go out on their own as each delivery moves — every job offer, pickup and confirmation, without anyone pressing send.'
+            : 'Sending is off — nothing goes out on its own, and the Notify button still opens WhatsApp for you to tap send.'}
         </div>
       )}
 

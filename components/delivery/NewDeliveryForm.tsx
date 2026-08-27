@@ -185,7 +185,7 @@ export function NewDeliveryForm({
     try {
       if (!submitKey.current) submitKey.current = crypto.randomUUID();
 
-      const data = await api<{ delivery: DeliveryWithMerchant }>('/deliveries', {
+      const data = await api<{ delivery: DeliveryWithMerchant; alertsSent: boolean }>('/deliveries', {
         method: 'POST',
         idempotencyKey: submitKey.current,
         body: {
@@ -205,7 +205,7 @@ export function NewDeliveryForm({
         },
       });
 
-      toast('Delivery request logged');
+      toast(data.alertsSent ? 'Delivery request logged — ops alerted by SMS' : 'Delivery request logged');
 
       // Consumed: the next submission is a different delivery.
       submitKey.current = '';
@@ -223,7 +223,10 @@ export function NewDeliveryForm({
       setSurcharges([]);
       // So the delivery log tab reflects the new row without a manual reload.
       router.refresh();
-      setNotify(data.delivery);
+      // The ops alert has already gone out by SMS, so there is nothing to open a
+      // modal for. The modal is only for the portals that cannot send — there it
+      // is still the way the message reaches ops, from this device.
+      if (!data.alertsSent) setNotify(data.delivery);
     } catch (err) {
       toast(errMessage(err), 'danger');
     }

@@ -213,7 +213,8 @@ export interface Database {
           rider_id: string | null;
           rider_name: string;
           rider_phone: string;
-          issued_by: string;
+          /** Null when the portal minted it itself, for an automatic alert. */
+          issued_by: string | null;
           created_at: string;
           expires_at: string;
           confirmed_at: string | null;
@@ -227,13 +228,53 @@ export interface Database {
           rider_id?: string | null;
           rider_name?: string;
           rider_phone?: string;
-          issued_by: string;
+          issued_by: string | null;
           expires_at: string;
           confirmed_at?: string | null;
         };
         Update: {
           outcome?: 'accepted' | 'declined' | 'confirmed' | null;
           confirmed_at?: string | null;
+        };
+        Relationships: [];
+      };
+      delivery_notifications: {
+        Row: {
+          id: string;
+          delivery_id: string;
+          /** Matches NotifyTrigger in lib/deliveryMessages.ts. */
+          event: string;
+          /** OutboundMessage.id. */
+          message_id: string;
+          who: string;
+          phone: string;
+          automatic: boolean;
+          sent_by: string | null;
+          ok: boolean;
+          campaign_id: string;
+          parts: number;
+          error: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          delivery_id: string;
+          event: string;
+          message_id: string;
+          who?: string;
+          phone?: string;
+          automatic?: boolean;
+          sent_by?: string | null;
+          ok?: boolean;
+          campaign_id?: string;
+          parts?: number;
+          error?: string;
+        };
+        Update: {
+          ok?: boolean;
+          campaign_id?: string;
+          parts?: number;
+          error?: string;
         };
         Relationships: [];
       };

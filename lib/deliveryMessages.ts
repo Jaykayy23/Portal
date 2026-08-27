@@ -1,14 +1,13 @@
 // Who gets told what, at each point in a delivery's life.
 //
-// This is the seam. Today every message is delivered by a person tapping a
-// pre-filled wa.me or sms: link in the Notify modal — nothing is sent
-// unattended. When a WhatsApp Business API account is wired up, the sender
-// changes and this file does not: a server-side sender consumes exactly the same
-// OutboundMessage list, because composing "what to say" has no opinion about
-// who dials.
+// This is the seam, and it has held: the portal now sends these messages itself,
+// the moment the delivery moves (lib/autoNotify.ts), and this file did not
+// change to make that happen. Composing "what to say" has no opinion about who
+// dials — the Notify modal renders the same list for its WhatsApp deep links,
+// and a WhatsApp Business API sender would consume it too.
 //
-// Deliberately dependency-free (no database, no admin client, no React), so both
-// the browser modal and a future Route Handler can call it.
+// Deliberately dependency-free (no database, no admin client, no React), so the
+// browser modal and the server's sender can both call it.
 
 import { amountsDue, cashToCollect } from './amounts';
 import { fmtMoney, shortId } from './format';
@@ -354,3 +353,31 @@ export function triggerForStatus(record: Delivery): NotifyTrigger {
       return 'created';
   }
 }
+
+/**
+ * The alert a delivery *arriving* at each status fires on its own.
+ *
+ * A near-twin of triggerForStatus() above, and the difference between them is
+ * the point. That one answers "this row is sitting at X — what would you send
+ * about it?", for a modal opened on a row that may not have moved in days, and
+ * so it always has an answer. This one answers "the row just became X — who has
+ * to be told, right now?", and for two statuses the answer is nobody:
+ *
+ *   Requested  is where a delivery starts. Its ops alert fires from the create
+ *              route, which knows the row is new. Firing it from here as well
+ *              would text ops "New delivery request" every time someone took a
+ *              rider off a job and dropped it back into the queue.
+ *   Approved   is a pre-rider state ops moves a row into themselves. They are
+ *              the audience for a 'created' alert and they are the ones doing
+ *              it, so there is nothing to say.
+ *
+ * Absent from the map therefore means "no automatic alert", not "not handled".
+ */
+export const TRIGGER_ON_ENTERING: Partial<Record<Delivery['status'], NotifyTrigger>> = {
+  Pending: 'offered',
+  Declined: 'declined',
+  Assigned: 'accepted',
+  'Picked up': 'picked-up',
+  'Recipient confirmed': 'recipient-confirmed',
+  Delivered: 'delivered',
+};

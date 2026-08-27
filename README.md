@@ -604,12 +604,16 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
 
   Set `NEXT_PUBLIC_APP_URL` if a reverse proxy rewrites the forwarded host,
   otherwise links point at whatever host the request arrived on.
-- **Alerts go out two ways.** The `wa.me` / `sms:` deep links are always there:
-  they pre-fill the message and whoever is at the keyboard taps send. With BMS
-  configured, the same modal also has a **Send by SMS** button that sends from the
-  portal's own sender ID — see below. WhatsApp is still deep-link only; the
-  `whatsapp_otp_key` field is stored ready for a Business API integration that is
-  not written yet.
+- **Alerts send themselves.** With BMS configured, every message above goes out
+  the moment the delivery moves — see *Automatic alerts* below. The Notify modal
+  stops opening by itself and becomes the record of what was sent, plus a
+  **Send again** button for anything that did not arrive.
+
+  With SMS switched off, nothing is automatic and the portal behaves as it always
+  did: the `wa.me` / `sms:` deep links pre-fill the message, the modal opens after
+  an assignment or a pickup, and whoever is at the keyboard taps send. WhatsApp is
+  deep-link only either way; the `whatsapp_otp_key` field is stored ready for a
+  Business API integration that is not written yet.
 
 ### SMS through BMS
 
@@ -666,6 +670,60 @@ while sending is on is **refused** rather than quietly switching sending off - a
 integration that turns itself off is one nobody notices has stopped, and the cost
 is a rider never told about a job.
 
+### Automatic alerts
+
+Once `sms_enabled` is on, the portal sends without being asked. Nobody presses a
+button, and there is no modal in the path:
+
+| the delivery moves to | who is texted |
+| --- | --- |
+| `Requested` (filed) | ops — assign a rider |
+| `Pending` (rider assigned) | the rider, with an accept/decline link; ops |
+| `Declined` | ops — find someone else |
+| `Assigned` (rider accepted) | the merchant, with the rider's details; ops |
+| `Picked up` | the recipient, with a confirmation link; ops |
+| `Recipient confirmed` | the rider, with a completion link; ops; the merchant |
+| `Delivered` | ops; the merchant |
+
+Three of those transitions are caused by someone with no portal account at all —
+a rider tapping accept, a recipient confirming receipt, a rider closing a job —
+which is where the old flow leaked worst. Those alerts used to wait until ops
+noticed the row had moved.
+
+**How it is sent without failing the request.** [lib/autoNotify.ts](lib/autoNotify.ts)
+checks whether SMS is on (one indexed read), then does the work in Next's
+[`after()`](https://nextjs.org/docs/app/api-reference/functions/after), past the
+response. A merchant confirming a pickup never waits on BMS, and a BMS outage
+cannot fail a status change. Everything in the callback is caught and logged;
+there is nobody left to tell.
+
+**How it is sent exactly once.** Not with a unique index — deliberately. A rider
+who declines a job and is then offered the same job again *must* be texted twice,
+and no constraint can tell that apart from a double send. Instead the alert fires
+only on a genuine transition, and every write that causes one is anchored in
+Postgres so exactly one concurrent request can win it: `patchDelivery` anchors on
+the previous status and rider, `confirmPickup` filters on `status = 'Assigned'`,
+and `redeemLink` claims on `confirmed_at is null`. Each of those now reports
+whether *this* call was the one that moved the row. A rider refreshing the
+confirmation page does not re-text the merchant.
+
+**Links are minted by nobody.** `delivery_links.issued_by` is nullable as of
+`20260827120000_automatic_delivery_alerts.sql`, and null means the portal minted it
+itself. Attributing an anonymous rider's transition to whichever account last
+touched the row would have been a false audit trail.
+
+**What was sent is written down.** `delivery_notifications` holds one row per
+attempt — the moment, the message id, who, the number, whether BMS took it, what
+it cost, and `automatic` to separate a portal send from a hand re-send. Granted to
+no public role; the Notify modal reads it through
+`GET /api/deliveries/[id]/notify`, which loads the delivery under RLS first. That
+is what lets the modal say *"Sent automatically 14:02 — 2 credits"* against a
+contact instead of offering a button that would text the rider a second time.
+
+**Turning it off.** Untick *Send delivery alerts by SMS automatically* under
+Settings. Nothing sends on its own, the modal opens after actions again, and the
+deep links are the channel — the same portal as before BMS existed.
+
 **The message text is never accepted from the caller.**
 `POST /api/deliveries/[id]/notify` takes a list of message *ids* and nothing else.
 The text is composed server-side by
@@ -676,12 +734,14 @@ company's sender ID, to a customer's phone. The capability link inside the messa
 is minted server-side for the same reason, and only when a message actually
 carrying one is being sent.
 
-**Who may send:** admin, ops, and the merchant who owns the delivery - the same set
-that may mint links, and for the same reason (confirming pickup and telling the
+**Who may re-send:** admin, ops, and the merchant who owns the delivery - the same
+set that may mint links, and for the same reason (confirming pickup and telling the
 recipient is the merchant's own step). Finance is excluded. Sends are rate limited
 per user and per delivery, tighter than links are, because each one spends
 credits; and the route is idempotent, so a retry after a dropped response replays
-the first send instead of texting a customer twice.
+the first send instead of texting a customer twice. Every send from this route is
+recorded with `automatic: false`, because "the portal never told them" and
+"somebody told them twice" look identical from a handset and need telling apart.
 
 **Punctuation costs money, so it is substituted before sending.** An SMS is 160
 characters a part in GSM-7 and 70 in UCS-2, and *one* character outside the GSM-7
@@ -698,8 +758,10 @@ name to save a credit is the wrong trade.
 what it charged, but not whether the handset saw it. BMS does expose delivery
 reports - `GET /campaign/<id>/<status>` and `GET /status/<id>` - and every send
 already returns and surfaces the campaign id they are looked up by, so the next
-step is a polling job plus an `sms_messages` table rather than new plumbing. There
-is no per-message send log either; the audit trail is the BMS dashboard.
+step is a polling job over `delivery_notifications` — which already stores the
+campaign id per message — rather than new plumbing. Until then, "BMS accepted it"
+is the strongest thing the portal can say, and the handset-level audit trail is
+the BMS dashboard.
 
 ---
 

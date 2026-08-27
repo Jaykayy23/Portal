@@ -241,13 +241,21 @@ export function AlertsProvider({
     async (id: string) => {
       setConfirming(id);
       try {
-        const data = await api<{ delivery: DeliveryWithMerchant }>(`/deliveries/${id}/pickup`, {
-          method: 'POST',
-        });
-        toast('Pickup confirmed');
+        const data = await api<{ delivery: DeliveryWithMerchant; alertsSent: boolean }>(
+          `/deliveries/${id}/pickup`,
+          { method: 'POST' }
+        );
+        toast(
+          data.alertsSent
+            ? 'Pickup confirmed — the customer has been texted'
+            : 'Pickup confirmed'
+        );
         setPanelOpen(false);
         refreshNow();
-        setNotify(data.delivery);
+        // Only when the portal could not send it. With SMS on, the customer
+        // already has their "on the way" message and their confirmation link,
+        // and a modal here would be an invitation to send it a second time.
+        if (!data.alertsSent) setNotify(data.delivery);
       } catch (e) {
         toast(errMessage(e), 'danger');
         refreshNow();
