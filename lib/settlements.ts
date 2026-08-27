@@ -14,6 +14,7 @@
 
 import { createSupabaseServerClient } from './supabase/server';
 import { keysetBefore, readAllPages, READ_PAGE_SIZE } from './pagedRead';
+import { userMessage } from './errors';
 import type {
   SettlementKind,
   SettlementLeg,
@@ -132,7 +133,9 @@ export async function listSettlementMarks(
       },
       cursorOf: (row) => ({ sort: row.settled_at, id: row.id }),
       maxRows: SETTLEMENT_MAX_ROWS,
+      context: 'settlements.settlementMarks (lines)',
       fail: (message) => new SettlementError(message),
+      unavailable: 'Could not load the settlement records.',
     }),
     readAllPages({
       page: (cursor, size) => {
@@ -146,7 +149,9 @@ export async function listSettlementMarks(
       },
       cursorOf: (row) => ({ sort: row.settled_at, id: row.id }),
       maxRows: SETTLEMENT_MAX_ROWS,
+      context: 'settlements.settlementMarks (headers)',
       fail: (message) => new SettlementError(message),
+      unavailable: 'Could not load the settlement records.',
     }),
   ]);
 
@@ -242,7 +247,10 @@ export async function listSettlements(
     .order('id', { ascending: false })
     .limit(limit);
 
-  if (error) throw new SettlementError(error.message);
+  if (error)
+    throw new SettlementError(
+      userMessage('settlements.listSettlements', error, 'Could not load the settlement history.')
+    );
   if (!rows || rows.length === 0) return [];
 
   const ids = rows.map((r) => r.id);
@@ -262,7 +270,9 @@ export async function listSettlements(
       },
       cursorOf: (row) => ({ sort: row.settled_at, id: row.id }),
       maxRows: SETTLEMENT_MAX_ROWS,
+      context: 'settlements.listSettlements (lines)',
       fail: (message) => new SettlementError(message),
+      unavailable: 'Could not load the settlement history.',
     }),
     supabase.from('profiles').select('id, company_name').eq('role', 'merchant'),
   ]);
@@ -326,12 +336,14 @@ export async function recordSettlement(input: RecordSettlementInput): Promise<st
     })),
   });
 
-  if (error) throw new SettlementError(error.message);
+  if (error)
+    throw new SettlementError(userMessage('settlements.recordSettlement', error, 'Could not record that settlement.'));
   return data as string;
 }
 
 export async function voidSettlement(id: string, reason: string): Promise<void> {
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc('void_settlement', { p_id: id, p_reason: reason });
-  if (error) throw new SettlementError(error.message);
+  if (error)
+    throw new SettlementError(userMessage('settlements.voidSettlement', error, 'Could not void that settlement.'));
 }

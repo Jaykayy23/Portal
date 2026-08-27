@@ -7,6 +7,31 @@ import { usernameToEmail } from '@/lib/identity';
 import { useToast } from '@/components/Toast';
 import { Spinner } from '@/components/Spinner';
 
+/**
+ * What a failed sign-in says out loud.
+ *
+ * Supabase’s own wording is written for whoever wired the client up, and some
+ * of it ('Database error querying schema', 'Failed to fetch') would land on the
+ * login screen of a merchant who only mistyped something. The three cases below
+ * are the ones a person can actually do something about; everything else is a
+ * fault on our side, so it goes to the console and they get one plain line.
+ *
+ * 'Invalid login credentials' covers both an unknown account and a wrong
+ * password, which is the right behaviour — it avoids confirming which usernames
+ * exist — so the replacement keeps that ambiguity.
+ */
+function signInMessage(error: { message: string; code?: string; status?: number }): string {
+  if (error.message === 'Invalid login credentials') return 'Incorrect username or password.';
+  if (error.code === 'user_banned') {
+    return 'This account has been deactivated. Ask an administrator to switch it back on.';
+  }
+  if (error.status === 429 || error.code === 'over_request_rate_limit') {
+    return 'Too many attempts. Please wait a moment and try again.';
+  }
+  console.error('[somoexpress] Sign-in failed', error);
+  return 'Could not sign you in just now. Please try again.';
+}
+
 export function LoginForm({ nextPath }: { nextPath: string }) {
   const router = useRouter();
   const toast = useToast();
@@ -36,14 +61,7 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
     });
 
     if (signInError) {
-      // Supabase returns the same "Invalid login credentials" for an unknown
-      // account and a wrong password, which is the right behaviour — it avoids
-      // confirming which usernames exist.
-      setError(
-        signInError.message === 'Invalid login credentials'
-          ? 'Incorrect username or password.'
-          : signInError.message
-      );
+      setError(signInMessage(signInError));
       setBusy(false);
       return;
     }

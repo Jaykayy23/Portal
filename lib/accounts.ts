@@ -12,6 +12,7 @@ import { createSupabaseServerClient } from './supabase/server';
 import { publicAccount } from './session';
 import { genTempPassword } from './password';
 import { normalizeUsername, usernameToEmail } from './identity';
+import { userMessage } from './errors';
 import type { PublicAccount, Role } from './types';
 
 export interface CreateAccountInput {
@@ -61,7 +62,9 @@ export async function createAccount(input: CreateAccountInput): Promise<CreatedA
   });
 
   if (authError || !created.user) {
-    throw new AccountError(authError?.message || 'Could not create that account.');
+    throw new AccountError(
+      userMessage('accounts.createAccount (auth user)', authError, 'Could not create that account. Try again.')
+    );
   }
 
   const { data: profile, error: profileError } = await admin
@@ -81,7 +84,9 @@ export async function createAccount(input: CreateAccountInput): Promise<CreatedA
     // Don't leave an auth user with no profile — it could sign in and resolve to
     // no identity at all.
     await admin.auth.admin.deleteUser(created.user.id);
-    throw new AccountError(profileError?.message || 'Could not create that account.');
+    throw new AccountError(
+      userMessage('accounts.createAccount (profile)', profileError, 'Could not create that account. Try again.')
+    );
   }
 
   return { account: publicAccount(profile), password };
@@ -102,7 +107,7 @@ export async function listAccounts(opts: { role?: Role } = {}): Promise<PublicAc
 
   const { data, error } = await query.order('created_at', { ascending: true });
 
-  if (error) throw new AccountError(error.message);
+  if (error) throw new AccountError(userMessage('accounts.listAccounts', error, 'Could not load the accounts list.'));
   return (data ?? []).map(publicAccount);
 }
 
@@ -127,7 +132,8 @@ export async function updateAccount(
     .eq('username', username)
     .maybeSingle();
 
-  if (findError) throw new AccountError(findError.message);
+  if (findError)
+    throw new AccountError(userMessage('accounts.updateAccount (find)', findError, 'Could not look that account up.'));
   if (!profile) throw new AccountError('Account not found.');
 
   let newPassword: string | undefined;
@@ -137,7 +143,8 @@ export async function updateAccount(
     const { error } = await admin.auth.admin.updateUserById(profile.id, {
       password: newPassword,
     });
-    if (error) throw new AccountError(error.message);
+    if (error)
+      throw new AccountError(userMessage('accounts.updateAccount (password)', error, 'Could not reset that password.'));
   }
 
   if (typeof opts.active === 'boolean') {
@@ -146,13 +153,19 @@ export async function updateAccount(
       // expressing an indefinite one.
       ban_duration: opts.active ? 'none' : '876000h',
     });
-    if (banError) throw new AccountError(banError.message);
+    if (banError)
+      throw new AccountError(
+        userMessage('accounts.updateAccount (ban)', banError, 'Could not change that account’s access.')
+      );
 
     const { error: flagError } = await admin
       .from('profiles')
       .update({ active: opts.active })
       .eq('id', profile.id);
-    if (flagError) throw new AccountError(flagError.message);
+    if (flagError)
+      throw new AccountError(
+        userMessage('accounts.updateAccount (active flag)', flagError, 'Could not change that account’s access.')
+      );
   }
 
   const { data: updated, error: reloadError } = await admin
@@ -198,7 +211,8 @@ export async function listMerchantOptions(): Promise<MerchantOption[]> {
     .eq('role', 'merchant')
     .order('company_name', { ascending: true });
 
-  if (error) throw new AccountError(error.message);
+  if (error)
+    throw new AccountError(userMessage('accounts.listMerchantOptions', error, 'Could not load the merchant list.'));
   return (data ?? []).map((m) => ({
     id: m.id,
     name: m.company_name || m.username,

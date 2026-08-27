@@ -12,6 +12,25 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * What to say when a response carries no message of its own.
+ *
+ * Every Route Handler in this app answers a failure with `{ error }` written for
+ * whoever is reading it, so this is the gap-filler: a proxy timing out, a body
+ * that never parsed, a status nothing threw for. The HTTP code is the one thing
+ * known for certain at this point, and it is the one thing not worth showing —
+ * 'Request failed (503)' tells a merchant nothing they can act on, so it goes to
+ * the console and they get a sentence instead.
+ */
+function statusMessage(status: number): string {
+  if (status === 401) return 'Your session has ended. Please log in again.';
+  if (status === 403) return 'You do not have access to this.';
+  if (status === 404) return 'That is no longer here — refresh and try again.';
+  if (status === 429) return 'Too many requests — please wait a moment and try again.';
+  if (status >= 500) return 'The portal is having trouble right now. Please try again shortly.';
+  return 'That did not go through. Please try again.';
+}
+
 interface ApiOptions {
   method?: string;
   body?: unknown;
@@ -48,11 +67,12 @@ export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Pro
   }
 
   if (!res.ok) {
-    const message =
-      (data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
+    const served =
+      data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
         ? data.error
-        : null) ?? `Request failed (${res.status})`;
-    throw new ApiError(message, res.status);
+        : null;
+    if (!served) console.error(`[somoexpress] ${opts.method || 'GET'} /api${path} failed: ${res.status}`);
+    throw new ApiError(served ?? statusMessage(res.status), res.status);
   }
   return data as T;
 }
@@ -74,14 +94,15 @@ export async function apiDownload(path: string, fallbackName: string): Promise<v
   }
 
   if (!res.ok) {
-    let message = `Request failed (${res.status})`;
+    let message = '';
     try {
       const data = await res.json();
       if (data && typeof data === 'object' && typeof data.error === 'string') message = data.error;
     } catch {
       /* not a JSON error body */
     }
-    throw new ApiError(message, res.status);
+    if (!message) console.error(`[somoexpress] GET /api${path} failed: ${res.status}`);
+    throw new ApiError(message || statusMessage(res.status), res.status);
   }
 
   // The server names the file; the fallback covers a proxy that strips the header.
@@ -103,6 +124,17 @@ export async function apiDownload(path: string, fallbackName: string): Promise<v
   }
 }
 
+/**
+ * The sentence to show for a failed request.
+ *
+ * Only an ApiError gets to speak. Its message came off the wire, where the
+ * server had already decided what this person may be told; anything else that
+ * reaches here is a fault in this file or in the component that called it — a
+ * TypeError, a parse failure — and its message is a stack-trace fragment, not a
+ * sentence. Those go to the console, where they are useful.
+ */
 export function errMessage(e: unknown): string {
-  return e instanceof Error ? e.message : 'Something went wrong.';
+  if (e instanceof ApiError) return e.message;
+  console.error('[somoexpress] Unexpected client error', e);
+  return 'Something went wrong. Please try again.';
 }

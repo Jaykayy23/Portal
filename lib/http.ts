@@ -24,14 +24,16 @@ export class HttpError extends Error {
  * anything unexpected becomes a 500 with the detail logged, not leaked.
  */
 export async function handle(fn: () => Promise<NextResponse>): Promise<NextResponse> {
-  // A misconfigured deploy is a 503 with the missing variable names, not an
-  // anonymous 500 that only shows up in the server log.
+  // A misconfigured deploy is a 503, and the names of the variables that are
+  // missing go to the server log rather than into the response. Whoever can fix
+  // this has the log; whoever is looking at the screen is a merchant with a
+  // delivery to file, and “SUPABASE_SECRET_KEY” tells them nothing except that
+  // something is broken in a way they cannot act on.
   const missing = missingEnv();
   if (missing.length) {
+    console.error(`[somoexpress] Not configured: missing ${missing.join(', ')}. See .env.example.`);
     return NextResponse.json(
-      {
-        error: `Server is not configured: missing ${missing.join(', ')}. See .env.example.`,
-      },
+      { error: 'The portal is unavailable right now. Please try again shortly.' },
       { status: 503 }
     );
   }

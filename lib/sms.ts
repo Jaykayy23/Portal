@@ -41,6 +41,7 @@ import 'server-only';
 // no field that could carry it.
 
 import { createAdminClient } from './supabase/admin';
+import { userMessage } from './errors';
 import { smsParts, toBmsRecipient, toGsm7, type SmsConfigFields } from './smsConfig';
 import type { OutboundMessage } from './deliveryMessages';
 
@@ -83,7 +84,9 @@ export interface SmsStatus {
 
 const OFF: SmsStatus = {
   enabled: false,
-  reason: 'SMS sending is not set up. An admin can add BMS credentials under Settings.',
+  // Read by merchants and ops in the Notify modal, so it says what to do instead
+  // rather than naming the provider or a Settings page most of them cannot open.
+  reason: 'Sending by SMS is not switched on. Use the WhatsApp or SMS buttons to send from this device.',
 };
 
 /**
@@ -104,7 +107,7 @@ async function loadCredentials(): Promise<SmsCredentials | null> {
     .eq('id', 1)
     .maybeSingle();
 
-  if (error) throw new SmsError(error.message);
+  if (error) throw new SmsError(userMessage('sms.loadCredentials', error, OFF.reason));
   if (!data?.sms_enabled) return null;
 
   const creds: SmsCredentials = {
@@ -193,6 +196,11 @@ interface BmsEnvelope {
 /**
  * BMS's failures, in the words of whoever has to fix them.
  *
+ * Written for an admin on the Settings page: it names the provider, the account
+ * and the dashboard to open. It is not what the delivery flow shows — an ops
+ * person pressing Notify gets the plain sentence in postMessage() instead, and
+ * this reaches them only through the server log. See diagnostics below.
+ *
  * The published docs only document the success code (2000), so this leans on the
  * HTTP status and the provider's own `message` and adds a sentence only where the
  * likely cause is something an admin can act on and the raw message would not say
@@ -240,8 +248,23 @@ export interface SmsResult {
  * Never throws for a provider-side refusal — a bad recipient number on one of
  * three messages should not abandon the other two — so every outcome except a
  * missing configuration comes back as an SmsResult with `ok: false`.
+ *
+ * `diagnostics` picks which of two accounts of a failure comes back. Off — every
+ * delivery alert — the result carries the sentence written for the ops person or
+ * merchant who pressed Notify: what did not happen and what to do instead. On,
+ * which is only the admin's own test send from Settings, it carries BMS's own
+ * account of it, because that admin is the one who can act on "the sender ID is
+ * still pending approval" and is looking at the screen that fixes it.
+ *
+ * The provider's version is logged either way, so nothing is lost by not showing
+ * it — it is in the place someone debugging this would look.
  */
-async function postMessage(creds: SmsCredentials, to: string, rawBody: string): Promise<SmsResult> {
+async function postMessage(
+  creds: SmsCredentials,
+  to: string,
+  rawBody: string,
+  { diagnostics = false }: { diagnostics?: boolean } = {}
+): Promise<SmsResult> {
   const failed = (error: string): SmsResult => ({
     ok: false,
     campaignId: '',
@@ -249,6 +272,9 @@ async function postMessage(creds: SmsCredentials, to: string, rawBody: string): 
     creditLeft: -1,
     error,
   });
+
+  /** The same failure, told to whichever of the two is reading it. */
+  const say = (forSender: string, forAdmin: string) => failed(diagnostics ? forAdmin : forSender);
 
   const recipient = toBmsRecipient(to);
   if (!recipient) {
@@ -291,7 +317,8 @@ async function postMessage(creds: SmsCredentials, to: string, rawBody: string): 
     // Includes the timeout. Deliberately vague about the outcome, because that is
     // genuinely unknown: the request may have reached BMS.
     console.error('BMS send did not complete.', e instanceof Error ? e.message : e);
-    return failed(
+    return say(
+      'The message could not be sent just now. It may still have gone out, so check with the recipient before sending it again.',
       'Could not reach BMS. The message may not have been sent — check the BMS dashboard before re-sending.'
     );
   }
@@ -303,7 +330,10 @@ async function postMessage(creds: SmsCredentials, to: string, rawBody: string): 
     // recipient — so they are safe in a server log, and they are the two things
     // worth having when somebody reports "the SMS did not arrive".
     console.error(`BMS refused a send: HTTP ${status}, code ${payload.code ?? 'none'}`);
-    return failed(explain(status, payload, 'BMS would not accept the message.'));
+    return say(
+      'The portal could not send this message. Use the WhatsApp or SMS button to send it from this device instead.',
+      explain(status, payload, 'BMS would not accept the message.')
+    );
   }
 
   const summary = payload.summary ?? {};
@@ -315,7 +345,8 @@ async function postMessage(creds: SmsCredentials, to: string, rawBody: string): 
   // send would report as delivered.
   if ((summary.total_rejected ?? 0) > 0 && (summary.total_sent ?? 0) === 0) {
     return {
-      ...failed(
+      ...say(
+        'That number was rejected — check it is a live Ghanaian mobile number.',
         'BMS accepted the request but rejected this number. Check it is a live Ghanaian mobile number, then look the campaign up in the BMS dashboard.'
       ),
       campaignId: summary._id ?? '',
@@ -452,5 +483,6 @@ export async function sendOutbound(messages: OutboundMessage[]): Promise<Outboun
 export async function sendTestSms(to: string, body: string): Promise<SmsResult> {
   const creds = await loadCredentials();
   if (!creds) throw new SmsError(OFF.reason);
-  return postMessage(creds, to, body);
+  // The only caller is the Settings page, behind requireUser('admin').
+  return postMessage(creds, to, body, { diagnostics: true });
 }

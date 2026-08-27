@@ -11,6 +11,7 @@ import type { PublicAccount, Role, SessionUser } from './types';
 import type { Database } from './database.types';
 import { createSupabaseServerClient } from './supabase/server';
 import { createAdminClient } from './supabase/admin';
+import { logFailure } from './errors';
 
 type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 
@@ -76,7 +77,13 @@ export async function hasAnyAccount(): Promise<boolean> {
     .from('profiles')
     .select('id', { count: 'exact', head: true });
 
-  if (error) throw new Error(`Could not reach the database: ${error.message}`);
+  if (error) {
+    // No message worth passing on: the two callers are a server component that
+    // renders Next’s error page and a Route Handler whose 500 is already
+    // generic. The detail belongs in the log either way.
+    logFailure('session.hasAnyAccount', error);
+    throw new Error('Could not check whether this portal has any accounts.');
+  }
   return (count ?? 0) > 0;
 }
 

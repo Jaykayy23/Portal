@@ -7,6 +7,8 @@ interface Row {
 }
 
 const fail = (message: string) => new Error(message);
+const context = 'test';
+const unavailable = 'Could not load that.';
 const cursorOf = (r: Row): ReadCursor => ({ sort: r.at, id: r.id });
 
 /**
@@ -55,7 +57,7 @@ describe('readAllPages', () => {
   it('returns a set smaller than one page in a single request', async () => {
     const { page, cursors } = source(rows(3, spread));
 
-    const result = await readAllPages({ page, cursorOf, maxRows: 100, pageSize: 10, fail });
+    const result = await readAllPages({ page, cursorOf, maxRows: 100, pageSize: 10, context, fail, unavailable });
 
     expect(result.truncated).toBe(false);
     expect(result.rows).toHaveLength(3);
@@ -66,7 +68,7 @@ describe('readAllPages', () => {
   it('walks every page of a set several pages deep, newest first and without gaps', async () => {
     const { page, cursors } = source(rows(25, spread));
 
-    const result = await readAllPages({ page, cursorOf, maxRows: 100, pageSize: 10, fail });
+    const result = await readAllPages({ page, cursorOf, maxRows: 100, pageSize: 10, context, fail, unavailable });
 
     expect(result.truncated).toBe(false);
     // Every row exactly once — the whole point. A single capped query would
@@ -88,7 +90,7 @@ describe('readAllPages', () => {
     const collide = '2026-01-01T00:00:05.000Z';
     const { page } = source([...rows(4, spread), ...rows(12, () => collide, 'tie')]);
 
-    const result = await readAllPages({ page, cursorOf, maxRows: 100, pageSize: 6, fail });
+    const result = await readAllPages({ page, cursorOf, maxRows: 100, pageSize: 6, context, fail, unavailable });
 
     expect(result.truncated).toBe(false);
     expect(result.rows).toHaveLength(16);
@@ -99,7 +101,7 @@ describe('readAllPages', () => {
   it('reports truncation at the ceiling instead of returning a short answer quietly', async () => {
     const { page } = source(rows(50, spread));
 
-    const result = await readAllPages({ page, cursorOf, maxRows: 20, pageSize: 10, fail });
+    const result = await readAllPages({ page, cursorOf, maxRows: 20, pageSize: 10, context, fail, unavailable });
 
     expect(result.rows).toHaveLength(20);
     expect(result.truncated).toBe(true);
@@ -115,7 +117,7 @@ describe('readAllPages', () => {
       .fn()
       .mockResolvedValue({ data: rows(4, spread), error: null });
 
-    const result = await readAllPages({ page, cursorOf, maxRows: 100, pageSize: 4, fail });
+    const result = await readAllPages({ page, cursorOf, maxRows: 100, pageSize: 4, context, fail, unavailable });
 
     expect(result.truncated).toBe(true);
     expect(result.rows).toHaveLength(4);
@@ -127,7 +129,14 @@ describe('readAllPages', () => {
     const page = vi.fn().mockResolvedValue({ data: null, error: { message: 'boom' } });
 
     await expect(
-      readAllPages({ page, cursorOf, maxRows: 10, fail: (m) => new LedgerError(m) })
+      readAllPages({
+        page,
+        cursorOf,
+        maxRows: 10,
+        context,
+        fail: (m) => new LedgerError(m),
+        unavailable,
+      })
     ).rejects.toBeInstanceOf(LedgerError);
   });
 });

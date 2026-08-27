@@ -23,6 +23,7 @@ import { createAdminClient } from './supabase/admin';
 import { syncRiderAvailability } from './riderAvailability';
 import { shortId } from './format';
 import { amountsDue } from './amounts';
+import { userMessage } from './errors';
 import type { Database } from './database.types';
 import {
   PURPOSE_REQUIRES_STATUS,
@@ -176,7 +177,8 @@ export async function issueLink(
     .eq('id', deliveryId)
     .maybeSingle();
 
-  if (error) throw new LinkError(error.message);
+  if (error)
+    throw new LinkError(userMessage('deliveryLinks.issueLink (read)', error, 'Could not open this delivery.'));
   if (!delivery) throw new LinkError('Delivery not found.');
 
   const required = PURPOSE_REQUIRES_STATUS[purpose];
@@ -205,7 +207,10 @@ export async function issueLink(
     expires_at: expiresAt,
   });
 
-  if (insertError) throw new LinkError(insertError.message);
+  if (insertError)
+    throw new LinkError(
+      userMessage('deliveryLinks.issueLink (insert)', insertError, 'Could not create the link. Try again.')
+    );
   return { token, purpose, expiresAt };
 }
 
@@ -235,7 +240,10 @@ export async function loadLink(token: string): Promise<LinkView> {
     .eq('token_hash', hashToken(token))
     .maybeSingle();
 
-  if (error) throw new LinkError(error.message);
+  if (error)
+    throw new LinkError(
+      userMessage('deliveryLinks.loadLink', error, 'Could not open this link. Try again in a moment.')
+    );
   if (!link) return INVALID;
 
   const { data: delivery, error: deliveryError } = await admin
@@ -246,7 +254,10 @@ export async function loadLink(token: string): Promise<LinkView> {
     .eq('id', link.delivery_id)
     .maybeSingle();
 
-  if (deliveryError) throw new LinkError(deliveryError.message);
+  if (deliveryError)
+    throw new LinkError(
+      userMessage('deliveryLinks.loadLink (delivery)', deliveryError, 'Could not open this link. Try again in a moment.')
+    );
   if (!delivery) return INVALID;
 
   const summary = summarise(delivery, link.rider_name);
@@ -311,7 +322,10 @@ export async function redeemLink(token: string, action: LinkAction): Promise<Lin
     .select('delivery_id, rider_id')
     .maybeSingle();
 
-  if (error) throw new LinkError(error.message);
+  if (error)
+    throw new LinkError(
+      userMessage('deliveryLinks.redeemLink (claim)', error, 'Could not record your answer. Try again in a moment.')
+    );
   // Someone else got there first — re-read rather than reporting a second time.
   if (!claimed) return loadLink(token);
 
@@ -340,7 +354,14 @@ export async function redeemLink(token: string, action: LinkAction): Promise<Lin
   // The link is already spent at this point, so failing here would leave the log
   // showing the old status with no way to retry. Surfacing it tells the holder to
   // call ops, which is the only useful thing they can do.
-  if (deliveryError) throw new LinkError(deliveryError.message);
+  if (deliveryError)
+    throw new LinkError(
+      userMessage(
+        'deliveryLinks.redeemLink (delivery)',
+        deliveryError,
+        'Your answer was recorded, but the delivery could not be updated — please call the office.'
+      )
+    );
 
   if (!moved) {
     // The delivery moved between the claim and this write — another link's answer

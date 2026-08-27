@@ -9,6 +9,7 @@ import { cache } from 'react';
 import { createSupabaseServerClient } from './supabase/server';
 import { keysetBefore, readAllPages, READ_PAGE_SIZE } from './pagedRead';
 import { syncRiderAvailability } from './riderAvailability';
+import { userMessage } from './errors';
 import { seesAllMerchants, type Delivery, type DeliveryWithMerchant, type SessionUser } from './types';
 import type { Database } from './database.types';
 
@@ -162,7 +163,9 @@ const listDeliveries = cache(async function listDeliveries(
     },
     cursorOf: (row) => ({ sort: row.created_at, id: row.id }),
     maxRows,
+    context: 'deliveries.listDeliveries',
     fail: (message) => new DeliveryError(message),
+    unavailable: 'Could not load the delivery history.',
   });
 
   const records = rows.map(fromRow);
@@ -217,7 +220,10 @@ const listAlertDeliveries = cache(async function listAlertDeliveries(
     .order('id', { ascending: false })
     .limit(DELIVERY_READ_LIMIT);
 
-  if (error) throw new DeliveryError(error.message);
+  if (error)
+    throw new DeliveryError(
+      userMessage('deliveries.listAlertDeliveries', error, 'Could not load the deliveries needing attention.')
+    );
   const rows = (data ?? []).map(fromRow);
   if (!enrichWithMerchantPhone) return rows;
 
@@ -280,7 +286,8 @@ export async function createDelivery(input: CreateDeliveryInput): Promise<Delive
     .select('*')
     .single();
 
-  if (error) throw new DeliveryError(error.message);
+  if (error)
+    throw new DeliveryError(userMessage('deliveries.createDelivery', error, 'Could not save this delivery. Try again.'));
   return fromRow(data);
 }
 
@@ -321,7 +328,8 @@ export async function patchDelivery(
     .select('status, rider_id')
     .eq('id', id)
     .maybeSingle();
-  if (readError) throw new DeliveryError(readError.message);
+  if (readError)
+    throw new DeliveryError(userMessage('deliveries.patchDelivery (read)', readError, 'Could not open this delivery.'));
   if (!before) throw new DeliveryError('Delivery not found.');
 
   const conflict = () =>
@@ -377,7 +385,10 @@ export async function patchDelivery(
         .select('*')
         .eq('id', patch.riderId)
         .maybeSingle();
-      if (riderError) throw new DeliveryError(riderError.message);
+      if (riderError)
+        throw new DeliveryError(
+          userMessage('deliveries.patchDelivery (rider)', riderError, 'Could not look that rider up.')
+        );
       if (!rider) throw new DeliveryError('Unknown rider.');
 
       // Snapshotted onto the delivery so the record still reads correctly if the
@@ -422,7 +433,10 @@ export async function patchDelivery(
   write = previousRiderId === null ? write.is('rider_id', null) : write.eq('rider_id', previousRiderId);
   const { data, error } = await write.select('*').maybeSingle();
 
-  if (error) throw new DeliveryError(error.message);
+  if (error)
+    throw new DeliveryError(
+      userMessage('deliveries.patchDelivery (write)', error, 'Could not update this delivery. Refresh and try again.')
+    );
   if (!data) {
     // Zero rows is either a row that moved underneath us or one the caller
     // cannot see at all — and RLS makes "not yours" and "gone" the same answer.
@@ -480,7 +494,10 @@ export async function confirmPickup(deliveryId: string): Promise<DeliveryWithMer
     .select('*')
     .maybeSingle();
 
-  if (error) throw new DeliveryError(error.message);
+  if (error)
+    throw new DeliveryError(
+      userMessage('deliveries.confirmPickup', error, 'Could not confirm pickup. Refresh and try again.')
+    );
 
   if (!updated) {
     // Nothing was updated, and the interesting part is why. A row the caller can
@@ -531,7 +548,8 @@ async function readDelivery(
   id: string
 ): Promise<DeliveryWithMerchant> {
   const { data, error } = await supabase.from('deliveries').select('*').eq('id', id).maybeSingle();
-  if (error) throw new DeliveryError(error.message);
+  if (error)
+    throw new DeliveryError(userMessage('deliveries.readDelivery', error, 'Could not load this delivery.'));
   if (!data) throw new DeliveryError('Delivery not found.');
 
   const delivery = fromRow(data);

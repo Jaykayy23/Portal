@@ -63,7 +63,10 @@ export function SetupForm() {
       if (signInError) {
         // The account exists at this point, so send them to log in rather than
         // leaving them stuck on a screen that will now refuse to run again.
-        setError(`Admin account created, but sign-in failed: ${signInError.message}. Please log in.`);
+        console.error('[somoexpress] Sign-in after setup failed', signInError);
+        setError(
+          'Admin account created, but signing you in did not work. Log in with the username and password you just chose.'
+        );
         setInvalid(['username', 'password']);
         setBusy(false);
         return;

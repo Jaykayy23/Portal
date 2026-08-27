@@ -2,6 +2,7 @@
 // empty result rather than a leak even if a caller forgets to check.
 
 import { createSupabaseServerClient } from './supabase/server';
+import { userMessage } from './errors';
 import type { Rider, RiderStatus } from './types';
 import type { Database } from './database.types';
 
@@ -27,7 +28,7 @@ export async function listRiders(): Promise<Rider[]> {
     .select('*')
     .order('created_at', { ascending: true });
 
-  if (error) throw new RiderError(error.message);
+  if (error) throw new RiderError(userMessage('riders.listRiders', error, 'Could not load the riders list.'));
   return (data ?? []).map(fromRow);
 }
 
@@ -49,7 +50,7 @@ export async function createRider(input: {
     .select('*')
     .single();
 
-  if (error) throw new RiderError(error.message);
+  if (error) throw new RiderError(userMessage('riders.createRider', error, 'Could not add that rider. Try again.'));
   return fromRow(data);
 }
 
@@ -62,7 +63,8 @@ export async function setRiderStatus(id: string, status: RiderStatus): Promise<R
     .select('*')
     .maybeSingle();
 
-  if (error) throw new RiderError(error.message);
+  if (error)
+    throw new RiderError(userMessage('riders.setRiderStatus', error, 'Could not change that rider’s status.'));
   if (!data) throw new RiderError('Rider not found.');
   return fromRow(data);
 }

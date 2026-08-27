@@ -18,6 +18,7 @@ import { createSupabaseServerClient } from './supabase/server';
 import { createAdminClient } from './supabase/admin';
 import { DEFAULT_SURCHARGES } from './pricing';
 import { smsConfigProblem } from './smsConfig';
+import { userMessage } from './errors';
 import type {
   AppSettings,
   DeliveryOptions,
@@ -57,7 +58,7 @@ export const getPricingParams = cache(async function getPricingParams(): Promise
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.from('pricing_params').select('*').eq('id', 1).single();
 
-  if (error) throw new SettingsError(error.message);
+  if (error) throw new SettingsError(userMessage('settings.getPricingParams', error, 'Could not load pricing.'));
   return toPricingParams(data);
 });
 
@@ -88,7 +89,7 @@ export async function savePricingParams(patch: Partial<PricingParams>): Promise<
     .select('*')
     .maybeSingle();
 
-  if (error) throw new SettingsError(error.message);
+  if (error) throw new SettingsError(userMessage('settings.savePricingParams', error, 'Could not save pricing.'));
   // RLS blocks the write for non-admins, which shows up as zero rows updated.
   if (!data) throw new SettingsError('You do not have access to change pricing.');
 
@@ -113,7 +114,8 @@ export async function getDeliveryOptions(): Promise<DeliveryOptions> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.from('delivery_options').select('*').eq('id', 1).single();
 
-  if (error) throw new SettingsError(error.message);
+  if (error)
+    throw new SettingsError(userMessage('settings.getDeliveryOptions', error, 'Could not load the delivery options.'));
   return toDeliveryOptions(data);
 }
 
@@ -134,7 +136,8 @@ export async function saveDeliveryOptions(
     .select('*')
     .maybeSingle();
 
-  if (error) throw new SettingsError(error.message);
+  if (error)
+    throw new SettingsError(userMessage('settings.saveDeliveryOptions', error, 'Could not save the delivery options.'));
   // RLS blocks the write for non-admins, which shows up as zero rows updated.
   if (!data) throw new SettingsError('You do not have access to change delivery options.');
 
@@ -155,7 +158,7 @@ export async function getLogoDataUrl(): Promise<string> {
     .eq('id', 1)
     .maybeSingle();
 
-  if (error) throw new SettingsError(error.message);
+  if (error) throw new SettingsError(userMessage('settings.getLogoDataUrl', error, 'Could not load the logo.'));
   return data?.logo_data_url ?? '';
 }
 
@@ -168,7 +171,7 @@ export async function saveLogoDataUrl(logoDataUrl: string): Promise<string> {
     .select('logo_data_url')
     .maybeSingle();
 
-  if (error) throw new SettingsError(error.message);
+  if (error) throw new SettingsError(userMessage('settings.saveLogoDataUrl', error, 'Could not save the logo.'));
   if (!data) throw new SettingsError('You do not have access to change branding.');
   return data.logo_data_url;
 }
@@ -203,7 +206,8 @@ export async function getAppSettingsAsAdmin(): Promise<AppSettings> {
     getLogoDataUrl(),
   ]);
 
-  if (error) throw new SettingsError(error.message);
+  if (error)
+    throw new SettingsError(userMessage('settings.getAppSettingsAsAdmin', error, 'Could not load the settings.'));
   return {
     mapsApiKey: maskSecret(settings.maps_api_key),
     whatsappOtpKey: maskSecret(settings.whatsapp_otp_key),
@@ -242,7 +246,8 @@ export async function getMapsApiKeyForSignedInUser(): Promise<string> {
     .eq('id', 1)
     .maybeSingle();
 
-  if (error) throw new SettingsError(error.message);
+  if (error)
+    throw new SettingsError(userMessage('settings.getMapsApiKey', error, 'Could not load the settings.'));
   return data?.maps_api_key ?? '';
 }
 
@@ -305,7 +310,8 @@ export async function saveApiKeysAsAdmin(patch: SaveApiKeysInput): Promise<AppSe
       .select('other_keys')
       .eq('id', 1)
       .single();
-    if (readError) throw new SettingsError(readError.message);
+    if (readError)
+      throw new SettingsError(userMessage('settings.saveApiKeys (read)', readError, 'Could not save the keys.'));
 
     const storedByName = new Map((current.other_keys ?? []).map((k) => [k.name, k.value]));
 
@@ -329,7 +335,7 @@ export async function saveApiKeysAsAdmin(patch: SaveApiKeysInput): Promise<AppSe
 
   if (Object.keys(update).length > 0) {
     const { error } = await admin.from('app_settings').update(update).eq('id', 1);
-    if (error) throw new SettingsError(error.message);
+    if (error) throw new SettingsError(userMessage('settings.saveApiKeys', error, 'Could not save the keys.'));
   }
   return getAppSettingsAsAdmin();
 }
@@ -382,7 +388,10 @@ export async function saveSmsSettingsAsAdmin(patch: SaveSmsInput): Promise<AppSe
     .eq('id', 1)
     .single();
 
-  if (readError) throw new SettingsError(readError.message);
+  if (readError)
+    throw new SettingsError(
+      userMessage('settings.saveSmsSettings (read)', readError, 'Could not save the SMS settings.')
+    );
 
   const key = resolveSecret(patch.apiKey);
   const merged = {
@@ -403,6 +412,7 @@ export async function saveSmsSettingsAsAdmin(patch: SaveSmsInput): Promise<AppSe
     })
     .eq('id', 1);
 
-  if (error) throw new SettingsError(error.message);
+  if (error)
+    throw new SettingsError(userMessage('settings.saveSmsSettings', error, 'Could not save the SMS settings.'));
   return getAppSettingsAsAdmin();
 }

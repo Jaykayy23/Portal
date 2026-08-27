@@ -13,6 +13,8 @@
 // carries the last row's sort position forward, so pages stay disjoint no matter
 // what is written underneath.
 
+import { userMessage } from './errors';
+
 /** The Data API's per-response ceiling. A page may not usefully be larger. */
 export const READ_PAGE_SIZE = 1000;
 
@@ -61,13 +63,17 @@ interface PageRequest<T> {
   page: (
     cursor: ReadCursor | null,
     size: number
-  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
+  ) => PromiseLike<{ data: T[] | null; error: { message: string; code?: string } | null }>;
   /** The row's position in that sort. */
   cursorOf: (row: T) => ReadCursor;
   /** Hard ceiling across all pages, so a runaway read cannot exhaust memory. */
   maxRows: number;
-  /** Wraps a PostgREST error in the calling module's error type. */
+  /** Names this read in the server log when a page fails. */
+  context: string;
+  /** Wraps a failed page in the calling module's error type. */
   fail: (message: string) => Error;
+  /** What to show when the failure was not written for the person reading it. */
+  unavailable: string;
   pageSize?: number;
 }
 
@@ -84,7 +90,9 @@ export async function readAllPages<T>({
   page,
   cursorOf,
   maxRows,
+  context,
   fail,
+  unavailable,
   pageSize = READ_PAGE_SIZE,
 }: PageRequest<T>): Promise<PagedRead<T>> {
   const rows: T[] = [];
@@ -93,7 +101,7 @@ export async function readAllPages<T>({
 
   for (;;) {
     const { data, error } = await page(cursor, pageSize);
-    if (error) throw fail(error.message);
+    if (error) throw fail(userMessage(context, error, unavailable));
     const batch = data ?? [];
 
     let fresh = 0;
