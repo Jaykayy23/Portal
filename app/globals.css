@@ -2409,13 +2409,22 @@ body:has(.somo-link-page) {
    built from the same tokens as the tables above — no new colours except the
    finance role tag, which needed a fourth. */
 
-/* A labelled row of selects above a table. Wraps rather than scrolls: on a
-   phone these stack, and a filter you cannot see is a filter you forget is on. */
+/* A labelled row of selects above a table. Sits against the right edge, away
+   from the card's heading on the left. Wraps rather than scrolls: on a phone
+   these stack, and a filter you cannot see is a filter you forget is on. */
 .somo-filters {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 12px;
   margin-bottom: 18px;
+}
+/* Once they stack there is no left edge left to move away from, so they line up
+   with everything else on the page again. */
+@media (max-width: 640px) {
+  .somo-filters {
+    justify-content: flex-start;
+  }
 }
 .somo-filter {
   display: flex;
