@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, X } from 'lucide-react';
 import { api, errMessage } from '@/lib/api';
+import { fmtMoney } from '@/lib/format';
 import { useToast } from '@/components/Toast';
 import { InfoHint } from '@/components/InfoHint';
 import { Spinner } from '@/components/Spinner';
@@ -29,6 +30,23 @@ export function PricingForm({ params }: { params: PricingParams }) {
   const [bookingFee, setBookingFee] = useState(String(params.bookingFee ?? 0));
   const [platformFee, setPlatformFee] = useState(String(params.platformFee ?? 0));
   const [busy, setBusy] = useState<'fares' | 'surcharges' | 'booking' | 'platform' | null>(null);
+
+  // The minimum fare floors the fare; the two fees sit outside it. So the least
+  // any delivery can ever cost is all three added up, and that figure appears
+  // nowhere on this tab unless it is worked out here — which is the whole reason
+  // the readout exists, since "Minimum fare: 25" reads like the answer.
+  const floorParts = [
+    parseFloat(form.minFare) || 0,
+    parseFloat(bookingFee) || 0,
+    parseFloat(platformFee) || 0,
+  ];
+  const smallestQuote = floorParts.reduce((a, b) => a + b, 0);
+  // Three boxes across three forms feed this, so it can easily be showing the
+  // consequence of an edit nobody has saved. Half a pesewa of tolerance, because
+  // the columns store two decimal places and a typed 25.005 is stored as 25.01.
+  const savedSmallestQuote =
+    (params.minFare || 0) + (params.bookingFee || 0) + (params.platformFee || 0);
+  const unsaved = Math.abs(smallestQuote - savedSmallestQuote) >= 0.005;
 
   function field(key: keyof typeof form) {
     return {
@@ -133,6 +151,11 @@ export function PricingForm({ params }: { params: PricingParams }) {
               to 0 to quote on distance alone.
             </p>
             <p>
+              The minimum fare floors the <em>fare</em>, not the invoice: the surge charges and the
+              two fees are added after it, so the least a delivery can cost is the minimum fare plus
+              the booking and platform fees. That figure is shown below as you edit.
+            </p>
+            <p>
               What these rules produce is the charged price, not a starting point — nobody can type
               a different one. Edits are admin-only and apply to new quotes portal-wide at once.
             </p>
@@ -164,6 +187,22 @@ export function PricingForm({ params }: { params: PricingParams }) {
             <input className="somo-input" type="number" min="0" step="0.01" {...field('minFare')} />
           </label>
         </div>
+        <div className="somo-price-box">
+          <div className="somo-price-row">
+            <span className="l">
+              Smallest possible quote{unsaved ? ' (unsaved)' : ''}
+            </span>
+            <span className="v">{fmtMoney(smallestQuote)}</span>
+          </div>
+          <div className="somo-divider" />
+          <div className="somo-price-row">
+            <span className="l">Minimum fare + booking fee + platform fee</span>
+            <span className="v">
+              {floorParts.map((n) => n.toFixed(2)).join(' + ')}
+            </span>
+          </div>
+        </div>
+
         <label className="somo-field">
           <span>Ops team alert phone number (WhatsApp/SMS)</span>
           <input
