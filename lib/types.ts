@@ -301,6 +301,10 @@ export interface PricingParams {
   /** GHS per minute of estimated driving time. 0 disables time-based pricing. */
   perMin: number;
   minFare: number;
+  /** Flat GHS added once per delivery for the booking. 0 hides it from the quote. */
+  bookingFee: number;
+  /** Flat GHS added once per delivery for the platform. 0 hides it from the quote. */
+  platformFee: number;
   opsPhone: string;
   /** Surge charges offered on the New delivery form, in display order. */
   surcharges: SurchargeOption[];

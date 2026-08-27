@@ -539,6 +539,20 @@ export function NewDeliveryForm({
                   </span>
                 </div>
               )}
+              {/* A fee of 0 is one the portal does not charge, so it is left off
+                  rather than shown as a line worth nothing. */}
+              {params.bookingFee > 0 && (
+                <div className="somo-price-row">
+                  <span className="l">Booking fee</span>
+                  <span className="v">{fmtMoney(params.bookingFee)}</span>
+                </div>
+              )}
+              {params.platformFee > 0 && (
+                <div className="somo-price-row">
+                  <span className="l">Platform fee</span>
+                  <span className="v">{fmtMoney(params.platformFee)}</span>
+                </div>
+              )}
             </div>
 
             <label className="somo-field">

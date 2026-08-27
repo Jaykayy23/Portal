@@ -17,6 +17,25 @@ const MAX_SURCHARGES = 20;
 const MAX_SURCHARGE_AMOUNT = 100_000;
 
 /**
+ * A flat fee, checked here rather than left to the database.
+ *
+ * The non-negative CHECK on pricing_params would catch a negative fee, but it
+ * would come back as a save failure with nothing on screen saying which box was
+ * wrong. These two are the only pricing fields with their own form, so a typo in
+ * one is worth naming.
+ */
+function feeAmount(value: unknown, label: string): number {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount < 0) {
+    badRequest(`The ${label} has to be zero or more.`);
+  }
+  if (amount > MAX_SURCHARGE_AMOUNT) {
+    badRequest(`That ${label} looks wrong — it is far too large.`);
+  }
+  return Math.round(amount * 100) / 100;
+}
+
+/**
  * Surge charges arrive from the Pricing tab as free-form rows, so ids are worked
  * out here rather than trusted from the browser: an existing id is kept (past
  * deliveries reference it), and a new row gets one slugified from its label,
@@ -51,8 +70,8 @@ function normaliseSurcharges(input: unknown): SurchargeOption[] {
   });
 }
 
-// Admin only. Writes just the fields the caller sent, so the fares form and the
-// surge charge list can each save without touching the other.
+// Admin only. Writes just the fields the caller sent, so the fares, the surge
+// charge list and each fee can save without touching one another.
 export async function POST(req: Request) {
   return handle(async () => {
     await requireUser('admin');
@@ -63,6 +82,12 @@ export async function POST(req: Request) {
     if (body.rate !== undefined) patch.rate = Number(body.rate) || 0;
     if (body.perMin !== undefined) patch.perMin = Number(body.perMin) || 0;
     if (body.minFare !== undefined) patch.minFare = Number(body.minFare) || 0;
+    if (body.bookingFee !== undefined) {
+      patch.bookingFee = feeAmount(body.bookingFee, 'booking fee');
+    }
+    if (body.platformFee !== undefined) {
+      patch.platformFee = feeAmount(body.platformFee, 'platform fee');
+    }
     if (body.opsPhone !== undefined) patch.opsPhone = body.opsPhone || '';
     if (body.surcharges !== undefined) patch.surcharges = normaliseSurcharges(body.surcharges);
 

@@ -23,7 +23,12 @@ export function PricingForm({ params }: { params: PricingParams }) {
   // part of the same recommended price, so they belong on this tab. They save
   // separately because the amounts are edited row by row.
   const [surcharges, setSurcharges] = useState<SurchargeOption[]>(params.surcharges ?? []);
-  const [busy, setBusy] = useState<'fares' | 'surcharges' | null>(null);
+  // The two flat fees each get their own form for the same reason: an admin
+  // changing what the portal charges to book should not have to re-submit the
+  // fare table to do it, and a mistake in one box cannot take the others down.
+  const [bookingFee, setBookingFee] = useState(String(params.bookingFee ?? 0));
+  const [platformFee, setPlatformFee] = useState(String(params.platformFee ?? 0));
+  const [busy, setBusy] = useState<'fares' | 'surcharges' | 'booking' | 'platform' | null>(null);
 
   function field(key: keyof typeof form) {
     return {
@@ -50,6 +55,34 @@ export function PricingForm({ params }: { params: PricingParams }) {
       toast('Pricing parameters saved for all merchants');
       // New quotes everywhere use these immediately; refresh so the New delivery
       // tab picks them up too.
+      router.refresh();
+    } catch (err) {
+      toast(errMessage(err), 'danger');
+    }
+    setBusy(null);
+  }
+
+  /**
+   * The booking fee and the platform fee are the same form twice over — one
+   * amount, one save — so they share a handler rather than being copied.
+   */
+  async function saveFee(e: React.FormEvent, which: 'booking' | 'platform') {
+    e.preventDefault();
+    setBusy(which);
+    const isBooking = which === 'booking';
+    const typed = parseFloat(isBooking ? bookingFee : platformFee) || 0;
+    try {
+      const { params: saved } = await api<{ params: PricingParams }>('/pricing', {
+        method: 'POST',
+        body: isBooking ? { bookingFee: typed } : { platformFee: typed },
+      });
+      // Show what was stored rather than what was typed: the server rounds to the
+      // pesewa, and a box still reading 5.005 would be claiming otherwise.
+      const set = isBooking ? setBookingFee : setPlatformFee;
+      set(String(isBooking ? saved.bookingFee : saved.platformFee));
+      toast(`${isBooking ? 'Booking' : 'Platform'} fee saved for all merchants`);
+      // Every new quote carries it from here on, so the New delivery tab has to
+      // re-read the parameters it was server-rendered with.
       router.refresh();
     } catch (err) {
       toast(errMessage(err), 'danger');
@@ -92,7 +125,7 @@ export function PricingForm({ params }: { params: PricingParams }) {
               <strong>
                 max(minimum fare, base + rate × km + per-minute × minutes)
               </strong>{' '}
-              + surge charges.
+              + surge charges + booking fee + platform fee.
             </p>
             <p>
               Driving time comes from Google Maps at the moment of quoting, so two runs of the same
@@ -149,6 +182,90 @@ export function PricingForm({ params }: { params: PricingParams }) {
         >
           {busy === 'fares' ? <Spinner /> : null}
           {busy === 'fares' ? 'Saving…' : 'Save pricing parameters'}
+        </button>
+      </form>
+
+      <form
+        className="somo-card"
+        style={{ maxWidth: 480 }}
+        onSubmit={(e) => saveFee(e, 'booking')}
+      >
+        <h3>
+          Booking fee
+          <InfoHint label="booking fee">
+            <p>
+              A flat charge added once to every delivery for placing the booking, on top of the
+              fare and any surge charges.
+            </p>
+            <p>
+              The minimum fare does not cover it — placing a booking costs the same whether the run
+              is 1km or 30km, so the fee is the same either way.
+            </p>
+            <p>
+              Set it to 0 to charge nothing for booking; it then disappears from the quote entirely.
+              Deliveries already filed keep the price they were quoted.
+            </p>
+          </InfoHint>
+          <span className="tag-note">admin only</span>
+        </h3>
+
+        <label className="somo-field">
+          <span>Booking fee (GHS)</span>
+          <input
+            className="somo-input"
+            type="number"
+            min="0"
+            step="0.01"
+            value={bookingFee}
+            onChange={(e) => setBookingFee(e.target.value)}
+          />
+        </label>
+
+        <button className="somo-btn ghost" type="submit" disabled={busy === 'booking'}>
+          {busy === 'booking' ? <Spinner /> : null}
+          {busy === 'booking' ? 'Saving…' : 'Save booking fee'}
+        </button>
+      </form>
+
+      <form
+        className="somo-card"
+        style={{ maxWidth: 480 }}
+        onSubmit={(e) => saveFee(e, 'platform')}
+      >
+        <h3>
+          Platform fee
+          <InfoHint label="platform fee">
+            <p>
+              A flat charge added once to every delivery for running the portal — dispatch,
+              tracking and the alerts that go with it.
+            </p>
+            <p>
+              Like the booking fee it sits outside the minimum fare, so it is worth the same on
+              every run, and it is charged whether or not any surge charge is ticked.
+            </p>
+            <p>
+              Set it to 0 to charge nothing; it then disappears from the quote entirely. Edits apply
+              to new quotes portal-wide at once.
+            </p>
+          </InfoHint>
+          <span className="tag-note">admin only</span>
+        </h3>
+
+        <label className="somo-field">
+          <span>Platform fee (GHS)</span>
+          <input
+            className="somo-input"
+            type="number"
+            min="0"
+            step="0.01"
+            value={platformFee}
+            onChange={(e) => setPlatformFee(e.target.value)}
+          />
+        </label>
+
+        <button className="somo-btn ghost" type="submit" disabled={busy === 'platform'}>
+          {busy === 'platform' ? <Spinner /> : null}
+          {busy === 'platform' ? 'Saving…' : 'Save platform fee'}
         </button>
       </form>
 

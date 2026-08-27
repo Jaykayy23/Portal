@@ -40,6 +40,10 @@ function toPricingParams(row: Database['public']['Tables']['pricing_params']['Ro
     // deployed before the per_min migration lands, rather than NaN-ing every price.
     perMin: Number(row.per_min) || 0,
     minFare: Number(row.min_fare),
+    // Same `|| 0` reasoning as per_min: an app deployed ahead of the fees
+    // migration quotes without them rather than NaN-ing every price.
+    bookingFee: Number(row.booking_fee) || 0,
+    platformFee: Number(row.platform_fee) || 0,
     opsPhone: row.ops_phone,
     // Same reasoning as per_min: an app deployed ahead of the surcharges
     // migration falls back to the built-in list rather than losing the field.
@@ -63,9 +67,9 @@ export const getPricingParams = cache(async function getPricingParams(): Promise
 });
 
 /**
- * Writes only the fields present in `patch`, because the Pricing tab has two
- * separate forms — the fares and the surge charge list — and neither should
- * clobber the other's fields.
+ * Writes only the fields present in `patch`, because the Pricing tab is several
+ * separate forms — the fares, the surge charge list, the booking fee, the
+ * platform fee — and none of them should clobber another's fields.
  *
  * Admin-only, enforced by RLS rather than here: the session client is used
  * deliberately so a non-admin write updates zero rows.
@@ -77,6 +81,8 @@ export async function savePricingParams(patch: Partial<PricingParams>): Promise<
   if (patch.rate !== undefined) update.rate = patch.rate;
   if (patch.perMin !== undefined) update.per_min = patch.perMin;
   if (patch.minFare !== undefined) update.min_fare = patch.minFare;
+  if (patch.bookingFee !== undefined) update.booking_fee = patch.bookingFee;
+  if (patch.platformFee !== undefined) update.platform_fee = patch.platformFee;
   if (patch.opsPhone !== undefined) update.ops_phone = patch.opsPhone;
   if (patch.surcharges !== undefined) update.surcharges = patch.surcharges;
 

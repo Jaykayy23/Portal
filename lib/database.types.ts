@@ -163,6 +163,8 @@ export interface Database {
           rate: number;
           per_min: number;
           min_fare: number;
+          booking_fee: number;
+          platform_fee: number;
           ops_phone: string;
           surcharges: SurchargeRow[];
           updated_at: string;
@@ -173,6 +175,8 @@ export interface Database {
           rate?: number;
           per_min?: number;
           min_fare?: number;
+          booking_fee?: number;
+          platform_fee?: number;
           ops_phone?: string;
           surcharges?: SurchargeRow[];
         };
@@ -181,6 +185,8 @@ export interface Database {
           rate?: number;
           per_min?: number;
           min_fare?: number;
+          booking_fee?: number;
+          platform_fee?: number;
           ops_phone?: string;
           surcharges?: SurchargeRow[];
         };

@@ -39,10 +39,15 @@ export function surchargeId(label: string): string {
 
 /**
  * Price = max(minimum fare, base fare + rate x distance + per-min x time)
- *         + surge charges.
+ *         + surge charges + booking fee + platform fee.
  *
  * One figure, and it is the price. There is no floor and no negotiable band: what
  * this returns is what the delivery is logged and charged at.
+ *
+ * The two fees are flat amounts and sit outside the max() alongside the surge
+ * charges — the minimum fare floors the fare, not the fees, so a booking fee is
+ * worth the same on a 1km run as on a 30km one rather than being quietly
+ * swallowed on short trips.
  *
  * Time is the estimated driving minutes for the route, which is what makes two
  * runs of equal distance price differently when one of them crawls through
@@ -71,6 +76,9 @@ export function calcPrice(
     const opt = options.find((o) => o.id === id);
     return sum + (opt ? opt.amount : 0);
   }, 0);
-  const recommended = Math.max(params.minFare, base) + surchargeTotal;
+  // `|| 0` for the same reason toPricingParams() uses it: a portal running ahead
+  // of the fees migration quotes without them instead of returning NaN.
+  const fees = (Number(params.bookingFee) || 0) + (Number(params.platformFee) || 0);
+  const recommended = Math.max(params.minFare, base) + surchargeTotal + fees;
   return { price: round2(recommended) };
 }
