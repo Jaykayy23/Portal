@@ -159,7 +159,7 @@ export function NewDeliveryForm({
       return;
     }
     if (!declaredValue || Number(declaredValue) <= 0) {
-      toast('Declared value of the item is required', 'danger');
+      toast('Cost of the item is required', 'danger');
       return;
     }
     if (!itemPayment) {
@@ -400,8 +400,8 @@ export function NewDeliveryForm({
 
             <label className="somo-field">
               <span>
-                Declared value of item (GHS, required)
-                <InfoHint label="declared value">
+                Cost of Item (GHS, required)
+                <InfoHint label="cost of item">
                   <p>What the item is worth. It covers handling care and liability.</p>
                   <p>
                     On a cash-on-delivery request this is also the sum the rider collects at the

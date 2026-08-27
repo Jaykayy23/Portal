@@ -288,7 +288,7 @@ export function CrmDashboard({
             <StatTile
               label="Goods carried"
               value={fmtMoney(kpis.goodsTotal)}
-              sub="total declared value moved in this period"
+              sub="total cost of items moved in this period"
             />
           </div>
         )}

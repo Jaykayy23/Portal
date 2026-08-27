@@ -96,7 +96,7 @@ function paymentClause(record: Delivery): string {
   const parts: string[] = [];
 
   if (record.itemPayment === 'Cash on delivery') {
-    parts.push(`COLLECT CASH for the item (declared value ${fmtMoney(due.itemCash)})`);
+    parts.push(`COLLECT CASH for the item (cost of item ${fmtMoney(due.itemCash)})`);
   } else if (record.itemPayment === 'Prepaid') {
     parts.push('item is PREPAID, collect nothing for the goods');
   }
@@ -192,7 +192,7 @@ export function outboundFor(
           id: 'ops-created',
           who: 'Ops team',
           phone: ctx.opsPhone,
-          text: `New SomoExpress delivery request ${no}: ${record.customer} — ${route} (${record.distance.toFixed(1)}km${record.durationMin > 0 ? `, ~${record.durationMin.toFixed(0)}min` : ''}).${itemClause(record)}${recipientClause(record)} Declared value ${fmtMoney(record.declaredValue)}. Delivery fee ${fmtMoney(record.price)}.${opsCashClause(record)} Please assign a rider.`,
+          text: `New SomoExpress delivery request ${no}: ${record.customer} — ${route} (${record.distance.toFixed(1)}km${record.durationMin > 0 ? `, ~${record.durationMin.toFixed(0)}min` : ''}).${itemClause(record)}${recipientClause(record)} Cost of item ${fmtMoney(record.declaredValue)}. Delivery fee ${fmtMoney(record.price)}.${opsCashClause(record)} Please assign a rider.`,
         },
       ];
 

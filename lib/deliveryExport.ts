@@ -107,7 +107,7 @@ function columnsFor(opts: DeliveryExportOptions): Column<DeliveryWithMerchant>[]
           : null,
     },
     {
-      header: header('Declared value'),
+      header: header('Cost of item'),
       width: 16,
       cell: (r) => ({ type: Number, value: r.declaredValue, format: MONEY }),
     },

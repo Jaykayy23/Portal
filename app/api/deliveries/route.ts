@@ -114,7 +114,7 @@ export async function POST(req: Request) {
       badRequest('Estimated time looks wrong — it cannot exceed 24 hours.');
     }
     if (!declaredValue || Number(declaredValue) <= 0) {
-      badRequest('Declared value of the item is required.');
+      badRequest('Cost of the item is required.');
     }
     if (type !== undefined && !DELIVERY_TYPES.some((t) => t.value === type)) {
       badRequest('Invalid delivery type.');
