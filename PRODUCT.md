@@ -138,13 +138,13 @@ reaches a door are real properties of the product (see Capabilities), but were
   figure. The amounts also appear on the link page, because the message is what
   got scrolled past and the page is what is open at the door.
 - **One arithmetic source: `lib/amounts.ts`.** The message composer, the link
-  page, and the log all call it. Three copies of `declared value + fee` is how
+  page, and the log all call it. Three copies of `cost of item + fee` is how
   they come to disagree.
 - A link holder sees only what changes hands at the door — never the delivery's
   own figure.
-- COD amount is currently *inferred* from declared value, because that is the
-  only figure held. **Open decision:** if COD must ever differ from declared
-  value, it needs its own column rather than continuing to be inferred.
+- COD amount is currently *inferred* from the cost of the item, because that is
+  the only figure held. **Open decision:** if COD must ever differ from the cost
+  of the item, it needs its own column rather than continuing to be inferred.
 
 **Ledger and settlements**
 
@@ -162,7 +162,7 @@ reaches a door are real properties of the product (see Capabilities), but were
 
 - 256 random bits, one delivery, one question, 72-hour expiry. Only the sha256 is
   stored, so a database dump yields nothing clickable.
-- Shows no price, no declared value, and no other order; a recipient's link does
+- Shows no price, no cost of item, and no other order; a recipient's link does
   not even show the merchant's pickup address.
 - Dies on use, on the delivery moving past that step, or (rider links) the moment
   the delivery is reassigned.

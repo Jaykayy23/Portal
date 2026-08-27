@@ -177,7 +177,7 @@ function columnsFor(opts: LedgerExportOptions): Column<LedgerEntry>[] {
       width: 17,
       cell: ({ delivery }) => delivery.itemPayment || null,
     },
-    { header: header('Goods value'), width: 15, cell: ({ delivery }) => money(delivery.declaredValue || 0) },
+    { header: header('Cost of item'), width: 15, cell: ({ delivery }) => money(delivery.declaredValue || 0) },
     { header: header('Goods position'), width: 46, cell: ({ item }) => partsSummary(item) },
     {
       header: header('Goods owed to'),
@@ -283,7 +283,7 @@ function summarySheet(entries: LedgerEntry[], opts: LedgerExportOptions): SheetD
     heading('For information'),
     line('Prepaid goods, already with merchants', totals.prepaidWithMerchants),
     line('Delivery fees in this period', totals.feeTotal),
-    line('Declared goods value in this period', totals.goodsTotal),
+    line('Cost of items in this period', totals.goodsTotal),
     line('Deliveries', totals.deliveries, false),
     line('Rows with no payment terms recorded', totals.untracked, false),
     [],

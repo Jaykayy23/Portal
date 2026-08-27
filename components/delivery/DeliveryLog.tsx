@@ -130,8 +130,8 @@ export function DeliveryLog({
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState('');
   /**
-   * Compact drops the six detail columns — distance, time, type, item, declared
-   * value, recommended price — leaving what ops actually works from: who, where,
+   * Compact drops the six detail columns — distance, time, type, item, cost,
+   * recommended price — leaving what ops actually works from: who, where,
    * what was agreed, where it has got to, and who is carrying it. On a laptop that
    * is the difference between a table that fits and one you drag sideways.
    *
@@ -410,7 +410,7 @@ export function DeliveryLog({
                   <th>Time</th>
                   <th>Type</th>
                   <th>Item</th>
-                  <th>Value</th>
+                  <th>Cost</th>
                 </>
               )}
               <th>Price</th>
@@ -469,7 +469,7 @@ export function DeliveryLog({
                       <td data-label="Type">{r.type}</td>
                       {/* Blank for rows filed before item categories existed. */}
                       <td data-label="Item">{r.itemCategory || '—'}</td>
-                      <td className="somo-price-cell" data-label="Value">
+                      <td className="somo-price-cell" data-label="Cost">
                         GHS {(r.declaredValue || 0).toFixed(0)}
                       </td>
                     </>

@@ -43,7 +43,7 @@ export function amountsDue(terms: {
 }
 
 /**
- * Declared item value + delivery fee — the single figure the rider hands back at
+ * Cost of item + delivery fee — the single figure the rider hands back at
  * base, and the only one they should ever have to do arithmetic on. They don't:
  * that is the whole point of this function existing.
  *

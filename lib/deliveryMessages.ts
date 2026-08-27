@@ -81,12 +81,12 @@ function recipientClause(record: Delivery): string {
  * stops a rider asking a customer for money they have already paid, which is the
  * mistake that costs the merchant a customer rather than costing anyone cash.
  *
- * The declared value is quoted as the reference for a cash-on-delivery item
+ * The cost of the item is quoted as the reference for a cash-on-delivery item
  * because it is the only figure the portal holds for the goods — see the README
  * note on adding a separate COD amount if the two ever need to differ.
  *
  * The breakdown is followed by the total, and the total is what the rider is
- * held to: declared value plus fee, added by the system so nobody is doing sums
+ * held to: cost of item plus fee, added by the system so nobody is doing sums
  * at a gate on a bad line. It is stated even when only one of the two applies,
  * so "TOTAL CASH TO COLLECT" means the same thing in every message a rider ever
  * gets rather than being a line they have to notice is missing.

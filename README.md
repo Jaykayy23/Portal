@@ -183,7 +183,7 @@ Two deliberate exceptions:
   account, so each step they own is a capability URL: 256 random bits, one
   delivery, one question, expires in 72 hours. Only the sha256 of the token is
   stored, so a database dump yields nothing clickable, and the page shows no
-  price, no declared value and no other order — a recipient's link does not even
+  price, no cost of item and no other order — a recipient's link does not even
   show the merchant's pickup address. A link stops working once used, once the
   delivery moves past the step it asks about, or (for rider links) the moment the
   delivery is reassigned.
@@ -328,7 +328,7 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
   under the route, and the export has it as two columns. Rows filed before this
   existed show a dash rather than blocking.
 - **Payment terms** are two required answers on the New delivery form, sitting
-  under the declared value: is the item **Prepaid** or **Cash on delivery**, and is
+  under the cost of item: is the item **Prepaid** or **Cash on delivery**, and is
   the delivery fee paid by the **Merchant** or the **Customer**. They are
   independent — a prepaid order where the customer still pays for delivery is
   ordinary — so all four combinations are valid. Both are re-checked server-side
@@ -336,7 +336,7 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
   would send a rider to a door expecting to collect nothing.
 
   They exist for the rider's alert, which spells out what to collect *and what
-  not to*, and then adds up: "PAYMENT: COLLECT CASH for the item (declared value
+  not to*, and then adds up: "PAYMENT: COLLECT CASH for the item (cost of item
   GHS 150.00); collect the delivery fee of GHS 31.00 from the customer. TOTAL CASH
   TO COLLECT from the customer: GHS 181.00." Saying "prepaid" explicitly is what
   stops a rider asking for money already paid — the mistake that costs a merchant a
@@ -363,11 +363,11 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
   One calculation feeds all of it — `lib/amounts.ts`, called by the message
   composer, the link page and the log. That is deliberate: a rider quoted GHS 181
   on WhatsApp and shown GHS 150 at the door stops trusting both numbers, and three
-  copies of `declared value + fee` is how they come to disagree.
+  copies of `cost of item + fee` is how they come to disagree.
 
-  One thing to know: a cash-on-delivery message quotes the **declared value** as
+  One thing to know: a cash-on-delivery message quotes the **cost of item** as
   the amount, because that is the only figure the portal holds for the goods. If
-  the COD amount ever needs to differ from the declared value, that wants its own
+  the COD amount ever needs to differ from the cost of item, that wants its own
   column rather than being inferred.
 - **The ledger says whose pocket the money is in.** Those same two payment terms
   are what it reads, plus one more fact — whether the handover has happened. Cash
@@ -592,7 +592,7 @@ unique index. See [lib/idempotency.ts](lib/idempotency.ts).
   horizontal scrollbar stays on screen instead of sitting at the bottom of a
   forty-row page, and column headings stay put while rows scroll under them. The
   **⤡ Compact** toggle drops the six detail columns — distance, time, type, item,
-  declared value, recommended — leaving what dispatch actually works from; the
+  cost, recommended — leaving what dispatch actually works from; the
   choice is remembered per browser.
 
   The wording and the recipient list for each step live in one provider-agnostic

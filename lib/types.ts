@@ -173,7 +173,7 @@ export interface AmountsDue {
 /**
  * What the holder of a link sees about the delivery.
  *
- * Deliberately narrow: no price, no declared value, nothing about any other
+ * Deliberately narrow: no price, no cost of item, nothing about any other
  * order. Whoever holds the link holds the whole credential, so it shows only
  * what someone needs to recognise the job in front of them — the recipient's
  * phone number, for instance, is never on the page, only their name.
