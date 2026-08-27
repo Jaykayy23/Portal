@@ -10,7 +10,7 @@ import { alertOnTransition } from '@/lib/autoNotify';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import {
   DELIVERY_PAYERS,
-  DELIVERY_TYPES,
+  DEFAULT_DELIVERY_TYPE,
   ITEM_PAYMENTS,
   type DeliveryPayer,
   type DeliveryType,
@@ -116,7 +116,10 @@ export async function POST(req: Request) {
     if (!declaredValue || Number(declaredValue) <= 0) {
       badRequest('Cost of the item is required.');
     }
-    if (type !== undefined && !DELIVERY_TYPES.some((t) => t.value === type)) {
+    // One service, so the type is not something the caller decides: anything
+    // other than the single value is a client out of step with the form, and the
+    // row is filed as on demand either way.
+    if (type !== undefined && type !== DEFAULT_DELIVERY_TYPE) {
       badRequest('Invalid delivery type.');
     }
 
@@ -206,7 +209,7 @@ export async function POST(req: Request) {
           dropoff,
           distance: Number(distance),
           durationMin: minutes,
-          type: type || 'Standard',
+          type: DEFAULT_DELIVERY_TYPE,
           itemCategory: finalCategory,
           surcharges: Array.isArray(surcharges) ? surcharges : [],
           declaredValue: Number(declaredValue),

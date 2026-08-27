@@ -93,7 +93,7 @@ export interface Database {
           dropoff: string;
           distance: number;
           duration_min: number;
-          type: 'Standard' | 'Express' | 'Fragile';
+          type: 'On demand' | 'Standard' | 'Express' | 'Fragile';
           item_category: string;
           surcharges: string[];
           declared_value: number;
@@ -125,7 +125,7 @@ export interface Database {
           dropoff: string;
           distance: number;
           duration_min?: number;
-          type?: 'Standard' | 'Express' | 'Fragile';
+          type?: 'On demand' | 'Standard' | 'Express' | 'Fragile';
           item_category?: string;
           surcharges?: string[];
           declared_value: number;

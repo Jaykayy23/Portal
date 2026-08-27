@@ -67,13 +67,24 @@ export const DELIVERY_STATUSES: DeliveryStatus[] = [
   'Delivered',
 ];
 
-export type DeliveryType = 'Standard' | 'Express' | 'Fragile';
+/**
+ * The service a delivery was filed as.
+ *
+ * SomoExpress runs one service — the rider goes when the request comes in — so
+ * 'On demand' is the only type a new delivery gets. The other three are legacy
+ * values still sitting on rows filed back when the form offered a choice, kept
+ * here so those rows still read correctly in the log, the ledger and exports.
+ */
+export type DeliveryType = 'On demand' | 'Standard' | 'Express' | 'Fragile';
 
+/** What a new delivery may be filed as. The server validates against this, so
+ *  the one option is a rule and not just a form that offers nothing else. */
 export const DELIVERY_TYPES: { value: DeliveryType; label: string }[] = [
-  { value: 'Standard', label: 'Standard' },
-  { value: 'Express', label: 'Express (same-day)' },
-  { value: 'Fragile', label: 'Fragile / handle with care' },
+  { value: 'On demand', label: 'On demand' },
 ];
+
+/** Filled in for every new delivery. Not a choice anyone makes. */
+export const DEFAULT_DELIVERY_TYPE: DeliveryType = 'On demand';
 
 /**
  * Whether the goods themselves are already paid for.

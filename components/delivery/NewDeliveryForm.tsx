@@ -12,12 +12,11 @@ import { InfoHint } from '@/components/InfoHint';
 import { Spinner } from '@/components/Spinner';
 import { NotifyModal } from '@/components/delivery/NotifyModal';
 import {
+  DEFAULT_DELIVERY_TYPE,
   DELIVERY_PAYERS,
-  DELIVERY_TYPES,
   ITEM_PAYMENTS,
   type DeliveryOptions,
   type DeliveryPayer,
-  type DeliveryType,
   type ItemPayment,
   type DeliveryWithMerchant,
   type PricingParams,
@@ -56,7 +55,6 @@ export function NewDeliveryForm({
   const [dropoff, setDropoff] = useState('');
   const [distance, setDistance] = useState('');
   const [durationMin, setDurationMin] = useState('');
-  const [type, setType] = useState<DeliveryType>('Standard');
   const [itemCategory, setItemCategory] = useState('');
   const [surcharges, setSurcharges] = useState<string[]>([]);
   const [declaredValue, setDeclaredValue] = useState('');
@@ -193,7 +191,7 @@ export function NewDeliveryForm({
           dropoff: dropoff.trim(),
           distance: km,
           durationMin: mins,
-          type,
+          type: DEFAULT_DELIVERY_TYPE,
           itemCategory,
           surcharges,
           declaredValue: Number(declaredValue),
@@ -346,17 +344,15 @@ export function NewDeliveryForm({
 
             <label className="somo-field">
               <span>Delivery type</span>
-              <select
-                className="somo-select"
-                value={type}
-                onChange={(e) => setType(e.target.value as DeliveryType)}
-              >
-                {DELIVERY_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
+              {/* One service, so nothing to choose: the rider goes when the
+                  request comes in. Shown rather than hidden because the log,
+                  the exports and the rider's job offer all carry it, and the
+                  server files it as this whatever a crafted request sends. */}
+              <input
+                className="somo-input"
+                value={DEFAULT_DELIVERY_TYPE}
+                readOnly
+              />
             </label>
 
             {itemCategories.length > 0 && (
