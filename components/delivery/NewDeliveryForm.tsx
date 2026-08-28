@@ -110,13 +110,6 @@ export function NewDeliveryForm({
 
 
   // Places autocomplete on both address fields, once the SDK is up.
-  //
-  // This runs once and gets no second chance — `maps.ready` is its only
-  // dependency and it never goes true twice — so it relies on `ready` meaning
-  // Places is genuinely callable rather than merely requested. See the note in
-  // MapsProvider: reporting ready too early is what left this effect silently
-  // binding nothing, and a form with a working location button and a drop-off
-  // field that suggested nothing until the page was revisited.
   useEffect(() => {
     if (!maps.ready || !window.google?.maps?.places) return;
     const opts: google.maps.places.AutocompleteOptions = {
@@ -126,22 +119,13 @@ export function NewDeliveryForm({
       [pickupRef.current, setPickup],
       [dropoffRef.current, setDropoff],
     ];
-    const bound: google.maps.places.Autocomplete[] = [];
     for (const [el, set] of fields) {
       if (!el) continue;
       const ac = new window.google.maps.places.Autocomplete(el, opts);
       // Autocomplete writes straight to the DOM node, so mirror it back into
       // React state or the value would be lost on the next render.
       ac.addListener('place_changed', () => set(el.value));
-      bound.push(ac);
     }
-    // Autocomplete holds listeners on the input it was given, and nothing else
-    // drops them. Without this, React's development double-invoke alone leaves
-    // two instances fighting over each field, and every visit to this tab adds
-    // another pair that outlives the form.
-    return () => {
-      for (const ac of bound) window.google?.maps?.event?.clearInstanceListeners(ac);
-    };
   }, [maps.ready]);
 
   /**
