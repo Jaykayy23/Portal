@@ -109,9 +109,14 @@ export function NewDeliveryForm({
   );
 
 
-  // Places autocomplete on both address fields, once the SDK is up.
+  // Places autocomplete on both address fields, once Places itself is up.
+  //
+  // Keyed on `placesReady` rather than `ready`: the two arrive separately, and
+  // binding while only the core SDK is up finds no `places` to bind to and
+  // leaves both fields suggesting nothing for the life of the page — this
+  // effect runs once and gets no second chance.
   useEffect(() => {
-    if (!maps.ready || !window.google?.maps?.places) return;
+    if (!maps.placesReady || !window.google?.maps?.places) return;
     const opts: google.maps.places.AutocompleteOptions = {
       componentRestrictions: { country: 'gh' },
     };
@@ -119,14 +124,22 @@ export function NewDeliveryForm({
       [pickupRef.current, setPickup],
       [dropoffRef.current, setDropoff],
     ];
+    const bound: google.maps.places.Autocomplete[] = [];
     for (const [el, set] of fields) {
       if (!el) continue;
       const ac = new window.google.maps.places.Autocomplete(el, opts);
       // Autocomplete writes straight to the DOM node, so mirror it back into
       // React state or the value would be lost on the next render.
       ac.addListener('place_changed', () => set(el.value));
+      bound.push(ac);
     }
-  }, [maps.ready]);
+    // Autocomplete holds listeners on the input it was given, and nothing else
+    // drops them. Without this, React's development double-invoke alone leaves
+    // two instances fighting over each field.
+    return () => {
+      for (const ac of bound) window.google?.maps?.event?.clearInstanceListeners(ac);
+    };
+  }, [maps.placesReady]);
 
   /**
    * Fills the pickup field from the device the form is being filled on.

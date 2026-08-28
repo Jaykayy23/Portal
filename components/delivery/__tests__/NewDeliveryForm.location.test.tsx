@@ -23,7 +23,9 @@ vi.mock('@/lib/api', () => ({
 let mapsReady = false;
 
 vi.mock('@/components/MapsProvider', () => ({
-  useMaps: () => ({ ready: mapsReady, configured: mapsReady }),
+  // The location button needs the core SDK only, so `placesReady` tracks it
+  // here — nothing in these tests turns on Places.
+  useMaps: () => ({ ready: mapsReady, placesReady: mapsReady, configured: mapsReady }),
 }));
 
 const user: SessionUser = {
