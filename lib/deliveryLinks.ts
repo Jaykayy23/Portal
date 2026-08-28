@@ -21,7 +21,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { createAdminClient } from './supabase/admin';
 import { syncRiderAvailability } from './riderAvailability';
-import { shortId } from './format';
+import { orderNo } from './format';
 import { amountsDue } from './amounts';
 import { userMessage } from './errors';
 import type { Database } from './database.types';
@@ -131,7 +131,7 @@ function summarise(
   });
 
   return {
-    orderNo: shortId(delivery.id),
+    orderNo: orderNo(delivery.id),
     customer: delivery.customer,
     pickup: delivery.pickup,
     dropoff: delivery.dropoff,

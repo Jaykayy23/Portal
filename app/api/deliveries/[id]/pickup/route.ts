@@ -4,7 +4,7 @@ import { enforceRateLimit } from '@/lib/rateLimit';
 import { DeliveryError, confirmPickup } from '@/lib/deliveries';
 import { alertOnTransition } from '@/lib/autoNotify';
 import { logActivity } from '@/lib/activity';
-import { shortId } from '@/lib/format';
+import { orderNo } from '@/lib/format';
 
 const PER_USER = { limit: 30, windowSeconds: 300 };
 
@@ -42,7 +42,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           action: 'delivery.pickup_confirmed',
           entityType: 'delivery',
           entityId: delivery.id,
-          entityLabel: `#${shortId(delivery.id)}`,
+          entityLabel: orderNo(delivery.id),
           details: { rider: delivery.riderName },
         });
       }

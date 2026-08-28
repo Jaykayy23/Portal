@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, apiDownload, errMessage } from '@/lib/api';
-import { fmtDateTime, fmtMoney, shortId, statusBadgeClass } from '@/lib/format';
+import { fmtDateTime, fmtMoney, orderNo, statusBadgeClass } from '@/lib/format';
 import { Download, Maximize2, Minimize2, RefreshCw } from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import { StatTile } from '@/components/StatTile';
@@ -40,7 +40,7 @@ function matchesQuery(r: DeliveryWithMerchant, query: string): boolean {
   const needle = query.replace(/^#/, '');
   if (!needle) return true;
   return [
-    shortId(r.id),
+    orderNo(r.id),
     r.id,
     r.customer,
     r.pickup,
@@ -747,7 +747,7 @@ export function LedgerPane({
                         {fmtDateTime(r.date)}
                       </td>
                       <td className="somo-order-cell" title={r.id}>
-                        #{shortId(r.id)}
+                        {orderNo(r.id)}
                       </td>
                       {seesAll && (
                         <td>
@@ -925,11 +925,11 @@ export function LedgerPane({
                       {s.lines.length} {s.lines.length === 1 ? 'obligation' : 'obligations'}
                       <span
                         className="somo-rider-sub"
-                        title={s.lines.map((l) => `#${l.orderNo} ${l.stream} ${l.leg}`).join(', ')}
+                        title={s.lines.map((l) => `${l.orderNo} ${l.stream} ${l.leg}`).join(', ')}
                       >
                         {s.lines
                           .slice(0, 3)
-                          .map((l) => `#${l.orderNo}`)
+                          .map((l) => l.orderNo)
                           .join(' ')}
                         {s.lines.length > 3 ? ` +${s.lines.length - 3}` : ''}
                       </span>

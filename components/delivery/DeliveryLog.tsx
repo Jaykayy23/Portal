@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, apiDownload, errMessage } from '@/lib/api';
-import { fmtDateTime, fmtMoney, shortId, statusBadgeClass } from '@/lib/format';
+import { fmtDateTime, fmtMoney, orderNo, statusBadgeClass } from '@/lib/format';
 import { useToast } from '@/components/Toast';
 import { NotifyModal } from '@/components/delivery/NotifyModal';
 import {
@@ -44,8 +44,10 @@ const COMPACT_KEY = 'somo.log.compact';
  * Does this row match what someone typed?
  *
  * The order number is the reason this exists — it is what people read to each
- * other on the phone — so it is matched with or without the leading '#', and the
- * full uuid is matched too for anyone pasting one out of a URL or a log line.
+ * other on the phone — so "SME4f2a1", the bare "4f2a1" someone remembers off an
+ * older waybill, and a leading '#' from the same habit all find the same row.
+ * The full uuid is matched too, for anyone pasting one out of a URL or a log
+ * line.
  * Everything else people might reach for is included because it costs nothing:
  * a customer, an address, a rider, the person receiving it, a phone number.
  */
@@ -54,7 +56,7 @@ function matchesQuery(r: DeliveryWithMerchant, query: string): boolean {
   if (!needle) return true;
 
   return [
-    shortId(r.id),
+    orderNo(r.id),
     r.id,
     r.customer,
     r.pickup,
@@ -441,7 +443,7 @@ export function DeliveryLog({
                   </td>
                   {/* The full uuid on hover, for anyone who needs to paste one. */}
                   <td className="somo-order-cell" data-label="Order" title={r.id}>
-                    #{shortId(r.id)}
+                    {orderNo(r.id)}
                   </td>
                   {canManage && <td data-label="Customer">{r.customer}</td>}
                   <td data-label="Route">

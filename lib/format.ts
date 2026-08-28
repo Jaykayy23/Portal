@@ -20,10 +20,18 @@ export function fmtDateTime(iso: string): string {
   );
 }
 
-/** Human-facing order number: last 5 chars of the uuid part of "d_<uuid>". */
-export function shortId(id: string): string {
+/**
+ * Human-facing order number: "SME" and the last 5 chars of the uuid part of
+ * "d_<uuid>" — "SME4f2a1".
+ *
+ * The prefix is part of the number, not decoration around it, so it belongs
+ * here rather than at each of the dozen places that print one. Nothing parses
+ * an order number back into an id, so this is free to be read aloud, written on
+ * a waybill and typed into the search box.
+ */
+export function orderNo(id: string): string {
   const parts = (id || '').split('_');
-  return (parts[1] || id || '').slice(-5);
+  return 'SME' + (parts[1] || id || '').slice(-5);
 }
 
 /**

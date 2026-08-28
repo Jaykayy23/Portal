@@ -41,12 +41,12 @@ describe('describeActivity', () => {
     const line = describeActivity(
       entry({
         action: 'delivery.status_changed',
-        entityLabel: '#4f2a1',
+        entityLabel: 'SME4f2a1',
         details: { from: 'Requested', to: 'Pending' },
       })
     );
 
-    expect(line).toContain('#4f2a1');
+    expect(line).toContain('SME4f2a1');
     expect(line).toContain('Requested');
     expect(line).toContain('Pending');
   });
@@ -57,21 +57,21 @@ describe('describeActivity', () => {
     const line = describeActivity(
       entry({
         action: 'delivery.rider_cleared',
-        entityLabel: '#4f2a1',
+        entityLabel: 'SME4f2a1',
         details: { rider: 'Yaw Mensah' },
       })
     );
 
     expect(line).toContain('Yaw Mensah');
-    expect(line).toContain('#4f2a1');
+    expect(line).toContain('SME4f2a1');
   });
 
   it('falls back to "the rider" rather than an empty gap', () => {
     const line = describeActivity(
-      entry({ action: 'delivery.rider_cleared', entityLabel: '#4f2a1', details: {} })
+      entry({ action: 'delivery.rider_cleared', entityLabel: 'SME4f2a1', details: {} })
     );
 
-    expect(line).toBe('took the rider off #4f2a1');
+    expect(line).toBe('took the rider off SME4f2a1');
   });
 
   it('quotes a void reason verbatim — it is the only account of why', () => {
@@ -120,7 +120,7 @@ describe('describeActivity', () => {
     const line = describeActivity(
       entry({
         action: 'delivery.status_changed',
-        entityLabel: '#4f2a1',
+        entityLabel: 'SME4f2a1',
         details: { from: { was: 'Requested' }, to: null } as Record<string, unknown>,
       })
     );
@@ -132,7 +132,7 @@ describe('describeActivity', () => {
     // The guard against adding an action to the catalogue and forgetting the
     // branch — which would ship as a line reading `did "delivery.whatever"`.
     for (const action of ACTIVITY_ACTIONS) {
-      const line = describeActivity(entry({ action, entityLabel: '#4f2a1' }));
+      const line = describeActivity(entry({ action, entityLabel: 'SME4f2a1' }));
       expect(line, action).not.toContain('did "');
     }
   });

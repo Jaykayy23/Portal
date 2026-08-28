@@ -15,6 +15,7 @@
 import { createSupabaseServerClient } from './supabase/server';
 import { keysetBefore, readAllPages, READ_PAGE_SIZE } from './pagedRead';
 import { userMessage } from './errors';
+import { orderNo } from './format';
 import type {
   SettlementKind,
   SettlementLeg,
@@ -72,10 +73,6 @@ export interface SettlementRecord {
   totalOut: number;
   /** Closed without being paid, and charged to somebody. Not cash. */
   totalWrittenOff: number;
-}
-
-function orderNo(deliveryId: string): string {
-  return deliveryId.slice(-5);
 }
 
 /** The delivery window these marks are being read for. */

@@ -10,7 +10,7 @@
 // browser modal and the server's sender can both call it.
 
 import { amountsDue, cashToCollect } from './amounts';
-import { fmtMoney, shortId } from './format';
+import { fmtMoney, orderNo } from './format';
 import type { Delivery, DeliveryWithMerchant, LinkPurpose } from './types';
 
 /**
@@ -55,11 +55,6 @@ export interface NotifyContext {
   merchantPhone: string;
   /** Minted link URLs by purpose, as they become available. */
   links: Partial<Record<LinkPurpose, string>>;
-}
-
-/** "#a1b2c" — what people actually say on the phone. */
-function orderNo(record: Delivery): string {
-  return `#${shortId(record.id)}`;
 }
 
 function itemClause(record: Delivery): string {
@@ -182,7 +177,8 @@ export function outboundFor(
   record: DeliveryWithMerchant,
   ctx: NotifyContext
 ): OutboundMessage[] {
-  const no = orderNo(record);
+  // "SME4f2a1" — what people actually say on the phone.
+  const no = orderNo(record.id);
   const route = `${record.pickup} -> ${record.dropoff}`;
 
   switch (trigger) {

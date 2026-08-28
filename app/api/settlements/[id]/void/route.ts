@@ -3,7 +3,7 @@ import { badRequest, handle, readJson, requireUser } from '@/lib/http';
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { SettlementError, voidSettlement } from '@/lib/settlements';
 import { logActivity } from '@/lib/activity';
-import { shortId } from '@/lib/format';
+import { orderNo } from '@/lib/format';
 
 const PER_USER = { limit: 20, windowSeconds: 300 };
 
@@ -49,7 +49,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         action: 'settlement.voided',
         entityType: 'settlement',
         entityId: id,
-        entityLabel: `#${shortId(id)}`,
+        entityLabel: orderNo(id),
         details: { reason: why },
       });
 

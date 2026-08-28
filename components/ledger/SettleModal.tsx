@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, errMessage } from '@/lib/api';
-import { fmtDateTime, fmtMoney, shortId } from '@/lib/format';
+import { fmtDateTime, fmtMoney, orderNo } from '@/lib/format';
 import { useToast } from '@/components/Toast';
 import { Modal } from '@/components/Modal';
 import { Spinner } from '@/components/Spinner';
@@ -308,7 +308,7 @@ export function SettleModal({
 
                   <span className="what">
                     <span className="line1">
-                      #{shortId(d.id)} · {c.step.label}
+                      {orderNo(d.id)} · {c.step.label}
                       <span className={`somo-leg-tag ${c.step.leg}`}>{c.step.leg}</span>
                     </span>
                     <span className="line2">
@@ -334,7 +334,7 @@ export function SettleModal({
                       disabled={!on}
                       placeholder={c.step.amount.toFixed(2)}
                       value={amounts[key] ?? ''}
-                      aria-label={`Amount settled on order ${shortId(d.id)}`}
+                      aria-label={`Amount settled on order ${orderNo(d.id)}`}
                       onChange={(e) => setAmounts((was) => ({ ...was, [key]: e.target.value }))}
                     />
                     <span className="of">of {fmtMoney(c.step.amount)}</span>

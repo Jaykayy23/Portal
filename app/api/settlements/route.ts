@@ -5,7 +5,7 @@ import { idempotencyKey, withIdempotency } from '@/lib/idempotency';
 import { SettlementError, listSettlements, recordSettlement } from '@/lib/settlements';
 import { SETTLEMENT_METHODS } from '@/lib/ledger';
 import { logActivity } from '@/lib/activity';
-import { shortId } from '@/lib/format';
+import { orderNo } from '@/lib/format';
 
 /**
  * The remittance book. RLS decides the contents: finance, ops and admin get all
@@ -134,7 +134,7 @@ export async function POST(req: Request) {
           action: 'settlement.recorded',
           entityType: 'settlement',
           entityId: id,
-          entityLabel: `#${shortId(id)}`,
+          entityLabel: orderNo(id),
           // No amount: what each line is worth is decided inside
           // record_settlement against the obligation's remaining room, so any
           // figure written here would be the request's, not the settlement's.

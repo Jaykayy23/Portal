@@ -9,7 +9,7 @@ import { SmsError, sendOutbound } from '@/lib/sms';
 import { listSentAlerts, recordSends } from '@/lib/autoNotify';
 import { linkNeededFor, outboundFor, triggerForStatus } from '@/lib/deliveryMessages';
 import { logActivity } from '@/lib/activity';
-import { shortId } from '@/lib/format';
+import { orderNo } from '@/lib/format';
 import type { DeliveryWithMerchant, LinkPurpose } from '@/lib/types';
 
 /**
@@ -202,7 +202,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           action: 'delivery.alert_sent',
           entityType: 'delivery',
           entityId: id,
-          entityLabel: `#${shortId(id)}`,
+          entityLabel: orderNo(id),
           details: {
             event: trigger,
             messages: results.length,

@@ -44,7 +44,7 @@ function Row({ label, value }: { label: string; value: string }) {
 function Summary({ summary, showPickup }: { summary: LinkSummary; showPickup: boolean }) {
   return (
     <div className="somo-confirm-summary">
-      <Row label="Order" value={`#${summary.orderNo}`} />
+      <Row label="Order" value={summary.orderNo} />
       {showPickup ? <Row label="Pickup" value={summary.pickup} /> : null}
       <Row label="Drop-off" value={summary.dropoff} />
       {showPickup ? (

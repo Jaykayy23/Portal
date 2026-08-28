@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { HttpError, badRequest, handle, notFound, readJson, requireUser } from '@/lib/http';
 import { DeliveryConflictError, DeliveryError, patchDelivery } from '@/lib/deliveries';
 import { logActivity } from '@/lib/activity';
-import { shortId } from '@/lib/format';
+import { orderNo } from '@/lib/format';
 import { TRIGGER_ON_ENTERING } from '@/lib/deliveryMessages';
 import { alertOnTransition } from '@/lib/autoNotify';
 import { DELIVERY_STATUSES, type DeliveryStatus } from '@/lib/types';
@@ -52,7 +52,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       // the log later wants to see both — so they are two lines rather than one
       // vaguer one. Recorded off what actually changed, not off what was asked
       // for: a patch that set the status to what it already was says nothing.
-      const orderNo = `#${shortId(delivery.id)}`;
+      const label = orderNo(delivery.id);
 
       if (delivery.status !== previousStatus) {
         logActivity({
@@ -60,7 +60,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
           action: 'delivery.status_changed',
           entityType: 'delivery',
           entityId: delivery.id,
-          entityLabel: orderNo,
+          entityLabel: label,
           details: { from: previousStatus, to: delivery.status },
         });
       }
@@ -73,7 +73,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
                 action: 'delivery.rider_assigned',
                 entityType: 'delivery',
                 entityId: delivery.id,
-                entityLabel: orderNo,
+                entityLabel: label,
                 details: { rider: delivery.riderName, replaced: previousRiderName },
               }
             : {
@@ -81,7 +81,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
                 action: 'delivery.rider_cleared',
                 entityType: 'delivery',
                 entityId: delivery.id,
-                entityLabel: orderNo,
+                entityLabel: label,
                 details: { rider: previousRiderName },
               }
         );

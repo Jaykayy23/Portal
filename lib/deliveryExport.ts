@@ -10,7 +10,7 @@
 
 import writeXlsxFile, { getSheetData } from 'write-excel-file/node';
 import type { Column } from 'write-excel-file/node';
-import { shortId } from './format';
+import { orderNo } from './format';
 import type { DeliveryWithMerchant, SurchargeOption } from './types';
 
 const MONEY = '"GHS" #,##0.00';
@@ -69,7 +69,7 @@ function columnsFor(opts: DeliveryExportOptions): Column<DeliveryWithMerchant>[]
           : { type: Date, value: d, format: 'dd mmm yyyy hh:mm' };
       },
     },
-    { header: header('Order #'), width: 10, cell: (r) => shortId(r.id) },
+    { header: header('Order #'), width: 10, cell: (r) => orderNo(r.id) },
   ];
 
   if (opts.includeCustomer) {

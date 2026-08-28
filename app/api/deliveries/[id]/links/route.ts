@@ -4,7 +4,7 @@ import { enforceRateLimit } from '@/lib/rateLimit';
 import { LinkError, issueLink } from '@/lib/deliveryLinks';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { logActivity } from '@/lib/activity';
-import { shortId } from '@/lib/format';
+import { orderNo } from '@/lib/format';
 import { LINK_PURPOSES, isOpsOrAdmin, type LinkPurpose } from '@/lib/types';
 
 // Every call writes a row, so a browser stuck in a loop — a modal re-mounting, a
@@ -81,7 +81,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         action: 'delivery.link_issued',
         entityType: 'delivery',
         entityId: id,
-        entityLabel: `#${shortId(id)}`,
+        entityLabel: orderNo(id),
         details: { purpose, expiresAt },
       });
 

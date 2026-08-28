@@ -21,7 +21,7 @@
 
 import writeXlsxFile, { getSheetData } from 'write-excel-file/node';
 import type { CellObject, Column, Row, SheetData } from 'write-excel-file/node';
-import { shortId } from './format';
+import { orderNo } from './format';
 import {
   COMPANY,
   FLOAT_DEADLINE_HOURS,
@@ -121,7 +121,7 @@ function columnsFor(opts: LedgerExportOptions): Column<LedgerEntry>[] {
           : { type: Date, value: at, format: 'dd mmm yyyy hh:mm' };
       },
     },
-    { header: header('Order #'), width: 10, cell: ({ delivery }) => shortId(delivery.id) },
+    { header: header('Order #'), width: 10, cell: ({ delivery }) => orderNo(delivery.id) },
   ];
 
   if (opts.includeMerchant) {
@@ -391,7 +391,7 @@ function settlementsSheet(settlements: SettlementRecord[]): SheetData {
       s.lines
         .map(
           (l) =>
-            `#${l.orderNo} ${l.stream}/${l.leg}${l.kind === 'writeoff' ? ' (written off)' : ''} GHS ${l.amount.toFixed(2)}`
+            `${l.orderNo} ${l.stream}/${l.leg}${l.kind === 'writeoff' ? ' (written off)' : ''} GHS ${l.amount.toFixed(2)}`
         )
         .join(', ') || null,
       s.recordedByName || null,
