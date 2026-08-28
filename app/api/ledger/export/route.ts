@@ -11,6 +11,7 @@ import { rangeDays, RANGES, type RangeKey } from '@/lib/analytics';
 import { LEDGER_FOCUSES, matchesFocus, toLedger, type LedgerFocus } from '@/lib/ledger';
 import { ledgerFileName, ledgerToXlsx } from '@/lib/ledgerExport';
 import { seesAllMerchants } from '@/lib/types';
+import { logActivity } from '@/lib/activity';
 
 // write-excel-file/node reads and zips buffers, which needs the Node runtime.
 export const runtime = 'nodejs';
@@ -115,6 +116,22 @@ export async function GET(req: Request) {
         : settlements,
     });
     const filename = ledgerFileName();
+
+    logActivity({
+      actor: user,
+      action: 'ledger.exported',
+      entityType: 'ledger',
+      entityLabel: filename,
+      // The filters are the interesting part: "finance exported one merchant's
+      // outstanding balances" is a different event from "finance exported the
+      // year", and the file name says neither.
+      details: {
+        rows: entries.length,
+        merchant: merchantLabel,
+        range: rangeLabel,
+        focus: focusLabel,
+      },
+    });
 
     return new NextResponse(new Uint8Array(file), {
       headers: {

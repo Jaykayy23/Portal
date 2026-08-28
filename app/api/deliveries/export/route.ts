@@ -5,6 +5,7 @@ import { DELIVERY_HISTORY_DAYS, listDeliveriesFor } from '@/lib/deliveries';
 import { getPricingParams } from '@/lib/settings';
 import { deliveriesToXlsx, exportFileName } from '@/lib/deliveryExport';
 import { seesAllMerchants } from '@/lib/types';
+import { logActivity } from '@/lib/activity';
 
 // write-excel-file/node needs the Node runtime — it reads and zips buffers.
 export const runtime = 'nodejs';
@@ -47,6 +48,18 @@ export async function GET(req: Request) {
         : undefined,
     });
     const filename = exportFileName();
+
+    // An export is a copy of the business leaving the portal, so it is recorded
+    // even though it changed nothing. Which merchant's rows are in it is decided
+    // by RLS, so the caller's own role is the honest description of the scope —
+    // there is no filter here to write down.
+    logActivity({
+      actor: user,
+      action: 'delivery.exported',
+      entityType: 'delivery',
+      entityLabel: filename,
+      details: { rows: records.length, truncated },
+    });
 
     return new NextResponse(new Uint8Array(file), {
       headers: {

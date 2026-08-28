@@ -9,6 +9,7 @@ import {
   type SaveSmsInput,
 } from '@/lib/settings';
 import type { OtherKey } from '@/lib/types';
+import { logActivity } from '@/lib/activity';
 
 /**
  * The request body, which is not the same shape as the response.
@@ -78,8 +79,14 @@ const MAX_SMS_FIELD_CHARS = 200;
 
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireUser('admin');
+    const user = await requireUser('admin');
     const body = await readJson<SettingsBody>(req);
+
+    // Which settings were touched, in words an admin recognises from the page.
+    // Names only, never values: this handler is the one place in the portal
+    // where a provider key exists in plaintext, and the audit line is exactly
+    // the wrong place for it to end up.
+    const touched: string[] = [];
 
     if (body.logoDataUrl !== undefined) {
       const logo = String(body.logoDataUrl);
@@ -90,11 +97,18 @@ export async function POST(req: Request) {
         badRequest('That logo is too large — please use an image under about 1MB.');
       }
       await saveLogoDataUrl(logo);
+      touched.push(logo ? 'the logo' : 'the logo (cleared)');
     }
 
     const keyPatch: Parameters<typeof saveApiKeysAsAdmin>[0] = {};
-    if ('mapsApiKey' in body) keyPatch.mapsApiKey = secretField(body.mapsApiKey);
-    if ('whatsappOtpKey' in body) keyPatch.whatsappOtpKey = secretField(body.whatsappOtpKey);
+    if ('mapsApiKey' in body) {
+      keyPatch.mapsApiKey = secretField(body.mapsApiKey);
+      touched.push('the Maps key');
+    }
+    if ('whatsappOtpKey' in body) {
+      keyPatch.whatsappOtpKey = secretField(body.whatsappOtpKey);
+      touched.push('the WhatsApp OTP key');
+    }
 
     if (Array.isArray(body.otherKeys)) {
       const named = body.otherKeys
@@ -116,6 +130,9 @@ export async function POST(req: Request) {
       if (names.size !== named.length) badRequest('Two extra keys share the same name.');
 
       keyPatch.otherKeys = named;
+      // The names are already visible to any admin on the Settings page; the
+      // values are the thing that must not travel, and do not.
+      touched.push(`the extra keys (${named.map((k) => k.name).join(', ') || 'none left'})`);
     }
 
     // Saved through its own function rather than folded into the key patch,
@@ -154,6 +171,19 @@ export async function POST(req: Request) {
       // first, so an SMS refusal cannot strand an unrelated Maps key.
       let settings = Object.keys(keyPatch).length ? await saveApiKeysAsAdmin(keyPatch) : null;
       if (smsPatch) settings = await saveSmsSettingsAsAdmin(smsPatch);
+
+      if (smsPatch) touched.push('the SMS settings');
+
+      // After the saves, so a request that was refused writes no line. Skipped
+      // when nothing was touched: a POST that changed nothing is not an event.
+      if (touched.length > 0) {
+        logActivity({
+          actor: user,
+          action: 'settings.updated',
+          entityType: 'settings',
+          details: { fields: touched.join(', ') },
+        });
+      }
 
       // A logo-only save mentions neither, and still owes the page fresh masks.
       return NextResponse.json({ settings: settings ?? (await getAppSettingsAsAdmin()) });

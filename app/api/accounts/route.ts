@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rateLimit';
 import { AccountError, createAccount, listAccounts } from '@/lib/accounts';
 import { isValidUsername, USERNAME_RULE } from '@/lib/identity';
 import { ROLES, type Role } from '@/lib/types';
+import { logActivity } from '@/lib/activity';
 
 /**
  * Admin gets every account; ops gets merchants only.
@@ -57,6 +58,19 @@ export async function POST(req: Request) {
       // The plaintext password comes back exactly once, to the person who set it,
       // so it can be handed to the account holder.
       const created = await createAccount({ username, phone, password, role, companyName });
+
+      // `created` also carries the plaintext password, once, for the person who
+      // set it. Only the account is named here — a generated password in an
+      // audit table is a live credential with a twelve-month retention.
+      logActivity({
+        actor: user,
+        action: 'account.created',
+        entityType: 'account',
+        entityId: created.account.username,
+        entityLabel: created.account.username,
+        details: { role: created.account.role, company: created.account.companyName },
+      });
+
       return NextResponse.json(created);
     } catch (e) {
       if (e instanceof AccountError) badRequest(e.message);

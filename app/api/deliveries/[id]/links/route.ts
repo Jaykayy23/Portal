@@ -3,6 +3,8 @@ import { absoluteOrigin, badRequest, handle, notFound, requireUser } from '@/lib
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { LinkError, issueLink } from '@/lib/deliveryLinks';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { logActivity } from '@/lib/activity';
+import { shortId } from '@/lib/format';
 import { LINK_PURPOSES, isOpsOrAdmin, type LinkPurpose } from '@/lib/types';
 
 // Every call writes a row, so a browser stuck in a loop — a modal re-mounting, a
@@ -70,6 +72,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     try {
       const { token, expiresAt } = await issueLink(id, purpose, user.id);
+
+      // The token itself is never recorded — it is the whole credential, and a
+      // capability sitting in an audit table is a capability. What the log needs
+      // is that somebody minted one, for which delivery, and of what kind.
+      logActivity({
+        actor: user,
+        action: 'delivery.link_issued',
+        entityType: 'delivery',
+        entityId: id,
+        entityLabel: `#${shortId(id)}`,
+        details: { purpose, expiresAt },
+      });
+
       return NextResponse.json({
         purpose,
         url: `${absoluteOrigin(req)}/d/${token}`,

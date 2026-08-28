@@ -358,6 +358,39 @@ export interface Database {
         Update: { voided?: boolean };
         Relationships: [];
       };
+      user_activity: {
+        Row: {
+          id: number;
+          created_at: string;
+          actor_id: string | null;
+          actor_username: string;
+          actor_role: string;
+          action: string;
+          entity_type: string;
+          entity_id: string;
+          entity_label: string;
+          details: Json;
+        };
+        /** No `id` and no `created_at`: both are the database's to decide. */
+        Insert: {
+          actor_id?: string | null;
+          actor_username?: string;
+          actor_role?: string;
+          action: string;
+          entity_type?: string;
+          entity_id?: string;
+          entity_label?: string;
+          details?: Json;
+        };
+        /**
+         * Deliberately empty. The table is append-only — no role, service_role
+         * included, is granted UPDATE on it — so a .update() here would be a
+         * privilege error at the database. Typing it as impossible turns that
+         * into a compile error instead.
+         */
+        Update: Record<never, never>;
+        Relationships: [];
+      };
       branding: {
         Row: { id: number; logo_data_url: string; updated_at: string };
         Insert: { id?: number; logo_data_url?: string };

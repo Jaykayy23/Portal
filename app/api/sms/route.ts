@@ -3,6 +3,7 @@ import { badRequest, handle, requireUser, readJson } from '@/lib/http';
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { SmsError, sendTestSms, smsStatus, verifySmsCredentials } from '@/lib/sms';
 import { isValidPhone } from '@/lib/phone';
+import { logActivity } from '@/lib/activity';
 
 /**
  * Is automated SMS available?
@@ -78,6 +79,14 @@ export async function POST(req: Request) {
 
       const spent = `${result.parts} credit${result.parts === 1 ? '' : 's'} used`;
       const left = result.creditLeft >= 0 ? `, ${result.creditLeft} left` : '';
+
+      logActivity({
+        actor: user,
+        action: 'sms.test_sent',
+        entityType: 'settings',
+        entityLabel: number,
+        details: { parts: result.parts, campaignId: result.campaignId },
+      });
 
       return NextResponse.json({
         detail: `${credentials.detail} Test message accepted — ${spent}${left}.`,

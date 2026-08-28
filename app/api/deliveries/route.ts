@@ -8,6 +8,8 @@ import { getDeliveryOptions, getPricingParams } from '@/lib/settings';
 import { DeliveryError, createDelivery, listDeliveriesFor } from '@/lib/deliveries';
 import { alertOnTransition } from '@/lib/autoNotify';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { logActivity } from '@/lib/activity';
+import { shortId } from '@/lib/format';
 import {
   DELIVERY_PAYERS,
   DEFAULT_DELIVERY_TYPE,
@@ -224,6 +226,20 @@ export async function POST(req: Request) {
         // which is the form's cue to open the Notify modal instead so the
         // merchant can send it from their own phone.
         const alertsSent = await alertOnTransition(delivery.id, 'created', req);
+
+        // Inside the idempotency wrapper, so a retried submission that replays
+        // the stored response does not write a second line for one delivery.
+        logActivity({
+          actor: user,
+          action: 'delivery.created',
+          entityType: 'delivery',
+          entityId: delivery.id,
+          entityLabel: `#${shortId(delivery.id)}`,
+          // The merchant is the part worth having: ops filing on behalf of
+          // somebody is the case this log gets opened for.
+          details: { merchant: delivery.customer, price: delivery.price },
+        });
+
         return { delivery, alertsSent };
       } catch (e) {
         if (e instanceof DeliveryError) badRequest(e.message);

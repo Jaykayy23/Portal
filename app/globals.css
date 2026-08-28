@@ -3448,3 +3448,32 @@ label.somo-field span:has(.somo-hint) {
   display: block;
   color: #6b5518;
 }
+
+/* --- the activity log ----------------------------------------------------- */
+/* The timestamp column. Mono because the whole point of the table is reading
+   down it — "which of these happened first" is the question — and proportional
+   digits make that a scan instead of a glance. Never wraps: a date broken across
+   two lines costs more height than the column saves in width. */
+.somo-activity-when {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--somo-muted);
+}
+/* The username sits next to its role tag, which is already a pill — so the name
+   gets the weight and the tag keeps its own colour. */
+.somo-activity-who {
+  margin-right: 7px;
+  font-weight: 500;
+}
+/* Paging runs in both directions: "back to newest" belongs on the left, where
+   you came from, and "older" on the right, where you are going. margin-right on
+   the first child rather than space-between, which is the same trick
+   .somo-table-search uses — and unlike space-between it still puts a lone
+   "Older" on the right, which is the first page's only option. */
+.somo-activity-pager {
+  margin: 16px 0 0;
+}
+.somo-activity-pager .somo-newest {
+  margin-right: auto;
+}

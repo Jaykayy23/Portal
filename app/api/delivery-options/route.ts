@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { badRequest, handle, readJson, requireUser } from '@/lib/http';
 import { getDeliveryOptions, saveDeliveryOptions } from '@/lib/settings';
 import type { DeliveryOptions } from '@/lib/types';
+import { logActivity } from '@/lib/activity';
 
 // Every signed-in role reads these — a merchant needs the item category list to
 // pick from it on the New delivery form.
@@ -49,7 +50,7 @@ function normaliseCategories(input: unknown): string[] {
 // through the caller's session, so a non-admin write updates zero rows.
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireUser('admin');
+    const user = await requireUser('admin');
     const body = await readJson<DeliveryOptions>(req);
 
     const patch: Partial<DeliveryOptions> = {};
@@ -57,6 +58,23 @@ export async function POST(req: Request) {
       patch.itemCategories = normaliseCategories(body.itemCategories);
     }
 
-    return NextResponse.json({ options: await saveDeliveryOptions(patch) });
+    const saved = await saveDeliveryOptions(patch);
+
+    if (patch.itemCategories !== undefined) {
+      logActivity({
+        actor: user,
+        action: 'delivery_options.updated',
+        entityType: 'settings',
+        // The list itself, because removing a category is invisible afterwards:
+        // deliveries snapshot the label they were filed under, so the only
+        // record that a category ever existed is this line.
+        details: {
+          categories: saved.itemCategories.length,
+          to: saved.itemCategories,
+        },
+      });
+    }
+
+    return NextResponse.json({ options: saved });
   });
 }

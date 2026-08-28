@@ -6,6 +6,7 @@ import {
   Bike,
   Calculator,
   CirclePlus,
+  History,
   LayoutDashboard,
   type LucideIcon,
   Package,
@@ -74,6 +75,14 @@ const TABS: Tab[] = [
     labelByRole: { ops: 'Merchants' },
   },
   { href: '/portal/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
+  // Last, and admin's alone. It is the tab you reach for after something has
+  // already happened — never part of the day's work — and putting it under
+  // Settings is what says so without a heading.
+  //
+  // A clock with a turned-back arrow rather than a scroll or a list: the page
+  // answers "what happened, and when", and every other list-shaped icon in this
+  // nav is already spoken for by a thing you can act on.
+  { href: '/portal/activity', label: 'Activity', icon: History, roles: ['admin'] },
 ];
 
 /**

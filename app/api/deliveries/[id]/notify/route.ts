@@ -8,6 +8,8 @@ import { getPricingParams } from '@/lib/settings';
 import { SmsError, sendOutbound } from '@/lib/sms';
 import { listSentAlerts, recordSends } from '@/lib/autoNotify';
 import { linkNeededFor, outboundFor, triggerForStatus } from '@/lib/deliveryMessages';
+import { logActivity } from '@/lib/activity';
+import { shortId } from '@/lib/format';
 import type { DeliveryWithMerchant, LinkPurpose } from '@/lib/types';
 
 /**
@@ -190,6 +192,24 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         // exists to make: "the portal never told them" and "somebody told them
         // twice" look identical from a handset and need telling apart here.
         await recordSends(id, trigger, results, { automatic: false, sentBy: user.id });
+
+        // Only hand-sends reach here — the automatic ones have no user behind
+        // them, and delivery_notifications is where those are already written.
+        // Inside the idempotency wrapper for the same reason the send is: a
+        // replayed response did not send anything a second time.
+        logActivity({
+          actor: user,
+          action: 'delivery.alert_sent',
+          entityType: 'delivery',
+          entityId: id,
+          entityLabel: `#${shortId(id)}`,
+          details: {
+            event: trigger,
+            messages: results.length,
+            failed: results.filter((r) => !r.ok).length,
+          },
+        });
+
         return { trigger, link, results };
       } catch (e) {
         // Thrown only when the portal cannot send at all, which is a 400 the

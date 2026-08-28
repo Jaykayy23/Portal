@@ -66,6 +66,20 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
       return;
     }
 
+    // Tells the server a session just started, so the admin's activity log has
+    // the line it otherwise cannot have — signing in happens entirely between
+    // this browser and Supabase, and no Route Handler sees it.
+    //
+    // Not awaited, and keepalive so the navigation on the next line does not
+    // cancel it in flight. Nothing here is allowed to keep somebody standing at
+    // a login screen: if it fails, the sign-in still happened and the log is
+    // simply missing a line.
+    void fetch('/api/auth/signed-in', {
+      method: 'POST',
+      credentials: 'same-origin',
+      keepalive: true,
+    }).catch(() => {});
+
     toast('Signed in');
     router.replace(nextPath);
     // Makes the server re-render with the new session cookie visible.

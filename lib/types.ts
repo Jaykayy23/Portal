@@ -283,6 +283,36 @@ export interface SentAlert {
   sentAt: string;
 }
 
+/**
+ * One line of the admin's activity log.
+ *
+ * Here rather than beside the code that writes it for the same reason SentAlert
+ * is: the pane that renders these is a Client Component, and lib/activity.ts
+ * reaches createAdminClient(), which carries a 'server-only' guard. The sentence
+ * built from this shape lives in lib/activityText.ts, which is pure.
+ *
+ * `actorUsername` and `actorRole` are snapshots taken when the action happened,
+ * not a join — a deactivated account, a renamed one and a role change all leave
+ * the line reading exactly as it did the day it was written.
+ */
+export interface ActivityEntry {
+  /** bigint identity, carried as a string so nothing rounds it. */
+  id: string;
+  at: string;
+  /** Null once the account is gone. The two fields below still name them. */
+  actorId: string | null;
+  actorUsername: string;
+  actorRole: string;
+  /** A dotted verb — see ACTIVITY_GROUPS in lib/activityText.ts. */
+  action: string;
+  entityType: string;
+  entityId: string;
+  /** What to call the thing on screen: an order number, a username, a rider. */
+  entityLabel: string;
+  /** Small structured context. Never a row copy, and never anything sensitive. */
+  details: Record<string, unknown>;
+}
+
 /** Statuses at which each kind of link is the question worth asking. */
 export const PURPOSE_REQUIRES_STATUS: Record<LinkPurpose, DeliveryStatus> = {
   'rider-response': 'Pending',

@@ -318,6 +318,9 @@ export interface PatchDeliveryResult {
    * exactly one sees a change and exactly one message goes out.
    */
   previousStatus: Delivery['status'];
+  /** Who was on it before. Both null/'' when nobody was. */
+  previousRiderId: string | null;
+  previousRiderName: string;
 }
 
 /**
@@ -339,7 +342,11 @@ export async function patchDelivery(
 
   const { data: before, error: readError } = await supabase
     .from('deliveries')
-    .select('status, rider_id')
+    // rider_name comes along for the activity log's sake: once the column is
+    // overwritten there is nobody left to name in "took X off this delivery",
+    // and reading it back afterwards is a second query for a word that was in
+    // hand all along.
+    .select('status, rider_id, rider_name')
     .eq('id', id)
     .maybeSingle();
   if (readError)
@@ -482,6 +489,8 @@ export async function patchDelivery(
   return {
     delivery: { ...delivery, merchantPhone: merchant?.phone ?? '' },
     previousStatus: before.status,
+    previousRiderId: previousRiderId,
+    previousRiderName: before.rider_name ?? '',
   };
 }
 

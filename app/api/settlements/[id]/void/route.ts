@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { badRequest, handle, readJson, requireUser } from '@/lib/http';
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { SettlementError, voidSettlement } from '@/lib/settlements';
+import { logActivity } from '@/lib/activity';
+import { shortId } from '@/lib/format';
 
 const PER_USER = { limit: 20, windowSeconds: 300 };
 
@@ -38,6 +40,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     try {
       await voidSettlement(id, why);
+
+      // The reason goes in verbatim. It is a sentence somebody typed about money
+      // that had already been recorded as received, and paraphrasing it in the
+      // log would take away the only account of why the ledger changed its mind.
+      logActivity({
+        actor: user,
+        action: 'settlement.voided',
+        entityType: 'settlement',
+        entityId: id,
+        entityLabel: `#${shortId(id)}`,
+        details: { reason: why },
+      });
+
       return NextResponse.json({ ok: true });
     } catch (e) {
       if (e instanceof SettlementError) badRequest(e.message);

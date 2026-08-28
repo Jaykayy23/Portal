@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { HttpError, badRequest, handle, notFound, readJson, requireUser } from '@/lib/http';
 import { DeliveryConflictError, DeliveryError, patchDelivery } from '@/lib/deliveries';
+import { logActivity } from '@/lib/activity';
+import { shortId } from '@/lib/format';
 import { TRIGGER_ON_ENTERING } from '@/lib/deliveryMessages';
 import { alertOnTransition } from '@/lib/autoNotify';
 import { DELIVERY_STATUSES, type DeliveryStatus } from '@/lib/types';
@@ -23,7 +25,7 @@ interface PatchBody {
 // 403, and enforced again by the RLS UPDATE policy.
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   return handle(async () => {
-    await requireUser('admin', 'ops');
+    const user = await requireUser('admin', 'ops');
     const { id } = await ctx.params;
     const { status, riderId, expectedRiderId, expectedStatus } = await readJson<PatchBody>(req);
 
@@ -38,12 +40,52 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     }
 
     try {
-      const { delivery, previousStatus } = await patchDelivery(id, {
+      const { delivery, previousStatus, previousRiderId, previousRiderName } = await patchDelivery(id, {
         status,
         riderId,
         expectedRiderId,
         expectedStatus,
       });
+
+      // One request can be two facts. Assigning a rider to a fresh request both
+      // puts someone on the job and moves it to 'Pending', and an admin reading
+      // the log later wants to see both — so they are two lines rather than one
+      // vaguer one. Recorded off what actually changed, not off what was asked
+      // for: a patch that set the status to what it already was says nothing.
+      const orderNo = `#${shortId(delivery.id)}`;
+
+      if (delivery.status !== previousStatus) {
+        logActivity({
+          actor: user,
+          action: 'delivery.status_changed',
+          entityType: 'delivery',
+          entityId: delivery.id,
+          entityLabel: orderNo,
+          details: { from: previousStatus, to: delivery.status },
+        });
+      }
+
+      if ((delivery.riderId || null) !== previousRiderId) {
+        logActivity(
+          delivery.riderId
+            ? {
+                actor: user,
+                action: 'delivery.rider_assigned',
+                entityType: 'delivery',
+                entityId: delivery.id,
+                entityLabel: orderNo,
+                details: { rider: delivery.riderName, replaced: previousRiderName },
+              }
+            : {
+                actor: user,
+                action: 'delivery.rider_cleared',
+                entityType: 'delivery',
+                entityId: delivery.id,
+                entityLabel: orderNo,
+                details: { rider: previousRiderName },
+              }
+        );
+      }
 
       // The alert follows the transition, not the request. Assigning a rider to a
       // delivery that is already Pending — correcting a typo, swapping the phone

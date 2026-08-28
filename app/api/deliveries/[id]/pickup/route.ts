@@ -3,6 +3,8 @@ import { badRequest, handle, requireUser } from '@/lib/http';
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { DeliveryError, confirmPickup } from '@/lib/deliveries';
 import { alertOnTransition } from '@/lib/autoNotify';
+import { logActivity } from '@/lib/activity';
+import { shortId } from '@/lib/format';
 
 const PER_USER = { limit: 30, windowSeconds: 300 };
 
@@ -32,6 +34,18 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     try {
       const { delivery, moved } = await confirmPickup(id);
+
+      // Only the call that actually moved it. A double tap is one pickup.
+      if (moved) {
+        logActivity({
+          actor: user,
+          action: 'delivery.pickup_confirmed',
+          entityType: 'delivery',
+          entityId: delivery.id,
+          entityLabel: `#${shortId(delivery.id)}`,
+          details: { rider: delivery.riderName },
+        });
+      }
 
       // The recipient's "it is on the way" message, with their confirmation link
       // in it, is the whole reason this transition exists — so it goes out here

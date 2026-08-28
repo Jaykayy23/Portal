@@ -4,6 +4,8 @@ import { enforceRateLimit } from '@/lib/rateLimit';
 import { idempotencyKey, withIdempotency } from '@/lib/idempotency';
 import { SettlementError, listSettlements, recordSettlement } from '@/lib/settlements';
 import { SETTLEMENT_METHODS } from '@/lib/ledger';
+import { logActivity } from '@/lib/activity';
+import { shortId } from '@/lib/format';
 
 /**
  * The remittance book. RLS decides the contents: finance, ops and admin get all
@@ -127,6 +129,22 @@ export async function POST(req: Request) {
           settledAt: String(body.settledAt ?? '').trim() || undefined,
           lines: cleaned,
         });
+        logActivity({
+          actor: user,
+          action: 'settlement.recorded',
+          entityType: 'settlement',
+          entityId: id,
+          entityLabel: `#${shortId(id)}`,
+          // No amount: what each line is worth is decided inside
+          // record_settlement against the obligation's remaining room, so any
+          // figure written here would be the request's, not the settlement's.
+          details: {
+            lines: cleaned.length,
+            counterparty: riderId ? 'rider' : 'merchant',
+            method: method || 'unstated',
+          },
+        });
+
         return { id, lines: cleaned.length };
       } catch (e) {
         // The messages record_settlement raises name the order and say what is

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { badRequest, handle, readJson, requireUser } from '@/lib/http';
+import { logActivity } from '@/lib/activity';
+import { humanFields } from '@/lib/activityText';
 import { getPricingParams, savePricingParams } from '@/lib/settings';
 import { surchargeId } from '@/lib/pricing';
 import type { PricingParams, SurchargeOption } from '@/lib/types';
@@ -74,7 +76,7 @@ function normaliseSurcharges(input: unknown): SurchargeOption[] {
 // charge list and each fee can save without touching one another.
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireUser('admin');
+    const user = await requireUser('admin');
     const body = await readJson<PricingParams>(req);
 
     const patch: Partial<PricingParams> = {};
@@ -91,6 +93,21 @@ export async function POST(req: Request) {
     if (body.opsPhone !== undefined) patch.opsPhone = body.opsPhone || '';
     if (body.surcharges !== undefined) patch.surcharges = normaliseSurcharges(body.surcharges);
 
-    return NextResponse.json({ params: await savePricingParams(patch) });
+    const saved = await savePricingParams(patch);
+
+    // The fares themselves are worth writing down, not just that they moved: a
+    // quote a merchant disputes next month is settled by knowing what the
+    // formula was on the day, and this row is the only place that survives the
+    // next edit. Nothing here is a secret — every signed-in seat reads pricing.
+    if (Object.keys(patch).length > 0) {
+      logActivity({
+        actor: user,
+        action: 'pricing.updated',
+        entityType: 'pricing',
+        details: { fields: humanFields(Object.keys(patch)), to: patch },
+      });
+    }
+
+    return NextResponse.json({ params: saved });
   });
 }

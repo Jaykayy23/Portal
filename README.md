@@ -161,6 +161,7 @@ Who can reach what:
 | `riders` | — | — | read + write | — | read + write |
 | `settlements` | — | own party's | read | read | read |
 | `settlement_lines` | — | own deliveries | read | read | read |
+| `user_activity` | — | — | — | — | **read only** |
 | `app_settings` (API keys) | — | — | — | — | via server only |
 | `delivery_links` | — | — | — | — | via server only |
 | `rate_limits` | — | — | — | — | via server only |
@@ -246,6 +247,7 @@ would reset on every cold start and count separately in each instance. See
 | `POST /api/deliveries/[id]/links` | user / delivery | 40 / 10 per 5 min |
 | `POST /api/deliveries/[id]/pickup` | user | 30 per 5 min |
 | `POST /api/accounts` | user | 20 per 5 min |
+| `POST /api/auth/signed-in` | user | 10 per 5 min |
 
 Two deliberate choices:
 
@@ -256,6 +258,9 @@ Two deliberate choices:
 - **Login is not in the table.** The browser signs in against Supabase Auth
   directly, which applies its own per-IP limits. Proxying login through a Route
   Handler purely to count it would mean giving up the SDK's cookie handling.
+  `POST /api/auth/signed-in` is not the login — it is the after-the-fact ping
+  that puts a line in the activity log, and it is limited because the sign-in
+  itself is not.
 
 Over-limit responses are `429` with a `Retry-After` header. Everything else —
 ordinary authenticated reads — is left unlimited: it is cheap, RLS already bounds
@@ -281,6 +286,72 @@ The other write endpoints are already idempotent by construction and take no key
 claims its row with `confirmed_at is null`, pickup confirmation filters on the
 delivery still being `Accepted`, and account creation collides on the username
 unique index. See [lib/idempotency.ts](lib/idempotency.ts).
+
+### Activity log
+
+`/portal/activity` — **admin only** — is the record of what the people using this
+portal did. Every write endpoint records a line: who, when, what changed, and the
+one or two facts that make the sentence mean something ("moved #4f2a1 from
+Requested to Pending", "voided settlement #8c1d2 — counted twice at close of
+shift"). Sign-ins and exports are in there too, because "a copy of the year left
+the building" is an event even though it changed nothing.
+
+Three things about it are worth knowing before changing anything near it.
+
+**It is append-only, and the grants are what make that true.** `authenticated`
+holds `SELECT` and nothing else — no INSERT, no UPDATE, no DELETE — so there is
+no shape of request from a browser that writes, edits or removes a line. Even
+`service_role` has no `UPDATE`: nothing amends an entry, a correction is a new
+line, and the `Update` type in `lib/database.types.ts` is `Record<never, never>`
+so a stray `.update()` is a compile error rather than a privilege error at
+runtime. `DELETE` exists for exactly one caller, the retention sweep below.
+
+**The rows are written by the application, not by triggers**, which is the one
+decision here that looks wrong at first glance. The reason is that `auth.uid()`
+is null on precisely the writes worth recording in this app: link redemptions
+(a rider accepting, a recipient confirming), account provisioning, and every
+settings write all go through the service-role client. A trigger would attribute
+those to nobody. It would also only ever see a column diff, and "who put Yaw on
+#4f2a1" is a sentence that exists in the Route Handler and nowhere else. The
+trade: a write that reaches Postgres by some other route — psql, the dashboard's
+table editor, a second service — leaves no line. That is fine while this app is
+the only writer, and the fix when it stops being true is triggers *in addition
+to* these rows. The full argument is in the migration header.
+
+**A log write can never fail the thing it describes.** `logActivity()` returns
+`void`, not a promise, so a forgotten `await` cannot be a bug, and the insert
+runs in `after()` past the response — the same shape as the automatic alerts. A
+failure goes to the server log and nowhere else.
+
+Two rules about `details`, which is jsonb and therefore an invitation:
+
+- **In:** the shape of the change. Old and new status, a rider's name, how many
+  rows an export carried, which settings fields were touched, a void's stated
+  reason. All of it is already visible to the admin reading the page.
+- **Out:** passwords (including generated ones from a reset), API keys, link
+  tokens, and whole request bodies. The request body is the dangerous one because
+  it is the convenient one — `details: body` looks like thoroughness and is how
+  the day's provider key ends up in a table with a twelve-month retention.
+
+Retention is 365 days, the same window the rest of the portal works in, swept on
+~0.5% of writes rather than on a schedule — there is no pg_cron in this project,
+which is also how `rate_limits` and `idempotency_keys` are kept bounded.
+
+Sign-in is the one entry the server cannot observe by itself: the login form
+calls `signInWithPassword()` from the browser so the SDK owns its cookies, so a
+sign-in touches no Route Handler. `POST /api/auth/signed-in` is a ping the form
+makes afterwards. It is not a security boundary and does not need to be — the
+actor comes from the session cookie, so the only sign-in a caller can record is
+their own, which they have just performed. It is best-effort: a client that
+skips it signs in with no line here. Supabase's own auth logs in the project
+dashboard remain the complete record; this is the copy visible inside the portal,
+where the admin actually is.
+
+Adding an action is an application change only. Put it in `ACTIVITY_GROUPS` and
+give it a branch in `describeActivity()`, both in
+[lib/activityText.ts](lib/activityText.ts) — the column is plain text rather than
+an enum, so nothing has to be migrated first, and a test asserts that every
+action in the catalogue has a sentence.
 
 ---
 
