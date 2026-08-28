@@ -35,6 +35,26 @@ export function rangeDays(range: RangeKey): number {
   return RANGES.find((r) => r.value === range)?.days ?? 0;
 }
 
+/**
+ * Days in the day-by-day breakdown when the period is the full loaded year.
+ *
+ * 365 bars have no useful width on screen, so the chart borrows a month. Every
+ * other figure on the dashboard still covers the whole reporting period — this
+ * cap belongs to the daily breakdown alone, and both the chart heading and the
+ * exported sheet say so.
+ *
+ * It lives here rather than in the dashboard component because the export builds
+ * the same buckets: two copies of the number would eventually disagree, and the
+ * file would then quietly describe a different window from the screen it came
+ * from.
+ */
+export const ALL_TIME_CHART_DAYS = 30;
+
+/** Days of daily buckets to build for a period — the chart's window, not the period's. */
+export function chartDays(range: RangeKey): number {
+  return rangeDays(range) || ALL_TIME_CHART_DAYS;
+}
+
 /** Local midnight, `daysBack` days ago. Whole days, so "7 days" means 7 dates. */
 function startOfDayBack(now: Date, daysBack: number): Date {
   const d = new Date(now);

@@ -43,6 +43,10 @@ export const ACTIVITY_GROUPS = {
     'delivery.link_issued',
     'delivery.alert_sent',
     'delivery.exported',
+    // Grouped with the deliveries rather than under Money: the dashboard reports
+    // on delivery volume and reads delivery rows, and somebody filtering for
+    // "what left the portal about our deliveries" wants both exports in one list.
+    'dashboard.exported',
   ],
   Money: ['settlement.recorded', 'settlement.voided', 'ledger.exported'],
   Accounts: [
@@ -137,6 +141,14 @@ export function describeActivity(entry: ActivityEntry): string {
       return `re-sent the ${text(d, 'event')} alert for ${what}`;
     case 'delivery.exported':
       return `exported ${plural(count(d, 'rows'), 'delivery', 'deliveries')}`;
+    // The period is the interesting part here, not the row count: the dashboard
+    // export is a set of totals, and "one merchant's last week" is a different
+    // event from "the whole year".
+    case 'dashboard.exported':
+      return (
+        `exported the dashboard as ${text(d, 'format').toUpperCase()} — ` +
+        `${text(d, 'merchant')}, ${text(d, 'range').toLowerCase()}`
+      );
 
     // Named by the settlement's own short id rather than by the counterparty.
     // The rider's or merchant's name is not in hand at the point this is

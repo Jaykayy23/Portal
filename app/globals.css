@@ -2439,6 +2439,21 @@ body:has(.somo-link-page) {
   color: var(--somo-muted);
   font-weight: 500;
 }
+/* A pair of buttons standing where a select usually stands. The min-width the
+   pickers carry is for a readable dropdown and would only pad these out, so it
+   is dropped and the buttons size to their own labels. */
+.somo-filter-actions {
+  min-width: 0;
+}
+.somo-export-actions {
+  display: flex;
+  gap: 8px;
+}
+/* The buttons are shorter than a select, so they sit at the bottom of the
+   stack and keep the row's baseline. */
+.somo-filter-actions .somo-export-actions {
+  margin-top: auto;
+}
 
 /* auto-fit rather than a fixed count: the ledger shows six tiles and the
    dashboard nine, and neither should have to know the other's layout. */

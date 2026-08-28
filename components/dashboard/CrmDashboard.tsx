@@ -2,13 +2,18 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { Download } from 'lucide-react';
+import { apiDownload, errMessage } from '@/lib/api';
+import { useToast } from '@/components/Toast';
 import { fmtDateTime, fmtMoney } from '@/lib/format';
 import { StatTile } from '@/components/StatTile';
 import { ScrollableTable } from '@/components/ScrollableTable';
 import { InfoHint } from '@/components/InfoHint';
 import {
+  ALL_TIME_CHART_DAYS,
   RANGES,
   categoryMix,
+  chartDays,
   deliveryKpis,
   feePayerMix,
   filterByRange,
@@ -28,14 +33,8 @@ import { COMPANY, ledgerTotals, toLedger } from '@/lib/ledger';
 import { DELIVERY_STATUSES, type DeliveryWithMerchant } from '@/lib/types';
 import type { MerchantOption } from '@/lib/accounts';
 
-/**
- * Days in the day-by-day chart.
- *
- * The full loaded year has no useful daily width, so it borrows a month. Every
- * other figure on the page still covers the whole reporting period — this cap
- * is the chart's alone, and the heading says so.
- */
-const ALL_TIME_CHART_DAYS = 30;
+// ALL_TIME_CHART_DAYS and chartDays live in lib/analytics.ts, because the export
+// route builds the same daily buckets and two copies of the number would drift.
 
 function pct(n: number): string {
   return `${n.toFixed(0)}%`;
@@ -136,6 +135,8 @@ export function CrmDashboard({
 }) {
   const [range, setRange] = useState<RangeKey>('30d');
   const [merchantId, setMerchantId] = useState('');
+  const [exporting, setExporting] = useState<'xlsx' | 'csv' | null>(null);
+  const toast = useToast();
 
   // No refresh timer of its own: the portal layout's poll re-renders this page
   // along with everything else, and a second interval here just doubled the
@@ -157,7 +158,7 @@ export function CrmDashboard({
 
   const kpis = useMemo(() => deliveryKpis(scoped), [scoped]);
   const money = useMemo(() => ledgerTotals(toLedger(scoped)), [scoped]);
-  const days = rangeDays(range) || ALL_TIME_CHART_DAYS;
+  const days = chartDays(range);
   const buckets = useMemo(() => perDay(scoped, days), [scoped, days]);
   const statuses = useMemo(() => statusMix(scoped, DELIVERY_STATUSES), [scoped]);
   const items = useMemo(() => itemPaymentMix(scoped), [scoped]);
@@ -171,6 +172,26 @@ export function CrmDashboard({
   const selectedName = merchantOptions.find((m) => m.id === merchantId)?.name ?? '';
   const scopeLabel = merchantId ? selectedName : seesAll ? 'All merchants' : viewerCompany;
   const rangeLabel = RANGES.find((r) => r.value === range)?.label ?? '';
+
+  /**
+   * Download the figures on screen.
+   *
+   * The period and merchant go with the request so the file matches what is being
+   * looked at. The server re-reads the rows through the caller's session, so
+   * these are filters and never a permission — the same arrangement as the
+   * ledger's export button.
+   */
+  async function exportDashboard(format: 'xlsx' | 'csv') {
+    setExporting(format);
+    try {
+      const search = new URLSearchParams({ range, format });
+      if (merchantId) search.set('merchant', merchantId);
+      await apiDownload(`/dashboard/export?${search}`, `somoexpress-dashboard.${format}`);
+    } catch (e) {
+      toast(errMessage(e), 'danger');
+    }
+    setExporting(null);
+  }
 
   return (
     <>
@@ -226,6 +247,48 @@ export function CrmDashboard({
               </select>
             </label>
           )}
+
+          {/* Stacked under a caption like the pickers beside it, because it
+              belongs to the same row of controls: what comes out of these
+              buttons is whatever the two selects are currently showing.
+
+              A group rather than a label — a label names one control, and
+              wrapping two buttons in one merges their accessible names into a
+              single unreachable blur. The caption is decorative here, so the
+              group carries the name and each button carries its own. */}
+          <div
+            className="somo-filter somo-filter-actions"
+            role="group"
+            aria-label="Export the dashboard"
+          >
+            <span aria-hidden="true">Export</span>
+            <div className="somo-export-actions">
+              <button
+                type="button"
+                className="somo-btn ghost small"
+                onClick={() => exportDashboard('xlsx')}
+                disabled={exporting !== null || kpis.total === 0}
+                // Spelled out for a screen reader, where 'Excel' on its own has
+                // lost the caption sitting above it.
+                aria-label="Export to Excel"
+                title="Download these figures as an Excel workbook — a sheet per section, with the numbers formatted to sum and chart"
+              >
+                <Download aria-hidden="true" size={13} />
+                <span>{exporting === 'xlsx' ? 'Preparing…' : 'Excel'}</span>
+              </button>
+              <button
+                type="button"
+                className="somo-btn ghost small"
+                onClick={() => exportDashboard('csv')}
+                disabled={exporting !== null || kpis.total === 0}
+                aria-label="Export to CSV"
+                title="Download these figures as a single CSV — plain numbers and ISO dates, for feeding into something else"
+              >
+                <Download aria-hidden="true" size={13} />
+                <span>{exporting === 'csv' ? 'Preparing…' : 'CSV'}</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         {kpis.total === 0 ? (
