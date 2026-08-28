@@ -59,11 +59,22 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname, search } = request.nextUrl;
 
+  // A redirect must still carry whatever the refresh wrote onto supabaseResponse:
+  // a failed refresh clears the dead session cookies (or the browser retries the
+  // doomed refresh on every request forever), and a successful one holds the
+  // rotated refresh token (or the browser keeps the consumed one and the next
+  // refresh fails with refresh_token_not_found).
+  const redirectWithCookies = (url: URL) => {
+    const redirect = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+    return redirect;
+  };
+
   if (!claims && !isPublicPath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     url.search = pathname === '/' ? '' : `?next=${encodeURIComponent(pathname + search)}`;
-    return NextResponse.redirect(url);
+    return redirectWithCookies(url);
   }
 
   if (claims && (pathname === '/login' || pathname === '/setup')) {
@@ -74,7 +85,7 @@ export async function updateSession(request: NextRequest) {
     // updated the next time that changes.
     url.pathname = '/portal';
     url.search = '';
-    return NextResponse.redirect(url);
+    return redirectWithCookies(url);
   }
 
   // Must be returned as-is. Building a fresh response here without copying these
