@@ -34,8 +34,8 @@ describe('calcPrice fees', () => {
   it('charges the fees alongside surge charges and time', () => {
     const p = params({ perMin: 0.5, bookingFee: 3, platformFee: 2.5 });
 
-    // max(25, 10 + 6x4 + 0.5x20) = 44, + 15 rush + 5.5 fees.
-    expect(calcPrice(p, 4, 20, ['rush']).price).toBe(64.5);
+    // max(25, 10 + 6x4 + 0.5x20) = 44, + 15 rush + 5.5 fees = 64.5, rounded up.
+    expect(calcPrice(p, 4, 20, ['rush']).price).toBe(65);
   });
 
   it('leaves the price unchanged when both fees are zero', () => {
@@ -55,9 +55,62 @@ describe('calcPrice fees', () => {
     expect(calcPrice(legacy, 10).price).toBe(70);
   });
 
-  it('rounds the total to the pesewa', () => {
-    const p = params({ base: 0, rate: 0, minFare: 0, bookingFee: 0.005, platformFee: 0.005 });
+});
 
-    expect(calcPrice(p, 0).price).toBe(0.01);
+/**
+ * A fee is counted out in cash at a gate and remitted by a rider at the end of a
+ * shift, so it is a whole number of cedis however the fare table is set. The
+ * rounding lands on the total, once — rounding the parts first would let the
+ * pesewas in the base fare, the rate and each surge charge each pull the answer
+ * a little, and the figure would stop matching what anybody can recalculate.
+ */
+describe('calcPrice rounding', () => {
+  /** A fare table in pesewas, priced to the cedi. */
+  function pesewaFare(minFare: number) {
+    return params({ base: 0, rate: 0, minFare, bookingFee: 0, platformFee: 0 });
+  }
+
+  it('rounds down below the half cedi', () => {
+    expect(calcPrice(pesewaFare(43.35), 0).price).toBe(43);
+    expect(calcPrice(pesewaFare(43.49), 0).price).toBe(43);
+  });
+
+  it('rounds a half cedi up, as money conventionally does', () => {
+    expect(calcPrice(pesewaFare(43.5), 0).price).toBe(44);
+  });
+
+  it('rounds up above the half cedi', () => {
+    expect(calcPrice(pesewaFare(43.65), 0).price).toBe(44);
+  });
+
+  it('leaves a total that is already whole alone', () => {
+    expect(calcPrice(pesewaFare(43), 0).price).toBe(43);
+  });
+
+  /**
+   * The pesewas are added up before anything is rounded. 42.40 + 0.40 + 0.40 is
+   * 43.20, so the answer is 43 — where rounding each part on its own would drop
+   * both 0.40s to nothing and quote 42.
+   */
+  it('rounds the total rather than the parts', () => {
+    const p = params({
+      base: 42.4,
+      rate: 0.4,
+      perMin: 0,
+      minFare: 0,
+      bookingFee: 0.4,
+      platformFee: 0,
+    });
+
+    expect(calcPrice(p, 1).price).toBe(43);
+  });
+
+  it('never returns a fraction, whatever the fare table holds', () => {
+    const p = params({ base: 7.77, rate: 3.33, perMin: 1.11, minFare: 0.99 });
+
+    for (const km of [0, 0.5, 1, 2.7, 13.4]) {
+      const { price } = calcPrice(p, km, km * 3, ['rush']);
+      expect(Number.isInteger(price)).toBe(true);
+    }
   });
 });

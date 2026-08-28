@@ -84,4 +84,33 @@ describe('PricingForm smallest possible quote', () => {
 
     expect(smallestQuote()).toBe('GHS 45.00');
   });
+
+  /**
+   * The readout claims to be a quote, so it is rounded like one. The breakdown
+   * underneath keeps its pesewas — that is what shows where the rounding went,
+   * rather than leaving three boxes that visibly do not add up to the figure.
+   */
+  it('rounds the readout to the cedi while the breakdown keeps its pesewas', () => {
+    render(<PricingForm params={params({ minFare: 25.2, bookingFee: 3.1, platformFee: 2.05 })} />);
+
+    expect(smallestQuote()).toBe('GHS 30.00');
+    expect(screen.getByText('25.20 + 3.10 + 2.05')).toBeTruthy();
+  });
+
+  /**
+   * The trap in rounding the readout: an edit worth less than half a cedi leaves
+   * the figure identical, and reading the rounded number to decide would tell the
+   * admin their unsaved change was stored.
+   */
+  it('still marks the figure unsaved when a pesewa edit rounds to the same cedi', async () => {
+    const user = userEvent.setup();
+    render(<PricingForm params={params({ minFare: 25, bookingFee: 3, platformFee: 2 })} />);
+
+    const booking = screen.getByLabelText('Booking fee (GHS)');
+    await user.clear(booking);
+    await user.type(booking, '3.2');
+
+    expect(smallestQuote()).toBe('GHS 30.00');
+    expect(screen.getByText('Smallest possible quote (unsaved)')).toBeTruthy();
+  });
 });

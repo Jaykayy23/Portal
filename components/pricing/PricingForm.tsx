@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Plus, X } from 'lucide-react';
 import { api, errMessage } from '@/lib/api';
 import { fmtMoney } from '@/lib/format';
+import { roundFee } from '@/lib/pricing';
 import { useToast } from '@/components/Toast';
 import { InfoHint } from '@/components/InfoHint';
 import { Spinner } from '@/components/Spinner';
@@ -35,18 +36,29 @@ export function PricingForm({ params }: { params: PricingParams }) {
   // any delivery can ever cost is all three added up, and that figure appears
   // nowhere on this tab unless it is worked out here — which is the whole reason
   // the readout exists, since "Minimum fare: 25" reads like the answer.
+  //
+  // Rounded the same way a real quote is, because that is what it claims to be:
+  // showing GHS 30.50 here for a portal that would charge 31 makes this readout
+  // the one figure on the tab that is never quoted to anyone. The breakdown
+  // underneath keeps its pesewas, so the rounding is visible rather than looking
+  // like the parts do not add up.
   const floorParts = [
     parseFloat(form.minFare) || 0,
     parseFloat(bookingFee) || 0,
     parseFloat(platformFee) || 0,
   ];
-  const smallestQuote = floorParts.reduce((a, b) => a + b, 0);
+  const floorTotal = floorParts.reduce((a, b) => a + b, 0);
+  const smallestQuote = roundFee(floorTotal);
   // Three boxes across three forms feed this, so it can easily be showing the
   // consequence of an edit nobody has saved. Half a pesewa of tolerance, because
   // the columns store two decimal places and a typed 25.005 is stored as 25.01.
+  //
+  // Compared before the rounding, deliberately. An edit from 25.00 to 25.20 is
+  // unsaved whether or not both ends round to the same cedi, and reading the
+  // rounded figure here would tell the admin their change is stored.
   const savedSmallestQuote =
     (params.minFare || 0) + (params.bookingFee || 0) + (params.platformFee || 0);
-  const unsaved = Math.abs(smallestQuote - savedSmallestQuote) >= 0.005;
+  const unsaved = Math.abs(floorTotal - savedSmallestQuote) >= 0.005;
 
   function field(key: keyof typeof form) {
     return {
@@ -144,6 +156,12 @@ export function PricingForm({ params }: { params: PricingParams }) {
                 max(minimum fare, base + rate × km + per-minute × minutes)
               </strong>{' '}
               + surge charges + booking fee + platform fee.
+            </p>
+            <p>
+              The total is <strong>rounded to the nearest whole cedi</strong> — 43.35 is quoted as
+              43, 43.50 as 44. Set these boxes in pesewas if it suits the fare table; the rounding
+              happens once, on the final figure, so it is the same number on the log, in the
+              rider&rsquo;s message and in the ledger.
             </p>
             <p>
               Driving time comes from Google Maps at the moment of quoting, so two runs of the same

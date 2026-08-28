@@ -20,8 +20,24 @@ export interface PriceQuote {
   price: number;
 }
 
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
+/**
+ * A delivery fee is a whole number of cedis.
+ *
+ * The fare table works in pesewas — a rate of 6.50/km, a 2.50 platform fee — so
+ * the arithmetic lands on figures like 43.35, and that is the wrong shape for
+ * what happens next: this fee is counted out in cash at a gate, read down a bad
+ * phone line, and remitted by a rider at the end of a shift. Every pesewa in it
+ * is a coin somebody has to find or a figure somebody has to remember wrong.
+ *
+ * So the rounding happens once, here, on the total rather than on the parts. Not
+ * at display time: the number on the screen is the number stored, quoted in the
+ * SMS, and settled in the ledger, and a fee that is 43 on the log while the
+ * ledger holds 43.35 is a 35-pesewa discrepancy that nobody can account for.
+ *
+ * Half rounds up, which is the convention people expect of money.
+ */
+export function roundFee(n: number): number {
+  return Math.round(n);
 }
 
 /**
@@ -39,7 +55,8 @@ export function surchargeId(label: string): string {
 
 /**
  * Price = max(minimum fare, base fare + rate x distance + per-min x time)
- *         + surge charges + booking fee + platform fee.
+ *         + surge charges + booking fee + platform fee,
+ *         rounded to the nearest whole cedi — see roundFee.
  *
  * One figure, and it is the price. There is no floor and no negotiable band: what
  * this returns is what the delivery is logged and charged at.
@@ -80,5 +97,5 @@ export function calcPrice(
   // of the fees migration quotes without them instead of returning NaN.
   const fees = (Number(params.bookingFee) || 0) + (Number(params.platformFee) || 0);
   const recommended = Math.max(params.minFare, base) + surchargeTotal + fees;
-  return { price: round2(recommended) };
+  return { price: roundFee(recommended) };
 }
