@@ -70,11 +70,32 @@ export async function updateSession(request: NextRequest) {
     return redirect;
   };
 
-  if (!claims && !isPublicPath(pathname)) {
+  if (!claims) {
+    // No usable session, but the browser may still be holding session cookies —
+    // a refresh token Supabase has already rotated away or revoked. Left alone,
+    // every subsequent request re-presents them and pays for another doomed
+    // refresh round-trip to Supabase Auth (the "site keeps loading" incident of
+    // Aug 2026), so delete them here rather than trusting the auth client to
+    // have done it. The PKCE code-verifier cookie is spared: it belongs to a
+    // login that is still in flight, not to the dead session.
+    const isDeadSessionCookie = (name: string) =>
+      name.startsWith('sb-') && name.includes('-auth-token') && !name.includes('code-verifier');
+
+    if (isPublicPath(pathname)) {
+      request.cookies.getAll().forEach(({ name }) => {
+        if (isDeadSessionCookie(name)) supabaseResponse.cookies.delete(name);
+      });
+      return supabaseResponse;
+    }
+
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     url.search = pathname === '/' ? '' : `?next=${encodeURIComponent(pathname + search)}`;
-    return redirectWithCookies(url);
+    const redirect = redirectWithCookies(url);
+    request.cookies.getAll().forEach(({ name }) => {
+      if (isDeadSessionCookie(name)) redirect.cookies.delete(name);
+    });
+    return redirect;
   }
 
   if (claims && (pathname === '/login' || pathname === '/setup')) {
