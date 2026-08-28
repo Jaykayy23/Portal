@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { LocateFixed } from 'lucide-react';
 import { api, errMessage } from '@/lib/api';
 import { fmtMoney } from '@/lib/format';
 import { calcPrice } from '@/lib/pricing';
@@ -25,6 +26,25 @@ import {
 
 /** Distance at which the route progress bar is full. Cosmetic only. */
 const ROUTE_BAR_MAX_KM = 20;
+
+/** An Open Location Code at the head of an address — "HR48+HX2, Oxford St, …". */
+const PLUS_CODE = /^[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,3}\b/i;
+
+/**
+ * Picks the line a rider can actually use out of a reverse-geocode response.
+ *
+ * Google's first result for a bare coordinate is usually the nearest
+ * establishment carrying a Plus Code — standing on Oxford Street it answers
+ * "HR48+HX2, Oxford St, Accra, Ghana" before it offers "48 Oxford St, Accra,
+ * Ghana" further down. Both route; only one is something a rider reads out over
+ * the phone. So a street address wins where the response carries one, and the
+ * Plus Code line is taken only when nothing else is on offer.
+ */
+function readableAddress(results: google.maps.GeocoderResult[] | null): string {
+  const usable = (results ?? []).filter((r) => !PLUS_CODE.test(r.formatted_address));
+  const street = usable.find((r) => r.types.includes('street_address'));
+  return (street ?? usable[0] ?? results?.[0])?.formatted_address ?? '';
+}
 
 export function NewDeliveryForm({
   user,
@@ -68,6 +88,7 @@ export function NewDeliveryForm({
   const [recipientPhone, setRecipientPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [calculating, setCalculating] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [notify, setNotify] = useState<DeliveryWithMerchant | null>(null);
 
   const km = parseFloat(distance) || 0;
@@ -106,6 +127,63 @@ export function NewDeliveryForm({
       ac.addListener('place_changed', () => set(el.value));
     }
   }, [maps.ready]);
+
+  /**
+   * Fills the pickup field from the device the form is being filled on.
+   *
+   * For the common case: the merchant is standing at the pickup. The browser
+   * asks permission the first time and the answer is theirs to give — every
+   * refusal here just leaves them typing the address, which is the same thing
+   * they would have done anyway, so nothing is blocked on it.
+   */
+  function fillPickupFromDevice() {
+    if (!navigator.geolocation) {
+      toast('This browser cannot share your location — type the pickup address instead', 'danger');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const point = { lat: coords.latitude, lng: coords.longitude };
+        const pair = `${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}`;
+        // The device gives back coordinates; the field wants a line a rider can
+        // read, which is what the geocoder turns them into. With no Maps key —
+        // or no address on record for that spot — the pair is written in anyway
+        // rather than discarded: it still routes, and the merchant can add the
+        // landmark themselves.
+        if (!maps.ready || !window.google?.maps) {
+          setLocating(false);
+          setPickup(pair);
+          toast('Filled your coordinates — add a landmark so the rider can find you');
+          return;
+        }
+        new window.google.maps.Geocoder().geocode({ location: point }, (results, status) => {
+          setLocating(false);
+          const address = status === 'OK' ? readableAddress(results) : '';
+          if (address) {
+            setPickup(address);
+            toast('Pickup filled from your current location');
+          } else {
+            setPickup(pair);
+            toast('Filled your coordinates — add a landmark so the rider can find you');
+          }
+        });
+      },
+      (err) => {
+        setLocating(false);
+        toast(
+          err.code === err.PERMISSION_DENIED
+            ? 'Location is turned off for this site — allow it in your browser, or type the address'
+            : 'Could not get your location — type the pickup address instead',
+          'danger'
+        );
+      },
+      // High accuracy because a delivery pickup is a doorway, not a district.
+      // The long timeout is for a first fix on a phone indoors; maximumAge 0 so
+      // a merchant who has moved since the last request gets where they are now.
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }
 
   function toggleSurcharge(id: string) {
     setSurcharges((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
@@ -258,13 +336,32 @@ export function NewDeliveryForm({
 
             <label className="somo-field">
               <span>Pickup location</span>
-              <input
-                ref={pickupRef}
-                className="somo-input"
-                placeholder="e.g. Osu, Oxford Street"
-                value={pickup}
-                onChange={(e) => setPickup(e.target.value)}
-              />
+              <div className="somo-input-with-action">
+                <input
+                  ref={pickupRef}
+                  className="somo-input"
+                  placeholder="e.g. Osu, Oxford Street"
+                  value={pickup}
+                  onChange={(e) => setPickup(e.target.value)}
+                />
+                {/* A button inside the label does not hand its click to the
+                    input — interactive descendants keep their own activation —
+                    so this cannot steal focus or open the autocomplete list. */}
+                <button
+                  type="button"
+                  className="somo-input-action"
+                  onClick={fillPickupFromDevice}
+                  disabled={locating}
+                  aria-label="Use my current location"
+                  title="Use my current location"
+                >
+                  {locating ? (
+                    <Spinner size={16} label="Finding your location" />
+                  ) : (
+                    <LocateFixed aria-hidden="true" size={16} />
+                  )}
+                </button>
+              </div>
             </label>
 
             <label className="somo-field">
@@ -289,6 +386,8 @@ export function NewDeliveryForm({
                   placeholder="0.0"
                   value={distance}
                   onChange={(e) => setDistance(e.target.value)}
+                  readOnly={maps.ready}
+                  title={maps.ready ? 'Filled automatically by Get from Maps' : undefined}
                 />
                 <button
                   type="button"
@@ -325,8 +424,8 @@ export function NewDeliveryForm({
                       than an open run of the same distance.
                     </p>
                     <p>
-                      Filled by <strong>Get from Maps</strong>, or type it in. Leave it at 0 to
-                      quote on distance alone.
+                      Filled by <strong>Get from Maps</strong>. Left at 0, the quote is on
+                      distance alone.
                     </p>
                   </InfoHint>
                 )}
@@ -339,6 +438,8 @@ export function NewDeliveryForm({
                 placeholder="0"
                 value={durationMin}
                 onChange={(e) => setDurationMin(e.target.value)}
+                readOnly={maps.ready}
+                title={maps.ready ? 'Filled automatically by Get from Maps' : undefined}
               />
             </label>
 
