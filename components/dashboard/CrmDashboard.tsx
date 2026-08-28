@@ -423,7 +423,7 @@ export function CrmDashboard({
                             className="somo-mini-btn"
                             onClick={() => setMerchantId(m.merchantId)}
                           >
-                            Focus
+                            Expand
                           </button>
                         </td>
                       </tr>
