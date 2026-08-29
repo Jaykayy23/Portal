@@ -21,6 +21,7 @@ vi.mock('@/lib/session', () => ({
     active: true,
   }),
 }));
+vi.mock('@/lib/portalPulse', () => ({ readPortalPulse: async () => 'r1' }));
 vi.mock('@/lib/settings', () => ({
   getLogoDataUrl: async () => '',
   getMapsApiKeyForSignedInUser: async () => '',

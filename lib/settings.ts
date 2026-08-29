@@ -153,10 +153,58 @@ export async function saveDeliveryOptions(
 // --- branding ----------------------------------------------------------------
 
 /**
+ * How long a logo read is reused before going back to the database.
+ *
+ * The logo is on the topbar of every portal screen, so it is fetched on every
+ * render — and the portal re-renders itself every twenty-five seconds per open
+ * tab (components/PortalRefresh.tsx). That is a base64 blob crossing the wire
+ * from Postgres several thousand times a day for a value that changes when
+ * somebody rebrands the company.
+ */
+const LOGO_TTL_MS = 60_000;
+
+/**
+ * The cached read, held as the promise rather than the resolved string.
+ *
+ * Caching the promise is what makes concurrent callers on a cold cache share
+ * one query instead of each starting their own — the small version of exactly
+ * the pile-up this cache exists to prevent, which would otherwise land every
+ * time the TTL lapses under load.
+ *
+ * Module-level, which the Supabase clients are emphatically not: the objection
+ * there is that a shared client leaks one visitor's session into another's
+ * request, and this holds no session. The logo is world-readable by design —
+ * the login screen renders it before anyone has signed in.
+ *
+ * Per process, so a second container serves its own copy and an admin's new
+ * logo can take up to a minute to reach the others. Compared against a poll
+ * that is 25 seconds wide anyway, that is not a difference anybody can see.
+ */
+let logoRead: { at: number; value: Promise<string> } | null = null;
+
+/**
  * The logo. Read with the admin client because the login and setup screens call
  * this with no session at all, and it must not fail there.
  */
-export async function getLogoDataUrl(): Promise<string> {
+export function getLogoDataUrl(): Promise<string> {
+  const now = Date.now();
+  if (logoRead && now - logoRead.at < LOGO_TTL_MS) return logoRead.value;
+
+  const value = readLogoDataUrl();
+  logoRead = { at: now, value };
+
+  // A failed read must not be held for a minute, or one blip during a database
+  // restart turns into every portal screen refusing to render until it lapses.
+  // Dropping the entry lets the next caller try again; the `===` guard means a
+  // later successful read that has already replaced this one is left alone.
+  value.catch(() => {
+    if (logoRead?.value === value) logoRead = null;
+  });
+
+  return value;
+}
+
+async function readLogoDataUrl(): Promise<string> {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from('branding')
@@ -179,6 +227,12 @@ export async function saveLogoDataUrl(logoDataUrl: string): Promise<string> {
 
   if (error) throw new SettingsError(userMessage('settings.saveLogoDataUrl', error, 'Could not save the logo.'));
   if (!data) throw new SettingsError('You do not have access to change branding.');
+
+  // Primed rather than invalidated, so the admin who just uploaded it sees their
+  // own logo on the next render instead of the old one for up to a minute — the
+  // one person guaranteed to be looking for the change.
+  logoRead = { at: Date.now(), value: Promise.resolve(data.logo_data_url) };
+
   return data.logo_data_url;
 }
 

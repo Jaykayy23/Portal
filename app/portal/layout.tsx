@@ -4,6 +4,7 @@ import { ConfigError } from '@/components/ConfigError';
 import { getSessionUser } from '@/lib/session';
 import { getLogoDataUrl, getMapsApiKeyForSignedInUser, getPricingParams } from '@/lib/settings';
 import { listAlertDeliveriesFor } from '@/lib/deliveries';
+import { readPortalPulse } from '@/lib/portalPulse';
 import { alertFeed, seatHasAlerts } from '@/lib/alerts';
 import { BrandMark } from '@/components/BrandMark';
 import { LogoutButton } from '@/components/LogoutButton';
@@ -21,6 +22,21 @@ export default async function PortalLayout({ children }: { children: React.React
 
   const user = await getSessionUser();
   if (!user) redirect('/login');
+
+  // The revision this render is a picture of, read before anything it describes
+  // and deliberately not inside the Promise.all below.
+  //
+  // The poll compares this against a fresh reading and refreshes when they
+  // differ, so being too low costs one unnecessary refresh — which is what used
+  // to happen on every tick anyway — while being too high pins a stale screen
+  // until something else happens to move the number. Reading it first is what
+  // makes it too low rather than too high: any write that lands from here on has
+  // already moved the counter past what the browser was handed, whether or not
+  // the reads below picked that write up.
+  //
+  // One small read for that guarantee, on renders that this whole mechanism
+  // exists to make rare. See lib/portalPulse.ts.
+  const pulse = await readPortalPulse();
 
   // The Maps key legitimately reaches signed-in browsers (Maps JS runs
   // client-side). The provider secrets in app_settings never leave the server.
@@ -40,7 +56,7 @@ export default async function PortalLayout({ children }: { children: React.React
 
   return (
     <MapsProvider mapsApiKey={mapsApiKey}>
-      <PortalRefresh>
+      <PortalRefresh pulse={pulse}>
         <AlertsProvider feed={feed} opsPhone={params?.opsPhone ?? ''}>
           <a className="somo-skip-link" href="#main-content">
             Skip to content

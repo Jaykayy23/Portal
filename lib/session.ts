@@ -3,10 +3,11 @@
 // Replaces the previous bcrypt + hand-rolled JWT cookie scheme. Supabase issues
 // and refreshes the session cookie; the proxy keeps it fresh.
 //
-// Every call re-reads the profile row, so deactivating an account takes effect on
-// that person's very next request rather than whenever their token expires — the
-// same guarantee the old implementation had.
+// Every request re-reads the profile row, so deactivating an account takes effect
+// on that person's very next request rather than whenever their token expires —
+// the same guarantee the old implementation had.
 
+import { cache } from 'react';
 import type { PublicAccount, Role, SessionUser } from './types';
 import type { Database } from './database.types';
 import { createSupabaseServerClient } from './supabase/server';
@@ -42,8 +43,19 @@ export function toSessionUser(p: ProfileRow): SessionUser {
  * getClaims() verifies the JWT against the project's public JWKS without a
  * network call. The profile lookup that follows is the authoritative check —
  * a banned or deactivated account resolves to null here.
+ *
+ * Request-deduplicated, for the same reason getPricingParams() is: the portal
+ * layout reads the session to decide what the topbar says, and then every page
+ * under it reads the session again to decide whether to redirect. Two identical
+ * `profiles` queries on every portal render, and the portal re-renders itself
+ * every twenty-five seconds — see components/PortalRefresh.tsx.
+ *
+ * This does not weaken the deactivation guarantee above. The cache is scoped to
+ * one request, so the row is still read afresh on the very next one; all that
+ * is skipped is asking twice inside a single render, where the second answer
+ * could not differ in any way that matters.
  */
-export async function getSessionUser(): Promise<SessionUser | null> {
+export const getSessionUser = cache(async function getSessionUser(): Promise<SessionUser | null> {
   const supabase = await createSupabaseServerClient();
 
   const { data: claimsData } = await supabase.auth.getClaims();
@@ -58,7 +70,30 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
   if (error || !profile || !profile.active) return null;
   return toSessionUser(profile);
-}
+});
+
+/**
+ * Whether the caller presents a valid session token — no profile read.
+ *
+ * Deliberately weaker than getSessionUser(), and only for the portal pulse. That
+ * endpoint exists to make the poll cheap, and a poll that costs a `profiles`
+ * query to answer "nothing has changed" has given most of the saving back: the
+ * profile read is a third of what the layout does.
+ *
+ * Safe because of what it guards. The pulse is one opaque counter with no
+ * per-user content, so the thing this cannot detect — an account deactivated
+ * since the token was issued — buys that account nothing except the knowledge
+ * that the number moved. The moment they act on it, the refresh it triggers goes
+ * through getSessionUser() like every other render and turns them away.
+ *
+ * Not for anything else. If a second caller ever wants this, it almost certainly
+ * wants getSessionUser().
+ */
+export const hasSessionToken = cache(async function hasSessionToken(): Promise<boolean> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.auth.getClaims();
+  return !!data?.claims?.sub;
+});
 
 export async function signOut(): Promise<void> {
   const supabase = await createSupabaseServerClient();

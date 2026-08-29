@@ -192,6 +192,15 @@ export interface Database {
         };
         Relationships: [];
       };
+      portal_pulse: {
+        // Read only, and only by the service-role client. The single row is
+        // created by its migration and written from then on by a trigger, never
+        // by this app — hence no Insert or Update shape worth describing.
+        Row: { id: number; revision: number; changed_at: string };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       rate_limits: {
         Row: { bucket: string; window_start: string; hits: number };
         Insert: { bucket: string; window_start?: string; hits?: number };
