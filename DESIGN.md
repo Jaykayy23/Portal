@@ -830,7 +830,8 @@ would collide with the item categories under Settings.
 surface with a 1px right edge, `16px 14px` of padding and `3px` between items. Each
 item is `10px 12px` at 13.5px/500 with an `8px` radius, icon beside the label at an
 `11px` gap. Inactive is Muted Ink; hover takes Ink text on Cool Ground; active is
-Waybill Navy text on Waybill Navy Soft at 600 weight. Sticky under the topbar for
+Waybill Navy text at 600 weight on Waybill Navy Soft — a tint the row does not paint
+itself, see *The selection travels* below. Sticky under the topbar for
 the full height of the window, so it stays where the eye left it on a long log or
 ledger. Wider than the 200px card it replaced: at 200px a full-height column reads
 as a leftover margin, and eight labels had no room to breathe.
@@ -853,6 +854,38 @@ one row at 768px, two at 414px, three at 375px and below. Every tab is on screen
 every width — which a scrolling strip could not promise, because it clipped five of
 eight on a phone, including the active one, with no affordance and a sideways swipe
 inside a vertically scrolling page as the only way to find the rest.
+
+**The selection travels.** The tint under the current row is not a background that
+row paints for itself. It is one Waybill Navy Soft surface belonging to the nav,
+absolutely positioned inside it and moved onto whichever row is current — position,
+width and height measured off the row and written onto the surface, so a single
+mechanism serves the column's identical rows and the strip's wrapped ones of
+differing size. It travels in `0.34s` expo-out, and the row's ink changes on the
+same curve, so the navy arrives *with* the tint rather than ahead of it. Two rows
+swapping colour at once read as a flicker; one surface moving reads as the nav
+answering.
+
+What that mechanism owes in return:
+
+- It is **placed, not travelled**, on first paint, on resize, and on the breakpoint
+  change between the two forms. None of those is a selection, and none of them
+  should look like one.
+- It is **put away** on any route no tab owns, rather than left parked on a row that
+  would be claiming you are somewhere you are not.
+- The selected row's own background is `transparent`, so the hover grey never paints
+  over the tint it is sitting on.
+- Every label **reserves its selected width** with a hidden 600-weight `::before`
+  ghost. In the column the rows are full-width and it costs nothing; in the strip it
+  is what stops one tab's 500→600 step from nudging its neighbours along the row —
+  or from moving the wrap point and reflowing a whole row underneath the surface
+  while it is mid-travel.
+- The surface scrolls with the column, and re-measures whenever a row or the nav
+  itself changes size.
+
+None of this reaches the accessibility tree. The surface is `aria-hidden` and so is
+the reserved-width ghost; the markup is still a `nav` of links carrying
+`aria-current="page"`, because a set of destinations is what it is. A screen reader
+is told which page it is on, never which tab is showing.
 
 **Order.** Dashboard, New delivery, Deliveries, Ledger, Riders, Pricing, Users,
 Settings. Dashboard leads because it answers "where do things stand"; the next two
@@ -1015,7 +1048,13 @@ without replacing it with something at least as visible.
 
 - **Pane enter:** `somoFade`, `0.25s ease` — opacity 0→1 with a `4px` rise.
 - **Easing:** `cubic-bezier(0.16, 1, 0.3, 1)` (expo-out) for transforms — the route
-  fill at `0.25s`, the toast at `0.2s`.
+  fill at `0.25s`, the toast at `0.2s`, the nav's selection at `0.34s`.
+- **Nav selection travel:** `transform`, `width` and `height` at `0.34s` expo-out on
+  the surface the nav shares between its rows, with the row's `color` on the same
+  curve so the ink and the tint arrive together. Roughly half the distance is covered
+  in the first `34ms`, and the rest is the settle. The portal's longest *transition*
+  — past the route fill's `0.25s` and the toast's `0.2s` — because it is the only one
+  that crosses a region instead of happening inside a single control.
 - **Opacity:** `0.2s ease`.
 - **Hint and bell panel enter:** `somoHintIn`, `0.16s` expo-out — opacity 0→1 with a
   `4px` rise.
@@ -1031,10 +1070,14 @@ without replacing it with something at least as visible.
   and background.
 - **Reduced motion:** `prefers-reduced-motion: reduce` removes the pane animation
   and the route transition outright, and collapses the toast to `opacity 0.1s linear`
-  with no transform. It drops the hint's and the bell panel's entrance, the badge's
-  scale-in, and the skeleton's pulse, removes the bell's ring entirely, and swaps the
-  spinner's rotation for an opacity breath — the indicator still has to say "in
-  flight". Any new motion must have an entry here.
+  with no transform. It cuts the nav selection to the same `0.1s` opacity change and
+  drops the row's colour transition: the tint still lands on the row you chose, it
+  just stops crossing the column to get there — a tinted block travelling that far is
+  exactly the large-area movement this setting is asking us not to make, and the nav
+  says the same thing without it. It drops the hint's and the bell panel's entrance,
+  the badge's scale-in, and the skeleton's pulse, removes the bell's ring entirely,
+  and swaps the spinner's rotation for an opacity breath — the indicator still has to
+  say "in flight". Any new motion must have an entry here.
 
 ### Named Rules
 
@@ -1044,6 +1087,13 @@ This covers the nav item in both forms, the open bell, and the "?" mark. It used
 be a `2px` underline in strip form; once the strip became a bordered surface that
 underline sat on its bottom edge and read as a flaw in the border, so there is no
 underline anywhere now.
+
+Where a set of these surfaces is mutually exclusive, there is **one surface, and it
+moves**. The nav owns a single tint shared by every row rather than a background per
+row, because the rows are one choice and should look like one object answering it.
+The bell and the "?" mark keep their own, having no siblings to travel between. A
+new exclusive set — a segmented control, a sub-nav — takes the shared surface; a
+standalone open/closed control does not.
 
 **The One-Ring Rule.** An arrival announces itself once. The bell's ring is a
 single `forwards` animation, not a loop, and the toast auto-dismisses; the standing

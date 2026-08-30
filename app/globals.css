@@ -349,6 +349,74 @@ body:has(.somo-header) {
   display: flex;
   align-items: center;
   gap: 11px;
+  /* Lifted over the travelling surface below, which is an absolutely positioned
+     sibling and would otherwise paint on top of the label it is meant to sit
+     behind. */
+  position: relative;
+  z-index: 1;
+  /* The colour is timed with the surface, not with the click: the row's ink
+     arrives as the tint does, so a change of tab is one movement rather than a
+     swap plus a slide. Same curve, so they agree about when they are finished.
+     Hover is its own, faster thing — a pointer resting somewhere is not a
+     selection and should not take as long to say so. */
+  transition:
+    color 0.34s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.15s ease;
+}
+/* The label reserves the width it will have when it is the selected row, so
+   becoming current never changes the row's measurements. In the sidebar the rows
+   are full-width and it costs nothing; in the wrapped strip below 900px it is
+   what stops one tab's 500→600 weight step from nudging every other tab along
+   its row — and, at the worst width, from moving the wrap point and re-flowing a
+   whole row under the surface as it travels.
+
+   The ghost is a grid item of zero height, so it contributes width and nothing
+   else. */
+.somo-tab-label {
+  display: grid;
+}
+.somo-tab-label::before {
+  content: attr(data-label);
+  font-weight: 600;
+  height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+/* One tinted surface for the whole nav, parked on whichever row is current and
+   travelling between them. Its box is measured and written onto it by
+   PortalTabs — position, width and height are all it takes from there, and
+   everything below is what it looks like while it does that. Width and height
+   travel as well as position, because below 900px the rows are a wrapping strip
+   of different sizes rather than a column of identical ones. */
+.somo-tab-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-radius: 8px;
+  background: var(--brand-navy-soft);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+/* Hidden until it has been measured, and again on any route no tab owns — an
+   unplaced surface would sit in the column's top-left corner at zero size, and a
+   stale one would claim you are on a page you have left. */
+.somo-tabs[data-parked='true'] .somo-tab-indicator {
+  opacity: 1;
+}
+/* The same exponential ease-out the route line and the toast already use, so the
+   nav moves in the portal's one motion voice: most of the distance immediately,
+   then a settle. Travel is switched off for the frame in which the surface is
+   placed rather than moved — first paint, a resize, a breakpoint change — so it
+   never flies in from a box that no longer means anything. */
+.somo-tabs[data-travel='on'] .somo-tab-indicator {
+  transition:
+    transform 0.34s cubic-bezier(0.16, 1, 0.3, 1),
+    width 0.34s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.34s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.18s ease;
 }
 /* Lucide strokes are `currentColor`, so the icon tracks the row's own colour —
    muted at rest, navy when selected — with no rule of its own. It only needs to
@@ -363,10 +431,16 @@ body:has(.somo-header) {
 /* The selected item is a tinted surface, in both the sidebar and the strip — the
    same soft-tint-plus-accent pairing the status badges and ledger holder cells
    use. The 2px underline it used to carry in strip form is gone: sitting on the
-   bottom edge of a bordered card, it read as a flaw in the border. */
+   bottom edge of a bordered card, it read as a flaw in the border.
+
+   The tint itself is `.somo-tab-indicator`, one surface shared by the whole nav,
+   so the row asks for no background of its own. Declaring `transparent` is not
+   redundant: it is what keeps the hover grey above from painting over the tint
+   on the row that is already selected, which would read as the selection
+   breaking under the pointer. */
 .somo-tab.active {
   color: var(--accent);
-  background: var(--brand-navy-soft);
+  background: transparent;
   font-weight: 600;
 }
 /* Every nav item is a Link, so `#somo-root a { color: inherit }` above beats all
@@ -815,6 +889,16 @@ label.somo-field span {
     animation: none;
   }
   .somo-route .line-fill {
+    transition: none;
+  }
+  /* The selection still moves to the row you chose and the ink still changes —
+     it just gets there without travelling. A tinted block crossing the column is
+     exactly the kind of large-area movement this setting is asking us not to
+     make, and the nav says the same thing without it. */
+  .somo-tabs[data-travel='on'] .somo-tab-indicator {
+    transition: opacity 0.1s linear;
+  }
+  .somo-tab {
     transition: none;
   }
   .somo-toast,
@@ -2139,7 +2223,9 @@ body:has(.somo-link-page) {
     align-items: stretch;
   }
   .somo-tabs {
-    position: static;
+    /* Relative, not static: it stops sticking here, but it still has to be the
+       containing block for the travelling surface inside it. */
+    position: relative;
     flex: none;
     flex-direction: row;
     gap: 4px;
